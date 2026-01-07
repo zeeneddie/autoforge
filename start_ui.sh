@@ -21,5 +21,18 @@ else
     PYTHON_CMD="python3"
 fi
 
+# Check if venv exists, create if not
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    $PYTHON_CMD -m venv venv
+fi
+
+# Activate the virtual environment
+source venv/bin/activate
+
+# Install dependencies
+echo "Installing dependencies..."
+pip install -r requirements.txt --quiet
+
 # Run the Python launcher
-$PYTHON_CMD start_ui.py "$@"
+python start_ui.py "$@"

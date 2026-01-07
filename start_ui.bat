@@ -18,6 +18,19 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+REM Check if venv exists, create if not
+if not exist "venv" (
+    echo Creating virtual environment...
+    python -m venv venv
+)
+
+REM Activate the virtual environment
+call venv\Scripts\activate.bat
+
+REM Install dependencies
+echo Installing dependencies...
+pip install -r requirements.txt --quiet
+
 REM Run the Python launcher
 python "%~dp0start_ui.py" %*
 
