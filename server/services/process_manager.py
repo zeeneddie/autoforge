@@ -299,6 +299,9 @@ class AgentProcessManager:
         testing_agent_ratio: int = 1,
         playwright_headless: bool = True,
         batch_size: int = 3,
+        model_initializer: str | None = None,
+        model_coding: str | None = None,
+        model_testing: str | None = None,
     ) -> tuple[bool, str]:
         """
         Start the agent as a subprocess.
@@ -310,6 +313,9 @@ class AgentProcessManager:
             max_concurrency: Max concurrent coding agents (1-5, default 1)
             testing_agent_ratio: Number of regression testing agents (0-3, default 1)
             playwright_headless: If True, run browser in headless mode
+            model_initializer: Model override for initializer agent
+            model_coding: Model override for coding agents
+            model_testing: Model override for testing agents
 
         Returns:
             Tuple of (success, message)
@@ -323,6 +329,9 @@ class AgentProcessManager:
         # Store for status queries
         self.yolo_mode = yolo_mode
         self.model = model
+        self.model_initializer = model_initializer
+        self.model_coding = model_coding
+        self.model_testing = model_testing
         self.parallel_mode = True  # Always True now (unified orchestrator)
         self.max_concurrency = max_concurrency or 1
         self.testing_agent_ratio = testing_agent_ratio
@@ -336,7 +345,14 @@ class AgentProcessManager:
             str(self.project_dir.resolve()),
         ]
 
-        # Add --model flag if model is specified
+        # Add per-type model flags (orchestrator routes these to subprocesses)
+        if model_initializer:
+            cmd.extend(["--model-initializer", model_initializer])
+        if model_coding:
+            cmd.extend(["--model-coding", model_coding])
+        if model_testing:
+            cmd.extend(["--model-testing", model_testing])
+        # Add --model flag as fallback
         if model:
             cmd.extend(["--model", model])
 
@@ -431,6 +447,9 @@ class AgentProcessManager:
             self.started_at = None
             self.yolo_mode = False  # Reset YOLO mode
             self.model = None  # Reset model
+            self.model_initializer = None  # Reset per-type models
+            self.model_coding = None
+            self.model_testing = None
             self.parallel_mode = False  # Reset parallel mode
             self.max_concurrency = None  # Reset concurrency
             self.testing_agent_ratio = 1  # Reset testing ratio

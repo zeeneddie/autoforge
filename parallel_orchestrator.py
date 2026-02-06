@@ -157,6 +157,9 @@ class ParallelOrchestrator:
         batch_size: int = 3,
         on_output: Callable[[int, str], None] | None = None,
         on_status: Callable[[int, str], None] | None = None,
+        model_initializer: str | None = None,
+        model_coding: str | None = None,
+        model_testing: str | None = None,
     ):
         """Initialize the orchestrator.
 
@@ -172,10 +175,16 @@ class ParallelOrchestrator:
                 Each testing agent receives this many features to regression test.
             on_output: Callback for agent output (feature_id, line)
             on_status: Callback for agent status changes (feature_id, status)
+            model_initializer: Model override for initializer agent (falls back to model)
+            model_coding: Model override for coding agents (falls back to model)
+            model_testing: Model override for testing agents (falls back to model)
         """
         self.project_dir = project_dir
         self.max_concurrency = min(max(max_concurrency, 1), MAX_PARALLEL_AGENTS)
         self.model = model
+        self.model_initializer = model_initializer or model
+        self.model_coding = model_coding or model
+        self.model_testing = model_testing or model
         self.yolo_mode = yolo_mode
         self.testing_agent_ratio = min(max(testing_agent_ratio, 0), 3)  # Clamp 0-3
         self.testing_batch_size = min(max(testing_batch_size, 1), 5)  # Clamp 1-5
@@ -829,8 +838,8 @@ class ParallelOrchestrator:
             "--agent-type", "coding",
             "--feature-id", str(feature_id),
         ]
-        if self.model:
-            cmd.extend(["--model", self.model])
+        if self.model_coding:
+            cmd.extend(["--model", self.model_coding])
         if self.yolo_mode:
             cmd.append("--yolo")
 
@@ -895,8 +904,8 @@ class ParallelOrchestrator:
             "--agent-type", "coding",
             "--feature-ids", ",".join(str(fid) for fid in feature_ids),
         ]
-        if self.model:
-            cmd.extend(["--model", self.model])
+        if self.model_coding:
+            cmd.extend(["--model", self.model_coding])
         if self.yolo_mode:
             cmd.append("--yolo")
 
@@ -998,8 +1007,8 @@ class ParallelOrchestrator:
                 "--agent-type", "testing",
                 "--testing-feature-ids", batch_str,
             ]
-            if self.model:
-                cmd.extend(["--model", self.model])
+            if self.model_testing:
+                cmd.extend(["--model", self.model_testing])
 
             try:
                 # CREATE_NO_WINDOW on Windows prevents console window pop-ups
@@ -1058,10 +1067,10 @@ class ParallelOrchestrator:
             "--agent-type", "initializer",
             "--max-iterations", "1",
         ]
-        if self.model:
-            cmd.extend(["--model", self.model])
+        if self.model_initializer:
+            cmd.extend(["--model", self.model_initializer])
 
-        print("Running initializer agent...", flush=True)
+        print(f"Running initializer agent (model: {self.model_initializer or 'default'})...", flush=True)
 
         # CREATE_NO_WINDOW on Windows prevents console window pop-ups
         # stdin=DEVNULL prevents blocking on stdin reads
@@ -1385,6 +1394,10 @@ class ParallelOrchestrator:
         print(f"YOLO mode: {self.yolo_mode}", flush=True)
         print(f"Regression agents: {self.testing_agent_ratio} (maintained independently)", flush=True)
         print(f"Batch size: {self.batch_size} features per agent", flush=True)
+        print(f"Model (default):     {self.model}", flush=True)
+        print(f"Model (initializer): {self.model_initializer}", flush=True)
+        print(f"Model (coding):      {self.model_coding}", flush=True)
+        print(f"Model (testing):     {self.model_testing}", flush=True)
         print("=" * 70, flush=True)
         print(flush=True)
 
@@ -1651,6 +1664,9 @@ async def run_parallel_orchestrator(
     testing_agent_ratio: int = 1,
     testing_batch_size: int = DEFAULT_TESTING_BATCH_SIZE,
     batch_size: int = 3,
+    model_initializer: str | None = None,
+    model_coding: str | None = None,
+    model_testing: str | None = None,
 ) -> None:
     """Run the unified orchestrator.
 
@@ -1662,6 +1678,9 @@ async def run_parallel_orchestrator(
         testing_agent_ratio: Number of regression agents to maintain (0-3)
         testing_batch_size: Number of features per testing batch (1-5)
         batch_size: Max features per coding agent batch (1-3)
+        model_initializer: Model override for initializer agent
+        model_coding: Model override for coding agents
+        model_testing: Model override for testing agents
     """
     print(f"[ORCHESTRATOR] run_parallel_orchestrator called with max_concurrency={max_concurrency}", flush=True)
     orchestrator = ParallelOrchestrator(
@@ -1672,6 +1691,9 @@ async def run_parallel_orchestrator(
         testing_agent_ratio=testing_agent_ratio,
         testing_batch_size=testing_batch_size,
         batch_size=batch_size,
+        model_initializer=model_initializer,
+        model_coding=model_coding,
+        model_testing=model_testing,
     )
 
     # Set up cleanup to run on exit (handles normal exit, exceptions)

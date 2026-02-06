@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Loader2, AlertCircle, Check, Moon, Sun } from 'lucide-react'
 import { useSettings, useUpdateSettings, useAvailableModels } from '../hooks/useProjects'
 import { useTheme, THEMES } from '../hooks/useTheme'
@@ -11,10 +12,123 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import type { ModelInfo } from '../lib/types'
 
 interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
+}
+
+/** Reusable model selector with Default, known models, and Custom input. */
+function ModelSelector({
+  label,
+  description,
+  value,
+  models,
+  disabled,
+  onChange,
+}: {
+  label: string
+  description: string
+  value: string | null | undefined
+  models: ModelInfo[]
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  const [showCustom, setShowCustom] = useState(false)
+  const [customValue, setCustomValue] = useState('')
+
+  // Determine active selection: null/empty = "Default", known model ID, or custom
+  const isDefault = !value
+  const isKnownModel = !isDefault && models.some((m) => m.id === value)
+  const isCustom = !isDefault && !isKnownModel
+
+  // Initialize custom input if current value is custom
+  const displayCustomValue = isCustom ? (value ?? '') : customValue
+
+  return (
+    <div className="space-y-2">
+      <Label className="font-medium">{label}</Label>
+      <p className="text-sm text-muted-foreground">{description}</p>
+      <div className="flex rounded-lg border overflow-hidden">
+        {/* Default button */}
+        <button
+          onClick={() => {
+            setShowCustom(false)
+            onChange('')
+          }}
+          disabled={disabled}
+          className={`py-2 px-3 text-sm font-medium transition-colors ${
+            isDefault
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-background text-foreground hover:bg-muted'
+          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          Default
+        </button>
+        {/* Known model buttons */}
+        {models.map((model) => (
+          <button
+            key={model.id}
+            onClick={() => {
+              setShowCustom(false)
+              onChange(model.id)
+            }}
+            disabled={disabled}
+            className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${
+              value === model.id
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background text-foreground hover:bg-muted'
+            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {model.name}
+          </button>
+        ))}
+        {/* Custom button */}
+        <button
+          onClick={() => setShowCustom(true)}
+          disabled={disabled}
+          className={`py-2 px-3 text-sm font-medium transition-colors ${
+            isCustom || (showCustom && isDefault)
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-background text-foreground hover:bg-muted'
+          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          Custom
+        </button>
+      </div>
+      {/* Custom model input */}
+      {(showCustom || isCustom) && (
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="e.g. openai/gpt-4o"
+            value={displayCustomValue}
+            onChange={(e) => setCustomValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && customValue.trim()) {
+                onChange(customValue.trim())
+              }
+            }}
+            disabled={disabled}
+            className="flex-1 px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={disabled || !customValue.trim()}
+            onClick={() => {
+              if (customValue.trim()) {
+                onChange(customValue.trim())
+              }
+            }}
+          >
+            Apply
+          </Button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
@@ -52,7 +166,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Settings
@@ -195,9 +309,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               />
             </div>
 
-            {/* Model Selection */}
+            {/* Default Model Selection */}
             <div className="space-y-2">
-              <Label className="font-medium">Model</Label>
+              <Label className="font-medium">Default Model</Label>
+              <p className="text-sm text-muted-foreground">
+                Fallback model used when no per-type override is set
+              </p>
               <div className="flex rounded-lg border overflow-hidden">
                 {models.map((model) => (
                   <button
@@ -215,6 +332,34 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 ))}
               </div>
             </div>
+
+            {/* Per-Type Model Selectors */}
+            <ModelSelector
+              label="Initializer Model"
+              description="Model for creating features from app spec"
+              value={settings.model_initializer}
+              models={models}
+              disabled={isSaving}
+              onChange={(v) => updateSettings.mutate({ model_initializer: v || null })}
+            />
+
+            <ModelSelector
+              label="Coding Model"
+              description="Model for implementing features"
+              value={settings.model_coding}
+              models={models}
+              disabled={isSaving}
+              onChange={(v) => updateSettings.mutate({ model_coding: v || null })}
+            />
+
+            <ModelSelector
+              label="Testing Model"
+              description="Model for regression testing"
+              value={settings.model_testing}
+              models={models}
+              disabled={isSaving}
+              onChange={(v) => updateSettings.mutate({ model_testing: v || null })}
+            />
 
             {/* Regression Agents */}
             <div className="space-y-2">

@@ -101,6 +101,27 @@ Authentication:
     )
 
     parser.add_argument(
+        "--model-initializer",
+        type=str,
+        default=None,
+        help="Model override for initializer agent (default: use --model)",
+    )
+
+    parser.add_argument(
+        "--model-coding",
+        type=str,
+        default=None,
+        help="Model override for coding agents (default: use --model)",
+    )
+
+    parser.add_argument(
+        "--model-testing",
+        type=str,
+        default=None,
+        help="Model override for testing agents (default: use --model)",
+    )
+
+    parser.add_argument(
         "--yolo",
         action="store_true",
         default=False,
@@ -290,6 +311,9 @@ def main() -> None:
                     testing_agent_ratio=args.testing_ratio,
                     testing_batch_size=args.testing_batch_size,
                     batch_size=args.batch_size,
+                    model_initializer=args.model_initializer,
+                    model_coding=args.model_coding,
+                    model_testing=args.model_testing,
                 )
             )
     except KeyboardInterrupt:

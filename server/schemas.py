@@ -18,7 +18,21 @@ _root = Path(__file__).parent.parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-from registry import DEFAULT_MODEL, VALID_MODELS
+from registry import DEFAULT_MODEL
+
+
+def _validate_model_string(v: str | None) -> str | None:
+    """Validate a model ID string. Accepts any non-empty string up to 200 chars.
+
+    This allows OpenRouter, Ollama, GLM, and other custom model IDs
+    in addition to native Anthropic models.
+    """
+    if v is not None:
+        v = v.strip()
+        if len(v) > 200:
+            raise ValueError("Model ID too long (max 200 characters)")
+    return v
+
 
 # ============================================================================
 # Project Schemas
@@ -190,10 +204,8 @@ class AgentStartRequest(BaseModel):
     @field_validator('model')
     @classmethod
     def validate_model(cls, v: str | None) -> str | None:
-        """Validate model is in the allowed list."""
-        if v is not None and v not in VALID_MODELS:
-            raise ValueError(f"Invalid model. Must be one of: {VALID_MODELS}")
-        return v
+        """Validate model ID string."""
+        return _validate_model_string(v)
 
     @field_validator('max_concurrency')
     @classmethod
@@ -382,9 +394,6 @@ class CreateDirectoryRequest(BaseModel):
 # Settings Schemas
 # ============================================================================
 
-# Note: VALID_MODELS and DEFAULT_MODEL are imported from registry at the top of this file
-
-
 class ModelInfo(BaseModel):
     """Information about an available model."""
     id: str
@@ -395,6 +404,9 @@ class SettingsResponse(BaseModel):
     """Response schema for global settings."""
     yolo_mode: bool = False
     model: str = DEFAULT_MODEL
+    model_initializer: str | None = None
+    model_coding: str | None = None
+    model_testing: str | None = None
     glm_mode: bool = False  # True if GLM API is configured via .env
     ollama_mode: bool = False  # True if Ollama API is configured via .env
     testing_agent_ratio: int = 1  # Regression testing agents (0-3)
@@ -412,16 +424,17 @@ class SettingsUpdate(BaseModel):
     """Request schema for updating global settings."""
     yolo_mode: bool | None = None
     model: str | None = None
+    model_initializer: str | None = None
+    model_coding: str | None = None
+    model_testing: str | None = None
     testing_agent_ratio: int | None = None  # 0-3
     playwright_headless: bool | None = None
     batch_size: int | None = None  # Features per agent batch (1-3)
 
-    @field_validator('model')
+    @field_validator('model', 'model_initializer', 'model_coding', 'model_testing')
     @classmethod
     def validate_model(cls, v: str | None) -> str | None:
-        if v is not None and v not in VALID_MODELS:
-            raise ValueError(f"Invalid model. Must be one of: {VALID_MODELS}")
-        return v
+        return _validate_model_string(v)
 
     @field_validator('testing_agent_ratio')
     @classmethod
@@ -533,10 +546,8 @@ class ScheduleCreate(BaseModel):
     @field_validator('model')
     @classmethod
     def validate_model(cls, v: str | None) -> str | None:
-        """Validate model is in the allowed list."""
-        if v is not None and v not in VALID_MODELS:
-            raise ValueError(f"Invalid model. Must be one of: {VALID_MODELS}")
-        return v
+        """Validate model ID string."""
+        return _validate_model_string(v)
 
 
 class ScheduleUpdate(BaseModel):
@@ -555,10 +566,8 @@ class ScheduleUpdate(BaseModel):
     @field_validator('model')
     @classmethod
     def validate_model(cls, v: str | None) -> str | None:
-        """Validate model is in the allowed list."""
-        if v is not None and v not in VALID_MODELS:
-            raise ValueError(f"Invalid model. Must be one of: {VALID_MODELS}")
-        return v
+        """Validate model ID string."""
+        return _validate_model_string(v)
 
 
 class ScheduleResponse(BaseModel):

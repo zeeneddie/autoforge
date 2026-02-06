@@ -17,11 +17,12 @@ from ..utils.project_helpers import get_project_path as _get_project_path
 from ..utils.validation import validate_project_name
 
 
-def _get_settings_defaults() -> tuple[bool, str, int, bool, int]:
+def _get_settings_defaults() -> tuple[bool, str, int, bool, int, str | None, str | None, str | None]:
     """Get defaults from global settings.
 
     Returns:
-        Tuple of (yolo_mode, model, testing_agent_ratio, playwright_headless, batch_size)
+        Tuple of (yolo_mode, model, testing_agent_ratio, playwright_headless, batch_size,
+                  model_initializer, model_coding, model_testing)
     """
     import sys
     root = Path(__file__).parent.parent.parent
@@ -33,6 +34,11 @@ def _get_settings_defaults() -> tuple[bool, str, int, bool, int]:
     settings = get_all_settings()
     yolo_mode = (settings.get("yolo_mode") or "false").lower() == "true"
     model = settings.get("model", DEFAULT_MODEL)
+
+    # Per-agent-type model overrides
+    model_initializer = settings.get("model_initializer") or None
+    model_coding = settings.get("model_coding") or None
+    model_testing = settings.get("model_testing") or None
 
     # Parse testing agent settings with defaults
     try:
@@ -47,7 +53,7 @@ def _get_settings_defaults() -> tuple[bool, str, int, bool, int]:
     except (ValueError, TypeError):
         batch_size = 3
 
-    return yolo_mode, model, testing_agent_ratio, playwright_headless, batch_size
+    return yolo_mode, model, testing_agent_ratio, playwright_headless, batch_size, model_initializer, model_coding, model_testing
 
 
 router = APIRouter(prefix="/api/projects/{project_name}/agent", tags=["agent"])
@@ -96,7 +102,8 @@ async def start_agent(
     manager = get_project_manager(project_name)
 
     # Get defaults from global settings if not provided in request
-    default_yolo, default_model, default_testing_ratio, playwright_headless, default_batch_size = _get_settings_defaults()
+    (default_yolo, default_model, default_testing_ratio, playwright_headless,
+     default_batch_size, default_model_init, default_model_coding, default_model_testing) = _get_settings_defaults()
 
     yolo_mode = request.yolo_mode if request.yolo_mode is not None else default_yolo
     model = request.model if request.model else default_model
@@ -105,6 +112,11 @@ async def start_agent(
 
     batch_size = default_batch_size
 
+    # Resolve per-type models with fallback to global model
+    model_initializer = default_model_init or model
+    model_coding = default_model_coding or model
+    model_testing = default_model_testing or model
+
     success, message = await manager.start(
         yolo_mode=yolo_mode,
         model=model,
@@ -112,6 +124,9 @@ async def start_agent(
         testing_agent_ratio=testing_agent_ratio,
         playwright_headless=playwright_headless,
         batch_size=batch_size,
+        model_initializer=model_initializer,
+        model_coding=model_coding,
+        model_testing=model_testing,
     )
 
     # Notify scheduler of manual start (to prevent auto-stop during scheduled window)

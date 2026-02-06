@@ -528,6 +528,9 @@ export interface ModelsResponse {
 export interface Settings {
   yolo_mode: boolean
   model: string
+  model_initializer?: string | null
+  model_coding?: string | null
+  model_testing?: string | null
   glm_mode: boolean
   ollama_mode: boolean
   testing_agent_ratio: number  // Regression testing agents (0-3)
@@ -538,6 +541,9 @@ export interface Settings {
 export interface SettingsUpdate {
   yolo_mode?: boolean
   model?: string
+  model_initializer?: string | null
+  model_coding?: string | null
+  model_testing?: string | null
   testing_agent_ratio?: number
   playwright_headless?: boolean
   batch_size?: number

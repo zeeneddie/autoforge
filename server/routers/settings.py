@@ -88,6 +88,9 @@ async def get_settings():
     return SettingsResponse(
         yolo_mode=_parse_yolo_mode(all_settings.get("yolo_mode")),
         model=all_settings.get("model", DEFAULT_MODEL),
+        model_initializer=all_settings.get("model_initializer") or None,
+        model_coding=all_settings.get("model_coding") or None,
+        model_testing=all_settings.get("model_testing") or None,
         glm_mode=_is_glm_mode(),
         ollama_mode=_is_ollama_mode(),
         testing_agent_ratio=_parse_int(all_settings.get("testing_agent_ratio"), 1),
@@ -105,6 +108,13 @@ async def update_settings(update: SettingsUpdate):
     if update.model is not None:
         set_setting("model", update.model)
 
+    if update.model_initializer is not None:
+        set_setting("model_initializer", update.model_initializer)
+    if update.model_coding is not None:
+        set_setting("model_coding", update.model_coding)
+    if update.model_testing is not None:
+        set_setting("model_testing", update.model_testing)
+
     if update.testing_agent_ratio is not None:
         set_setting("testing_agent_ratio", str(update.testing_agent_ratio))
 
@@ -119,6 +129,9 @@ async def update_settings(update: SettingsUpdate):
     return SettingsResponse(
         yolo_mode=_parse_yolo_mode(all_settings.get("yolo_mode")),
         model=all_settings.get("model", DEFAULT_MODEL),
+        model_initializer=all_settings.get("model_initializer") or None,
+        model_coding=all_settings.get("model_coding") or None,
+        model_testing=all_settings.get("model_testing") or None,
         glm_mode=_is_glm_mode(),
         ollama_mode=_is_ollama_mode(),
         testing_agent_ratio=_parse_int(all_settings.get("testing_agent_ratio"), 1),
