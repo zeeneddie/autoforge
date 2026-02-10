@@ -19,6 +19,10 @@ if str(_root) not in sys.path:
 
 from plane_sync.client import PlaneApiClient, PlaneApiError
 from plane_sync.background import get_sync_loop
+from marqed_import.models import (
+    MarQedImportRequest,
+    MarQedImportResult,
+)
 from plane_sync.models import (
     PlaneConfig,
     PlaneConfigUpdate,
@@ -27,6 +31,7 @@ from plane_sync.models import (
     PlaneImportRequest,
     PlaneImportResult,
     PlaneSyncStatus,
+    SelfHostSetupResult,
     SprintCompletionResult,
     SprintStats,
     TestReport,
@@ -489,3 +494,43 @@ async def receive_webhook(request: Request):
         return {"status": "ok", "action": "error", "message": str(e)}
 
     return {"status": "ok", "action": "processed"}
+
+
+# --- Self-hosting ---
+
+
+@router.post("/self-host-setup", response_model=SelfHostSetupResult)
+async def self_host_setup():
+    """Register AutoForge as a project in its own registry (idempotent)."""
+    try:
+        from plane_sync.self_host import setup_self_host
+        result = setup_self_host()
+        return SelfHostSetupResult(**result)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- MarQed Import ---
+
+
+@router.post("/marqed-import", response_model=MarQedImportResult)
+async def marqed_import_endpoint(request: MarQedImportRequest):
+    """Import a MarQed directory tree into Plane as modules and work items."""
+    from pathlib import Path as _Path
+
+    marqed_dir = _Path(request.marqed_dir)
+    if not marqed_dir.is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=f"MarQed directory not found: {request.marqed_dir}",
+        )
+
+    client = _build_client()
+    try:
+        from marqed_import.importer import import_to_plane
+        result = import_to_plane(client, marqed_dir, request.cycle_id)
+        return result
+    except PlaneApiError as e:
+        raise HTTPException(status_code=e.status_code or 502, detail=e.message)
+    finally:
+        client.close()

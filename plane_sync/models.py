@@ -247,6 +247,14 @@ class SprintCompletionResult(BaseModel):
     error: str | None = None
 
 
+class SelfHostSetupResult(BaseModel):
+    """Result of self-hosting setup."""
+
+    project_name: str
+    project_path: str
+    already_registered: bool = False
+
+
 class PlaneImportRequest(BaseModel):
     """Request to import a cycle."""
 
