@@ -170,7 +170,7 @@ Server API -> process_manager.py -> autonomous_agent_demo.py (CLI)
 autoforge/
   plane_sync/
     __init__.py
-    client.py           # PlaneApiClient (HTTP, auth, rate limiting)
+    client.py           # PlaneApiClient (HTTP, auth, rate limiting, write ops)
     models.py           # Pydantic modellen voor Plane API + AutoForge endpoints
     mapper.py           # Work Item <-> Feature conversie, AC parsing
     sync_service.py     # import_cycle + outbound_sync (bidirectional)
@@ -178,7 +178,30 @@ autoforge/
     completion.py       # Sprint completion: DoD, retrospective, git tag, release notes
     release_notes.py    # Markdown release notes generator
     webhook_handler.py  # HMAC-SHA256 verificatie + event parsing
+    self_host.py        # Self-hosting: register AutoForge in eigen registry
 ```
+
+### MarQed Import Module
+
+```
+autoforge/
+  marqed_import/
+    __init__.py         # Package exports
+    parser.py           # parse_marqed_tree(): directory tree -> MarQedEntity tree
+    models.py           # Pydantic modellen: MarQedImportRequest/Result
+    importer.py         # import_to_plane(): MarQedEntity tree -> Plane modules + work items
+```
+
+De MarQed importer parseert MarQed markdown directory trees en creëert de corresponderende
+Plane entiteiten:
+
+| MarQed entity | Plane entity | Rationale |
+|---|---|---|
+| Epic | Module | Modules bieden grouping + status |
+| Feature | Work Item | Direct mapping |
+| Story | Sub-Work Item (parent=feature) | Via `parent` field |
+| Task | Sub-Work Item (parent=story) | Via `parent` field |
+| Dependencies | In description | Plane API v1 heeft geen relations endpoint |
 
 ### Test History
 

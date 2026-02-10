@@ -269,6 +269,85 @@ X-Plane-Signature: <hmac-sha256-hex>
 
 **Mogelijke response actions:** `"processed"`, `"deduped"`, `"no_active_cycle"`, `"error"`
 
+### Self-Hosting
+
+#### `POST /api/plane/self-host-setup`
+
+Registreer AutoForge als project in eigen registry (idempotent).
+
+**Response:**
+```json
+{
+  "project_name": "autoforge",
+  "project_path": "/home/user/Projects/autoforge",
+  "already_registered": false
+}
+```
+
+**Logica:**
+1. Detecteer AutoForge project root via marker files (`server/main.py`, `parallel_orchestrator.py`, `plane_sync/__init__.py`)
+2. Registreer in `~/.autoforge/registry.db` via `register_project()`
+3. Idempotent: tweede call returnt `already_registered: true`
+
+### MarQed Import
+
+#### `POST /api/plane/marqed-import`
+
+Importeer een MarQed markdown directory tree als Plane modules en work items.
+
+**Request:**
+```json
+{
+  "marqed_dir": "/path/to/marqed/project",
+  "cycle_id": "cycle-uuid-1"
+}
+```
+
+`cycle_id` is optioneel. Als opgegeven worden alle work items aan de cycle toegevoegd.
+
+**Response:**
+```json
+{
+  "total_entities": 6,
+  "created": 6,
+  "errors": 0,
+  "modules_created": 1,
+  "work_items_created": 5,
+  "entities": [
+    {
+      "identifier": "EPIC-001",
+      "name": "Authentication",
+      "entity_type": "epic",
+      "plane_type": "module",
+      "plane_id": "module-uuid-1",
+      "action": "created",
+      "error": ""
+    },
+    {
+      "identifier": "FEATURE-001",
+      "name": "Login Form",
+      "entity_type": "feature",
+      "plane_type": "work_item",
+      "plane_id": "work-item-uuid-1",
+      "action": "created",
+      "error": ""
+    }
+  ]
+}
+```
+
+**Import algoritme:**
+1. `parse_marqed_tree(dir)` -> entity tree
+2. `list_states()` van Plane voor status mapping
+3. Per epic: `create_module()` -> module_id
+4. Per feature: `create_work_item()` -> work_item_id, link to module
+5. Per story: `create_work_item(parent=feature_id)` -> sub_work_item_id
+6. Per task: `create_work_item(parent=story_id)` -> sub_work_item_id
+7. `add_work_items_to_module()` per module
+8. `add_work_items_to_cycle()` als cycle_id opgegeven
+
+**Rate limiting:** ~68 API calls voor typische import (3 epics, 10 features, 20 stories, 30 tasks) = ~102s bij 1.5s interval.
+
 ## Authenticatie
 
 Plane API endpoints in AutoForge zijn beschermd door dezelfde auth als de rest van de server (indien geconfigureerd). De Plane API key wordt alleen server-side gebruikt en nooit naar de frontend gestuurd (alleen gemaskeerde versie).

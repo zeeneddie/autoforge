@@ -146,12 +146,28 @@ Test history tracking, release notes generatie, en real-time Plane webhooks.
 
 ---
 
-## Toekomstige Items
+## Sprint 6: Self-Hosting + MarQed Importer -- DONE
+
+> Afgerond: 2026-02-10
+
+Self-hosting setup en MarQed-to-Plane import pipeline.
 
 | # | Item | Status |
 |---|---|---|
-| 5.3 | Self-hosting: AutoForge eigen backlog in Plane | pending |
-| 5.4 | MarQed -> Plane importer (markdown -> Plane entities) | pending |
+| 6.1 | Fix `background.py` registry import bug (`get_all_projects` -> `list_registered_projects`) | done |
+| 6.2 | Self-hosting setup: `POST /api/plane/self-host-setup` registreert AutoForge in eigen registry | done |
+| 6.3 | PlaneApiClient write operations: `create_work_item`, `create_module`, `add_work_items_to_module`, `add_work_items_to_cycle` | done |
+| 6.4 | MarQed markdown parser: `marqed_import/parser.py` met `parse_marqed_tree()` | done |
+| 6.5 | MarQed-to-Plane importer: `POST /api/plane/marqed-import` creates modules + work items in Plane | done |
+| 6.6 | Documentatie update: roadmap, architecture, API design | done |
+
+**Acceptatiecriteria:**
+1. `POST /api/plane/self-host-setup` registreert "autoforge" in registry (idempotent)
+2. MarQed parser: 1 epic + 2 features + 3 stories -> correct nested entity tree
+3. MarQed import: creates 1 module + 5 work items in Plane met correcte parent relaties
+4. Items in juiste module, optioneel in cycle
+5. Fouten per item stoppen niet de gehele import
+6. Server start zonder errors, alle endpoints bereikbaar
 
 ---
 
