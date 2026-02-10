@@ -36,20 +36,22 @@ Per agent-type model selectie met OpenRouter support.
 
 ---
 
-## Sprint 2: Plane Integratie - Inbound Sync -- CURRENT
+## Sprint 2: Plane Integratie - Inbound Sync -- DONE
 
-> Doel: Work items uit Plane importeren als AutoForge Features.
+> Afgerond: 2026-02-10 | Commit: `cbd5953`
+
+Work items uit Plane importeren als AutoForge Features.
 
 | # | Item | Status |
 |---|---|---|
-| 2.1 | PlaneApiClient met auth + rate limiting (`plane_sync/client.py`) | pending |
-| 2.2 | Pydantic modellen voor Plane API entities (`plane_sync/models.py`) | pending |
-| 2.3 | Feature tabel migratie: plane_work_item_id, plane_synced_at, plane_updated_at | pending |
-| 2.4 | DataMapper: Plane WorkItem -> AutoForge Feature (`plane_sync/mapper.py`) | pending |
-| 2.5 | Import endpoint: `POST /api/plane/import-cycle` | pending |
-| 2.6 | API endpoints: config, test-connection, cycles | pending |
-| 2.7 | Settings UI: Plane connectie configuratie in SettingsModal | pending |
-| 2.8 | Test connection + cycles ophalen in UI | pending |
+| 2.1 | PlaneApiClient met auth + rate limiting (`plane_sync/client.py`) | done |
+| 2.2 | Pydantic modellen voor Plane API entities (`plane_sync/models.py`) | done |
+| 2.3 | Feature tabel migratie: plane_work_item_id, plane_synced_at, plane_updated_at | done |
+| 2.4 | DataMapper: Plane WorkItem -> AutoForge Feature (`plane_sync/mapper.py`) | done |
+| 2.5 | Import endpoint: `POST /api/plane/import-cycle` | done |
+| 2.6 | API endpoints: config, test-connection, cycles | done |
+| 2.7 | Settings UI: Plane connectie configuratie in SettingsModal | done |
+| 2.8 | Test connection + cycles ophalen in UI | done |
 
 **Acceptatiecriteria:**
 1. Maak een Cycle in Plane met 3-5 work items
