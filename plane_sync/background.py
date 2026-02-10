@@ -105,11 +105,11 @@ class PlaneSyncLoop:
     def _get_project_dirs(self) -> list[Path]:
         """Get all registered project directories that have Plane-linked features."""
         _ensure_registry()
-        from registry import get_all_projects
-        projects = get_all_projects()
+        from registry import list_registered_projects
+        projects = list_registered_projects()
         dirs = []
-        for name, path_str in projects.items():
-            p = Path(path_str)
+        for name, info in projects.items():
+            p = Path(info["path"])
             if p.exists():
                 dirs.append(p)
         return dirs
