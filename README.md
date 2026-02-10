@@ -326,6 +326,25 @@ When test progress increases, the agent sends:
 }
 ```
 
+### Using OpenRouter (400+ Models)
+
+Add these variables to your `.env` file to use models from OpenRouter (Claude, GPT, Gemini, Llama, Mistral, and more):
+
+```bash
+ANTHROPIC_BASE_URL=https://openrouter.ai/api
+ANTHROPIC_AUTH_TOKEN=your-openrouter-api-key
+```
+
+You can assign different models to each agent type via the Settings page in the UI, or in your `.env`:
+
+```bash
+ANTHROPIC_DEFAULT_SONNET_MODEL=anthropic/claude-sonnet-4-5
+ANTHROPIC_DEFAULT_OPUS_MODEL=anthropic/claude-opus-4-5
+ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic/claude-haiku-3-5
+```
+
+Get an API key at: https://openrouter.ai/keys
+
 ### Using GLM Models (Alternative to Claude)
 
 Add these variables to your `.env` file to use Zhipu AI's GLM models:

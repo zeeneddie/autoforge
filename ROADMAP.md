@@ -75,7 +75,7 @@ Claude Code houdt de sprint backlog bij in dit document. Na elke sprint wordt de
 | 1.4 | Orchestrator: per-type model routing naar coding/testing/initializer | done |
 | 1.5 | UI: model selectie per agent-type op settings pagina (incl. custom input) | done |
 | 1.6 | Model validatie gerelaxed: accepteert OpenRouter/Ollama/GLM model IDs | done |
-| 1.7 | Documentatie: OpenRouter setup in README | pending |
+| 1.7 | Documentatie: OpenRouter setup in README | done |
 
 #### Sprint 2: Data Model Fundament (Fase 1)
 > Nieuwe tabellen toevoegen naast bestaande Feature tabel. Additief, geen breaking changes.
