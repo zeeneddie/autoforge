@@ -60,6 +60,10 @@ class Feature(Base):
     # Dependencies: list of feature IDs that must be completed before this feature
     # NULL/empty = no dependencies (backwards compatible)
     dependencies = Column(JSON, nullable=True, default=None)
+    # Plane sync fields
+    plane_work_item_id = Column(String(36), nullable=True, unique=True, index=True)
+    plane_synced_at = Column(DateTime, nullable=True)
+    plane_updated_at = Column(DateTime, nullable=True)
 
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
@@ -75,6 +79,9 @@ class Feature(Base):
             "in_progress": self.in_progress if self.in_progress is not None else False,
             # Dependencies: NULL/empty treated as empty list for backwards compat
             "dependencies": self.dependencies if self.dependencies else [],
+            "plane_work_item_id": self.plane_work_item_id,
+            "plane_synced_at": self.plane_synced_at.isoformat() if self.plane_synced_at else None,
+            "plane_updated_at": self.plane_updated_at.isoformat() if self.plane_updated_at else None,
         }
 
     def get_dependencies_safe(self) -> list[int]:
@@ -302,6 +309,38 @@ def _is_network_path(path: Path) -> bool:
     return False
 
 
+def _migrate_add_plane_sync_columns(engine) -> None:
+    """Add Plane sync columns to existing databases that don't have them."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if "plane_work_item_id" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN plane_work_item_id VARCHAR(36) DEFAULT NULL"
+            ))
+        if "plane_synced_at" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN plane_synced_at DATETIME DEFAULT NULL"
+            ))
+        if "plane_updated_at" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN plane_updated_at DATETIME DEFAULT NULL"
+            ))
+        conn.commit()
+
+    # Create unique index on plane_work_item_id if it doesn't exist
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_feature_plane_work_item_id "
+                "ON features (plane_work_item_id)"
+            ))
+            conn.commit()
+        except Exception:
+            pass  # Index may already exist
+
+
 def _migrate_add_schedules_tables(engine) -> None:
     """Create schedules and schedule_overrides tables if they don't exist."""
     from sqlalchemy import inspect
@@ -425,6 +464,9 @@ def create_database(project_dir: Path) -> tuple:
     _migrate_fix_null_boolean_fields(engine)
     _migrate_add_dependencies_column(engine)
     _migrate_add_testing_columns(engine)
+
+    # Migrate to add Plane sync columns
+    _migrate_add_plane_sync_columns(engine)
 
     # Migrate to add schedules tables
     _migrate_add_schedules_tables(engine)

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Loader2, AlertCircle, Check, Moon, Sun } from 'lucide-react'
-import { useSettings, useUpdateSettings, useAvailableModels } from '../hooks/useProjects'
+import { Loader2, AlertCircle, Check, Moon, Sun, ChevronDown, ChevronRight } from 'lucide-react'
+import { useSettings, useUpdateSettings, useAvailableModels, usePlaneConfig, useUpdatePlaneConfig, useTestPlaneConnection, usePlaneCycles, useImportPlaneCycle } from '../hooks/useProjects'
 import { useTheme, THEMES } from '../hooks/useTheme'
 import {
   Dialog,
@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import type { ModelInfo } from '../lib/types'
+import type { ModelInfo, PlaneConnectionResult, PlaneCycleSummary } from '../lib/types'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -166,7 +166,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Settings
@@ -417,9 +417,293 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </AlertDescription>
               </Alert>
             )}
+
+            <hr className="border-border" />
+
+            {/* Plane Integration Section */}
+            <PlaneSettingsSection />
           </div>
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Collapsible Plane integration settings section. */
+function PlaneSettingsSection() {
+  const [expanded, setExpanded] = useState(false)
+  const { data: planeConfig, isLoading } = usePlaneConfig()
+  const updateConfig = useUpdatePlaneConfig()
+  const testConnection = useTestPlaneConnection()
+  const { data: cycles, refetch: fetchCycles, isFetching: cyclesLoading } = usePlaneCycles()
+  const importCycle = useImportPlaneCycle()
+
+  const [formValues, setFormValues] = useState({
+    plane_api_url: '',
+    plane_api_key: '',
+    plane_workspace_slug: '',
+    plane_project_id: '',
+  })
+  const [formDirty, setFormDirty] = useState(false)
+  const [connectionResult, setConnectionResult] = useState<PlaneConnectionResult | null>(null)
+  const [importResult, setImportResult] = useState<{ imported: number; updated: number; skipped: number } | null>(null)
+
+  // Initialize form values from config
+  const initForm = () => {
+    if (planeConfig && !formDirty) {
+      setFormValues({
+        plane_api_url: planeConfig.plane_api_url || '',
+        plane_api_key: '',
+        plane_workspace_slug: planeConfig.plane_workspace_slug || '',
+        plane_project_id: planeConfig.plane_project_id || '',
+      })
+    }
+  }
+
+  const handleToggle = () => {
+    if (!expanded) initForm()
+    setExpanded(!expanded)
+  }
+
+  const handleFieldChange = (field: string, value: string) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }))
+    setFormDirty(true)
+  }
+
+  const handleSave = () => {
+    const update: Record<string, string> = {}
+    if (formValues.plane_api_url) update.plane_api_url = formValues.plane_api_url
+    if (formValues.plane_api_key) update.plane_api_key = formValues.plane_api_key
+    if (formValues.plane_workspace_slug) update.plane_workspace_slug = formValues.plane_workspace_slug
+    if (formValues.plane_project_id) update.plane_project_id = formValues.plane_project_id
+
+    updateConfig.mutate(update, {
+      onSuccess: () => {
+        setFormDirty(false)
+        setConnectionResult(null)
+      },
+    })
+  }
+
+  const handleTestConnection = () => {
+    setConnectionResult(null)
+    testConnection.mutate(undefined, {
+      onSuccess: (result) => setConnectionResult(result),
+    })
+  }
+
+  const handleFetchCycles = () => {
+    fetchCycles()
+  }
+
+  const handleImport = (cycle: PlaneCycleSummary) => {
+    // For now, use a prompt or the first project. In a real app, this would come from context.
+    const projectName = prompt('Project name to import into:')
+    if (!projectName) return
+
+    setImportResult(null)
+    importCycle.mutate(
+      { cycleId: cycle.id, projectName },
+      {
+        onSuccess: (result) => {
+          setImportResult({
+            imported: result.imported,
+            updated: result.updated,
+            skipped: result.skipped,
+          })
+        },
+      },
+    )
+  }
+
+  const isSaving = updateConfig.isPending
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={handleToggle}
+        className="flex items-center gap-2 w-full text-left"
+      >
+        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        <Label className="font-medium cursor-pointer">Plane Integration</Label>
+        {planeConfig?.plane_api_key_set && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600">
+            Connected
+          </span>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="space-y-4 pl-6">
+          {isLoading ? (
+            <div className="flex items-center gap-2 py-4">
+              <Loader2 className="animate-spin" size={16} />
+              <span className="text-sm text-muted-foreground">Loading...</span>
+            </div>
+          ) : (
+            <>
+              {/* API URL */}
+              <div className="space-y-1">
+                <Label className="text-sm">API URL</Label>
+                <input
+                  type="text"
+                  placeholder="http://localhost:8080"
+                  value={formValues.plane_api_url}
+                  onChange={(e) => handleFieldChange('plane_api_url', e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
+              {/* API Key */}
+              <div className="space-y-1">
+                <Label className="text-sm">API Key</Label>
+                <input
+                  type="password"
+                  placeholder={planeConfig?.plane_api_key_set ? planeConfig.plane_api_key_masked : 'plane_api_xxxx'}
+                  value={formValues.plane_api_key}
+                  onChange={(e) => handleFieldChange('plane_api_key', e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
+              {/* Workspace Slug */}
+              <div className="space-y-1">
+                <Label className="text-sm">Workspace Slug</Label>
+                <input
+                  type="text"
+                  placeholder="my-workspace"
+                  value={formValues.plane_workspace_slug}
+                  onChange={(e) => handleFieldChange('plane_workspace_slug', e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
+              {/* Project ID */}
+              <div className="space-y-1">
+                <Label className="text-sm">Project ID</Label>
+                <input
+                  type="text"
+                  placeholder="project-uuid"
+                  value={formValues.plane_project_id}
+                  onChange={(e) => handleFieldChange('plane_project_id', e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
+              {/* Save + Test buttons */}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  disabled={!formDirty || isSaving}
+                  onClick={handleSave}
+                >
+                  {isSaving ? <Loader2 className="animate-spin mr-1" size={14} /> : null}
+                  Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={testConnection.isPending}
+                  onClick={handleTestConnection}
+                >
+                  {testConnection.isPending ? <Loader2 className="animate-spin mr-1" size={14} /> : null}
+                  Test Connection
+                </Button>
+              </div>
+
+              {/* Connection result */}
+              {connectionResult && (
+                <Alert variant={connectionResult.status === 'ok' ? 'default' : 'destructive'}>
+                  <AlertDescription>
+                    {connectionResult.status === 'ok' ? (
+                      <span className="flex items-center gap-1">
+                        <Check size={14} className="text-green-600" />
+                        Connected to project "{connectionResult.project_name}" in workspace "{connectionResult.workspace}"
+                      </span>
+                    ) : (
+                      connectionResult.message
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <hr className="border-border" />
+
+              {/* Cycles section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Sprint Cycles</Label>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={cyclesLoading}
+                    onClick={handleFetchCycles}
+                  >
+                    {cyclesLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : null}
+                    Load Cycles
+                  </Button>
+                </div>
+
+                {cycles && cycles.length > 0 && (
+                  <div className="space-y-1">
+                    {cycles.map((cycle) => (
+                      <div
+                        key={cycle.id}
+                        className="flex items-center justify-between p-2 rounded-md border text-sm"
+                      >
+                        <div>
+                          <span className="font-medium">{cycle.name}</span>
+                          {cycle.status && (
+                            <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
+                              cycle.status === 'current'
+                                ? 'bg-blue-500/10 text-blue-600'
+                                : 'bg-muted text-muted-foreground'
+                            }`}>
+                              {cycle.status}
+                            </span>
+                          )}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {cycle.completed_issues}/{cycle.total_issues} done
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={importCycle.isPending}
+                          onClick={() => handleImport(cycle)}
+                        >
+                          Import
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {cycles && cycles.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No cycles found in this project.</p>
+                )}
+              </div>
+
+              {/* Import result */}
+              {importResult && (
+                <Alert>
+                  <AlertDescription>
+                    Imported {importResult.imported} features, updated {importResult.updated}, skipped {importResult.skipped}.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {importCycle.isError && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    Import failed: {importCycle.error?.message || 'Unknown error'}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

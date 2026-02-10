@@ -32,6 +32,11 @@ import type {
   ScheduleUpdate,
   ScheduleListResponse,
   NextRunResponse,
+  PlaneConfig,
+  PlaneConfigUpdate,
+  PlaneConnectionResult,
+  PlaneCycleSummary,
+  PlaneImportResult,
 } from './types'
 
 const API_BASE = '/api'
@@ -525,4 +530,39 @@ export async function deleteSchedule(
 
 export async function getNextScheduledRun(projectName: string): Promise<NextRunResponse> {
   return fetchJSON(`/projects/${encodeURIComponent(projectName)}/schedules/next`)
+}
+
+// ============================================================================
+// Plane Integration API
+// ============================================================================
+
+export async function getPlaneConfig(): Promise<PlaneConfig> {
+  return fetchJSON('/plane/config')
+}
+
+export async function updatePlaneConfig(config: PlaneConfigUpdate): Promise<PlaneConfig> {
+  return fetchJSON('/plane/config', {
+    method: 'POST',
+    body: JSON.stringify(config),
+  })
+}
+
+export async function testPlaneConnection(): Promise<PlaneConnectionResult> {
+  return fetchJSON('/plane/test-connection', {
+    method: 'POST',
+  })
+}
+
+export async function getPlaneCycles(): Promise<PlaneCycleSummary[]> {
+  return fetchJSON('/plane/cycles')
+}
+
+export async function importPlaneCycle(
+  cycleId: string,
+  projectName: string
+): Promise<PlaneImportResult> {
+  return fetchJSON('/plane/import-cycle', {
+    method: 'POST',
+    body: JSON.stringify({ cycle_id: cycleId, project_name: projectName }),
+  })
 }

@@ -4,7 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import type { FeatureCreate, FeatureUpdate, ModelsResponse, ProjectSettingsUpdate, Settings, SettingsUpdate } from '../lib/types'
+import type { FeatureCreate, FeatureUpdate, ModelsResponse, ProjectSettingsUpdate, Settings, SettingsUpdate, PlaneConfigUpdate } from '../lib/types'
 
 // ============================================================================
 // Projects
@@ -322,6 +322,58 @@ export function useUpdateSettings() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+    },
+  })
+}
+
+// ============================================================================
+// Plane Integration
+// ============================================================================
+
+export function usePlaneConfig() {
+  return useQuery({
+    queryKey: ['plane-config'],
+    queryFn: api.getPlaneConfig,
+    staleTime: 60000,
+    retry: 1,
+  })
+}
+
+export function useUpdatePlaneConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (config: PlaneConfigUpdate) => api.updatePlaneConfig(config),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plane-config'] })
+    },
+  })
+}
+
+export function useTestPlaneConnection() {
+  return useMutation({
+    mutationFn: () => api.testPlaneConnection(),
+  })
+}
+
+export function usePlaneCycles() {
+  return useQuery({
+    queryKey: ['plane-cycles'],
+    queryFn: api.getPlaneCycles,
+    enabled: false, // Only fetch on demand
+    retry: 1,
+  })
+}
+
+export function useImportPlaneCycle() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ cycleId, projectName }: { cycleId: string; projectName: string }) =>
+      api.importPlaneCycle(cycleId, projectName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['features'] })
+      queryClient.invalidateQueries({ queryKey: ['project'] })
     },
   })
 }

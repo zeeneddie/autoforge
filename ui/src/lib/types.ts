@@ -602,3 +602,58 @@ export interface NextRunResponse {
   is_currently_running: boolean
   active_schedule_count: number
 }
+
+// Plane Integration Types
+
+export interface PlaneConfig {
+  plane_api_url: string
+  plane_api_key_set: boolean
+  plane_api_key_masked: string
+  plane_workspace_slug: string
+  plane_project_id: string
+  plane_sync_enabled: boolean
+  plane_poll_interval: number
+  plane_active_cycle_id: string | null
+}
+
+export interface PlaneConfigUpdate {
+  plane_api_url?: string
+  plane_api_key?: string
+  plane_workspace_slug?: string
+  plane_project_id?: string
+  plane_sync_enabled?: boolean
+  plane_poll_interval?: number
+  plane_active_cycle_id?: string
+}
+
+export interface PlaneConnectionResult {
+  status: 'ok' | 'error'
+  message: string
+  workspace: string
+  project_name: string
+}
+
+export interface PlaneCycleSummary {
+  id: string
+  name: string
+  start_date: string | null
+  end_date: string | null
+  status: string | null
+  total_issues: number
+  completed_issues: number
+}
+
+export interface PlaneImportResult {
+  imported: number
+  skipped: number
+  updated: number
+  details: PlaneImportDetail[]
+}
+
+export interface PlaneImportDetail {
+  plane_id: string
+  name: string
+  action: 'created' | 'updated' | 'skipped'
+  reason: string
+  feature_id: number | null
+}

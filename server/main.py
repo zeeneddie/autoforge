@@ -40,6 +40,7 @@ from .routers import (
     settings_router,
     spec_creation_router,
     terminal_router,
+    plane_router,
 )
 from .schemas import SetupStatus
 from .services.assistant_chat_session import cleanup_all_sessions as cleanup_assistant_sessions
@@ -158,6 +159,7 @@ app.include_router(filesystem_router)
 app.include_router(assistant_chat_router)
 app.include_router(settings_router)
 app.include_router(terminal_router)
+app.include_router(plane_router)
 
 
 # ============================================================================
