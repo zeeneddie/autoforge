@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .client import PlaneApiClient, PlaneApiError
 from .models import SprintCompletionResult
+from .release_notes import build_release_notes_md, save_release_notes
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,85 @@ def _build_feature_comment_html(feature_name: str, passes: bool, change_log: str
         lines.append(f"<pre>{change_log}</pre>")
         lines.append("</details>")
     return "\n".join(lines)
+
+
+def _get_test_report(project_dir: Path) -> dict | None:
+    """Query TestRun table and build a test report dict for release notes."""
+    try:
+        create_database, Feature = _get_db_classes()
+        root = Path(__file__).parent.parent
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from api.database import TestRun
+        from sqlalchemy import func
+
+        _, SessionLocal = create_database(project_dir)
+        session = SessionLocal()
+        try:
+            # Get features linked to Plane
+            linked = session.query(Feature).filter(
+                Feature.plane_work_item_id.isnot(None)
+            ).all()
+            if not linked:
+                return None
+
+            linked_ids = [f.id for f in linked]
+            feature_names = {f.id: f.name for f in linked}
+
+            # Aggregate per-feature stats
+            stats = session.query(
+                TestRun.feature_id,
+                func.count(TestRun.id).label("total"),
+                func.sum(func.cast(TestRun.passed, type_=None)).label("passes"),
+                func.max(TestRun.completed_at).label("last_at"),
+            ).filter(
+                TestRun.feature_id.in_(linked_ids)
+            ).group_by(TestRun.feature_id).all()
+
+            summaries = []
+            total_runs = 0
+            total_passed = 0
+            tested_ids = set()
+
+            for row in stats:
+                fid = row[0]
+                runs = row[1] or 0
+                passes = int(row[2] or 0)
+                fails = runs - passes
+                total_runs += runs
+                total_passed += passes
+                tested_ids.add(fid)
+
+                # Get last result
+                last_run = session.query(TestRun).filter(
+                    TestRun.feature_id == fid
+                ).order_by(TestRun.completed_at.desc()).first()
+
+                summaries.append({
+                    "feature_id": fid,
+                    "feature_name": feature_names.get(fid, ""),
+                    "total_runs": runs,
+                    "pass_count": passes,
+                    "fail_count": fails,
+                    "last_tested_at": row[3].isoformat() if row[3] else None,
+                    "last_result": last_run.passed if last_run else None,
+                })
+
+            pass_rate = (total_passed / total_runs * 100) if total_runs > 0 else 0.0
+
+            return {
+                "total_features": len(linked_ids),
+                "features_tested": len(tested_ids),
+                "features_never_tested": len(linked_ids) - len(tested_ids),
+                "total_test_runs": total_runs,
+                "overall_pass_rate": round(pass_rate, 1),
+                "feature_summaries": summaries,
+            }
+        finally:
+            session.close()
+    except Exception as e:
+        logger.warning("Failed to build test report: %s", e)
+        return None
 
 
 def complete_sprint(
@@ -247,10 +327,37 @@ def complete_sprint(
     except Exception as e:
         logger.warning("Failed to store completion flag: %s", e)
 
+    # 8. Generate release notes
+    release_notes_path = None
+    try:
+        test_report = _get_test_report(project_dir)
+        # Enrich feature_data with category for release notes
+        with _get_db_session(project_dir) as session:
+            for f in feature_data:
+                feat = session.query(Feature).filter(
+                    Feature.plane_work_item_id == f["plane_work_item_id"]
+                ).first()
+                if feat:
+                    f["category"] = feat.category
+
+        md = build_release_notes_md(
+            cycle_name=cycle_name,
+            features=feature_data,
+            change_log=change_log,
+            test_report=test_report,
+            git_tag=git_tag,
+        )
+        notes_path = save_release_notes(project_dir, cycle_name, md)
+        release_notes_path = str(notes_path)
+        logger.info("Release notes saved to: %s", notes_path)
+    except Exception as e:
+        logger.warning("Failed to generate release notes: %s", e)
+
     return SprintCompletionResult(
         success=True,
         features_completed=passing,
         features_failed=failed,
         git_tag=git_tag,
         change_log=change_log,
+        release_notes_path=release_notes_path,
     )

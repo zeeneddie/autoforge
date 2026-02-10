@@ -33,7 +33,7 @@ from typing import Any, Callable, Literal
 
 from sqlalchemy import text
 
-from api.database import Feature, create_database
+from api.database import Feature, TestRun, create_database
 from api.dependency_resolver import are_dependencies_satisfied, compute_scheduling_scores
 from progress import has_features
 from server.utils.process_utils import kill_process_tree
@@ -197,9 +197,9 @@ class ParallelOrchestrator:
         # Coding agents: feature_id -> process
         # Safe to key by feature_id because start_feature() checks for duplicates before spawning
         self.running_coding_agents: dict[int, subprocess.Popen] = {}
-        # Testing agents: pid -> (feature_id, process)
+        # Testing agents: pid -> (feature_id, process, batch_ids, start_time)
         # Keyed by PID (not feature_id) because multiple agents can test the same feature
-        self.running_testing_agents: dict[int, tuple[int, subprocess.Popen]] = {}
+        self.running_testing_agents: dict[int, tuple[int, subprocess.Popen, list[int], datetime]] = {}
         # Legacy alias for backward compatibility
         self.running_agents = self.running_coding_agents
         self.abort_events: dict[int, threading.Event] = {}
@@ -317,10 +317,10 @@ class ParallelOrchestrator:
 
         # Exclude features that are already being tested by running testing agents
         # to avoid redundant concurrent testing of the same features.
-        # running_testing_agents is dict[pid, (primary_feature_id, process)]
+        # running_testing_agents is dict[pid, (primary_feature_id, process, batch, start_time)]
         with self._lock:
             currently_testing_ids: set[int] = set()
-            for _pid, (feat_id, _proc) in self.running_testing_agents.items():
+            for _pid, (feat_id, _proc, _batch, _start) in self.running_testing_agents.items():
                 currently_testing_ids.add(feat_id)
 
         # If all passing features have been recently tested, reset the tracker
@@ -1034,7 +1034,8 @@ class ParallelOrchestrator:
 
             # Register process by PID (not feature_id) to avoid overwrites
             # when multiple agents test the same feature
-            self.running_testing_agents[proc.pid] = (primary_feature_id, proc)
+            batch_start_time = datetime.now(timezone.utc)
+            self.running_testing_agents[proc.pid] = (primary_feature_id, proc, batch, batch_start_time)
             testing_count = len(self.running_testing_agents)
 
         # Start output reader thread with primary feature ID for log attribution
@@ -1234,9 +1235,14 @@ class ParallelOrchestrator:
         - Remove from running dict (no claim to release - concurrent testing is allowed).
         """
         if agent_type == "testing":
+            # Capture batch info before removing from dict
             with self._lock:
-                # Remove by PID
-                self.running_testing_agents.pop(proc.pid, None)
+                agent_info = self.running_testing_agents.pop(proc.pid, None)
+
+            batch_ids: list[int] = []
+            started_at = None
+            if agent_info:
+                _, _, batch_ids, started_at = agent_info
 
             status = "completed" if return_code == 0 else "failed"
             print(f"Feature #{feature_id} testing {status}", flush=True)
@@ -1244,6 +1250,13 @@ class ParallelOrchestrator:
                 pid=proc.pid,
                 feature_id=feature_id,
                 status=status)
+
+            # Record TestRun rows for each feature in the batch
+            if batch_ids:
+                self._record_test_runs(
+                    batch_ids, "testing", proc.pid, started_at, return_code
+                )
+
             # Signal main loop that an agent slot is available
             self._signal_agent_completed()
             return
@@ -1287,6 +1300,11 @@ class ParallelOrchestrator:
         finally:
             session.close()
 
+        # Record TestRun rows for coding agent (tests run implicitly)
+        self._record_test_runs(
+            all_feature_ids, "coding", proc.pid, None, return_code
+        )
+
         # Track failures for features still in_progress at exit
         if return_code != 0:
             with self._lock:
@@ -1312,6 +1330,46 @@ class ParallelOrchestrator:
 
         # Signal main loop that an agent slot is available
         self._signal_agent_completed()
+
+    def _record_test_runs(
+        self,
+        feature_ids: list[int],
+        agent_type: str,
+        agent_pid: int | None,
+        started_at: datetime | None,
+        return_code: int | None,
+    ) -> None:
+        """Record TestRun rows for each feature in a batch."""
+        completed_at = datetime.now(timezone.utc)
+        session = self.get_session()
+        try:
+            session.expire_all()
+            for fid in feature_ids:
+                feature = session.query(Feature).filter(Feature.id == fid).first()
+                if not feature:
+                    continue
+                run = TestRun(
+                    feature_id=fid,
+                    passed=bool(feature.passes),
+                    agent_type=agent_type,
+                    agent_pid=agent_pid,
+                    feature_ids_in_batch=feature_ids,
+                    started_at=started_at,
+                    completed_at=completed_at,
+                    return_code=return_code,
+                )
+                session.add(run)
+            session.commit()
+            debug_log.log("TESTRUN", f"Recorded {len(feature_ids)} test run(s) for {agent_type} agent",
+                feature_ids=feature_ids)
+        except Exception as e:
+            debug_log.log("TESTRUN", f"Failed to record test runs: {e}")
+            try:
+                session.rollback()
+            except Exception:
+                pass
+        finally:
+            session.close()
 
     def stop_feature(self, feature_id: int) -> tuple[bool, str]:
         """Stop a running coding agent and all its child processes."""
@@ -1349,7 +1407,7 @@ class ParallelOrchestrator:
         with self._lock:
             testing_items = list(self.running_testing_agents.items())
 
-        for pid, (feature_id, proc) in testing_items:
+        for pid, (feature_id, proc, _batch, _start) in testing_items:
             result = kill_process_tree(proc, timeout=5.0)
             debug_log.log("STOP", f"Killed testing agent for feature #{feature_id} (PID {pid})",
                 status=result.status, children_found=result.children_found,

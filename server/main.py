@@ -141,7 +141,14 @@ else:
 if not ALLOW_REMOTE:
     @app.middleware("http")
     async def require_localhost(request: Request, call_next):
-        """Only allow requests from localhost (disabled when AUTOFORGE_ALLOW_REMOTE=1)."""
+        """Only allow requests from localhost (disabled when AUTOFORGE_ALLOW_REMOTE=1).
+
+        Exempts /api/plane/webhooks which uses HMAC-SHA256 for authentication.
+        """
+        # Webhook endpoint is secured by HMAC, not localhost restriction
+        if request.url.path == "/api/plane/webhooks":
+            return await call_next(request)
+
         client_host = request.client.host if request.client else None
 
         # Allow localhost connections

@@ -77,7 +77,7 @@ Bidirectionele status sync: AutoForge feature status wordt automatisch naar Plan
 | 3.3 | Background polling loop (configurable interval) | done |
 | 3.4 | Mid-sprint sync (nieuwe/gewijzigde/verwijderde items) | done |
 | 3.5 | Plane sync status in AutoForge UI | done |
-| 3.6 | Optionele webhook handler met HMAC-SHA256 verificatie | deferred (Sprint 5+) |
+| 3.6 | Optionele webhook handler met HMAC-SHA256 verificatie | done (Sprint 5) |
 | 3.7 | Change document generatie (git diff + AI summary) | deferred (Sprint 4) |
 
 **Acceptatiecriteria:**
@@ -114,14 +114,42 @@ Structured sprint completion met DoD verificatie, retrospective naar Plane, en g
 
 ---
 
-## Sprint 5: Continuous Delivery & Self-Hosting
+## Sprint 5: Continuous Delivery -- DONE
 
-> Doel: Release management, volledige regression, AutoForge managed zichzelf.
+> Afgerond: 2026-02-10
+
+Test history tracking, release notes generatie, en real-time Plane webhooks.
 
 | # | Item | Status |
 |---|---|---|
-| 5.1 | Release notes generatie uit voltooide features | pending |
-| 5.2 | Volledige regression suite per sprint | pending |
+| 5.2 | Regression test reporting: TestRun DB model, recording in orchestrator, test-report API | done |
+| 5.1 | Release notes generatie uit voltooide features (markdown, per sprint) | done |
+| 3.6 | Plane webhooks: HMAC-SHA256 verificatie, event dedup, issue/cycle routing | done |
+| 5.3 | Self-hosting: AutoForge eigen backlog in Plane | deferred |
+| 5.4 | MarQed -> Plane importer (markdown -> Plane entities) | deferred |
+
+**Acceptatiecriteria:**
+1. Start agents met `testing_agent_ratio >= 1`, wacht op completion, `GET /api/plane/test-report` -> runs geregistreerd
+2. Sync status bevat `total_test_runs` en `overall_pass_rate`
+3. Complete sprint met alle features passing -> `releases/sprint-{name}.md` bevat features, test tabel, change log
+4. `curl` met geldige HMAC -> 200, ongeldige -> 403, webhook count stijgt in sync status
+5. UI: webhook secret veld, test stats in sprint sectie, release notes pad na completion
+
+**Technische details:**
+- `TestRun` DB model: per-feature per-agent test resultaten met batch info en timestamps
+- Orchestrator `running_testing_agents` uitgebreid naar 4-tuple: `(fid, proc, batch, start_time)`
+- `_record_test_runs()` helper schrijft na elke agent completion (testing + coding)
+- Release notes: `plane_sync/release_notes.py` met features per categorie, test tabel, change log
+- Webhooks: `POST /api/plane/webhooks` met HMAC-SHA256, 5s event dedup, routes naar `import_cycle()`
+- Webhook endpoint exempt van localhost middleware (HMAC is de auth)
+- Sprint stats uitgebreid met `total_test_runs`, `overall_pass_rate`
+
+---
+
+## Toekomstige Items
+
+| # | Item | Status |
+|---|---|---|
 | 5.3 | Self-hosting: AutoForge eigen backlog in Plane | pending |
 | 5.4 | MarQed -> Plane importer (markdown -> Plane entities) | pending |
 

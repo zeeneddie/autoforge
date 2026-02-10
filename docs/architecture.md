@@ -29,6 +29,8 @@ MARQED (Analyse)              PLANE (Planning)              AUTOFORGE (Executie)
                                |  - DataMapper          |
                                |  - Polling loop (30s)  |
                                |  - Webhook handler     |
+                               |  - Release notes gen   |
+                               |  - Test run tracking   |
                                +------------------------+
 ```
 
@@ -153,8 +155,8 @@ Server API -> process_manager.py -> autonomous_agent_demo.py (CLI)
 ```
 
 - **Initializer:** Eenmalig, creëert features uit app_spec
-- **Coding:** Parallel agents die features implementeren
-- **Testing:** Regression tests na elke feature
+- **Coding:** Parallel agents die features implementeren (registreert TestRun na completion)
+- **Testing:** Regression tests na elke feature (registreert TestRun met batch + timing info)
 
 ### Frontend
 
@@ -162,18 +164,39 @@ Server API -> process_manager.py -> autonomous_agent_demo.py (CLI)
 - **State:** React Query voor server state
 - **Real-time:** WebSocket voor agent output streaming
 
-### Plane Sync Service (nieuw)
+### Plane Sync Service
 
 ```
 autoforge/
   plane_sync/
     __init__.py
     client.py           # PlaneApiClient (HTTP, auth, rate limiting)
-    models.py           # Pydantic modellen voor Plane API entities
-    mapper.py           # Work Item <-> Feature conversie
-    sync_service.py     # Polling loop, import/export logica
-    webhook_handler.py  # Optionele FastAPI webhook route
+    models.py           # Pydantic modellen voor Plane API + AutoForge endpoints
+    mapper.py           # Work Item <-> Feature conversie, AC parsing
+    sync_service.py     # import_cycle + outbound_sync (bidirectional)
+    background.py       # PlaneSyncLoop: asyncio polling, sprint detection
+    completion.py       # Sprint completion: DoD, retrospective, git tag, release notes
+    release_notes.py    # Markdown release notes generator
+    webhook_handler.py  # HMAC-SHA256 verificatie + event parsing
 ```
+
+### Test History
+
+Het `TestRun` model in `api/database.py` registreert per-feature, per-agent test resultaten:
+
+- **Recording:** De orchestrator schrijft `TestRun` rows na elke agent completion (testing + coding)
+- **Batch tracking:** `feature_ids_in_batch` legt vast welke features samen getest werden
+- **API:** `GET /api/plane/test-report?project_name=X` aggregeert pass/fail rates
+- **Sprint stats:** `total_test_runs` en `overall_pass_rate` in sync status
+
+### Webhooks
+
+Naast de polling loop ondersteunt AutoForge ook real-time webhooks van Plane:
+
+- **Endpoint:** `POST /api/plane/webhooks` (exempt van localhost middleware)
+- **Authenticatie:** HMAC-SHA256 verificatie met configureerbaar secret
+- **Dedup:** 5-seconde cooldown per event key voorkomt dubbele verwerking
+- **Events:** `issue.update` en `cycle.update` triggeren `import_cycle()` voor de actieve cycle
 
 ## Deployment
 

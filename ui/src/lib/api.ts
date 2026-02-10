@@ -39,6 +39,7 @@ import type {
   PlaneImportResult,
   PlaneSyncStatus,
   SprintCompletionResult,
+  TestReport,
 } from './types'
 
 const API_BASE = '/api'
@@ -584,4 +585,8 @@ export async function completeSprint(projectName: string): Promise<SprintComplet
     method: 'POST',
     body: JSON.stringify({ project_name: projectName }),
   })
+}
+
+export async function getTestReport(projectName: string): Promise<TestReport> {
+  return fetchJSON(`/plane/test-report?project_name=${encodeURIComponent(projectName)}`)
 }

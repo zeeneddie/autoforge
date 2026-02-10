@@ -5,9 +5,11 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 # Add project root to path for imports
@@ -27,8 +29,11 @@ from plane_sync.models import (
     PlaneSyncStatus,
     SprintCompletionResult,
     SprintStats,
+    TestReport,
+    TestRunSummary,
 )
 from plane_sync.sync_service import import_cycle
+from plane_sync.webhook_handler import verify_signature, parse_webhook_event
 from registry import get_all_settings, get_setting, set_setting
 
 from ..utils.project_helpers import get_project_path
@@ -68,6 +73,7 @@ def _get_plane_config() -> dict[str, str]:
         "plane_sync_enabled": settings.get("plane_sync_enabled", "false"),
         "plane_poll_interval": settings.get("plane_poll_interval", "30"),
         "plane_active_cycle_id": settings.get("plane_active_cycle_id") or None,
+        "plane_webhook_secret": settings.get("plane_webhook_secret") or None,
     }
 
 
@@ -110,6 +116,7 @@ async def get_config():
         plane_sync_enabled=config["plane_sync_enabled"].lower() == "true",
         plane_poll_interval=int(config["plane_poll_interval"]),
         plane_active_cycle_id=config["plane_active_cycle_id"],
+        plane_webhook_secret_set=bool(config.get("plane_webhook_secret")),
     )
 
 
@@ -130,6 +137,8 @@ async def update_config(update: PlaneConfigUpdate):
         set_setting("plane_poll_interval", str(update.plane_poll_interval))
     if update.plane_active_cycle_id is not None:
         set_setting("plane_active_cycle_id", update.plane_active_cycle_id)
+    if update.plane_webhook_secret is not None:
+        set_setting("plane_webhook_secret", update.plane_webhook_secret)
 
     return await get_config()
 
@@ -258,6 +267,8 @@ async def get_sync_status():
         active_cycle_name=active_cycle_name,
         sprint_complete=status.get("sprint_complete", False),
         sprint_stats=sprint_stats,
+        last_webhook_at=status.get("last_webhook_at"),
+        webhook_count=status.get("webhook_count", 0),
     )
 
 
@@ -312,3 +323,169 @@ async def complete_sprint_endpoint(request: CompleteSprintRequest):
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
     finally:
         client.close()
+
+
+# --- Test Report ---
+
+
+@router.get("/test-report", response_model=TestReport)
+async def get_test_report(project_name: str):
+    """Get regression test report for a project."""
+    project_dir = get_project_path(project_name)
+    if not project_dir:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{project_name}' not found in registry",
+        )
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    from api.database import Feature, TestRun, create_database
+    from sqlalchemy import func
+
+    _, SessionLocal = create_database(project_dir)
+    session = SessionLocal()
+    try:
+        # Get all features with Plane links
+        linked = session.query(Feature).filter(
+            Feature.plane_work_item_id.isnot(None)
+        ).all()
+
+        if not linked:
+            return TestReport(generated_at=datetime.now(timezone.utc).isoformat())
+
+        linked_ids = [f.id for f in linked]
+        feature_names = {f.id: f.name for f in linked}
+
+        # Aggregate per-feature
+        stats = session.query(
+            TestRun.feature_id,
+            func.count(TestRun.id).label("total"),
+            func.sum(func.cast(TestRun.passed, type_=None)).label("passes"),
+            func.max(TestRun.completed_at).label("last_at"),
+        ).filter(
+            TestRun.feature_id.in_(linked_ids)
+        ).group_by(TestRun.feature_id).all()
+
+        summaries = []
+        total_runs = 0
+        total_passed = 0
+        tested_ids = set()
+
+        for row in stats:
+            fid = row[0]
+            runs = row[1] or 0
+            passes = int(row[2] or 0)
+            fails = runs - passes
+            total_runs += runs
+            total_passed += passes
+            tested_ids.add(fid)
+
+            # Get last result
+            last_run = session.query(TestRun).filter(
+                TestRun.feature_id == fid
+            ).order_by(TestRun.completed_at.desc()).first()
+
+            summaries.append(TestRunSummary(
+                feature_id=fid,
+                feature_name=feature_names.get(fid, ""),
+                total_runs=runs,
+                pass_count=passes,
+                fail_count=fails,
+                last_tested_at=row[3].isoformat() if row[3] else None,
+                last_result=last_run.passed if last_run else None,
+            ))
+
+        pass_rate = (total_passed / total_runs * 100) if total_runs > 0 else 0.0
+
+        return TestReport(
+            total_features=len(linked_ids),
+            features_tested=len(tested_ids),
+            features_never_tested=len(linked_ids) - len(tested_ids),
+            total_test_runs=total_runs,
+            overall_pass_rate=round(pass_rate, 1),
+            feature_summaries=summaries,
+            generated_at=datetime.now(timezone.utc).isoformat(),
+        )
+    finally:
+        session.close()
+
+
+# --- Webhook ---
+
+# Simple dedup: track recent webhook event keys with timestamps
+_webhook_dedup: dict[str, float] = {}
+_WEBHOOK_DEDUP_COOLDOWN = 5.0  # seconds
+
+
+@router.post("/webhooks")
+async def receive_webhook(request: Request):
+    """Receive a webhook from Plane. Verifies HMAC if secret is configured."""
+    body = await request.body()
+
+    # Verify signature if webhook secret is configured
+    config = _get_plane_config()
+    secret = config.get("plane_webhook_secret")
+    if secret:
+        signature = request.headers.get("x-plane-signature", "") or request.headers.get("x-signature", "")
+        if not signature or not verify_signature(body, signature, secret):
+            raise HTTPException(status_code=403, detail="Invalid webhook signature")
+
+    try:
+        import json
+        payload = json.loads(body)
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    event_type, action, data = parse_webhook_event(payload)
+
+    # Dedup: skip if we saw this event recently
+    event_key = f"{event_type}:{action}:{data.get('id', '')}"
+    now = time.time()
+    if event_key in _webhook_dedup and (now - _webhook_dedup[event_key]) < _WEBHOOK_DEDUP_COOLDOWN:
+        return {"status": "ok", "action": "deduped"}
+
+    _webhook_dedup[event_key] = now
+
+    # Clean up old dedup entries
+    cutoff = now - _WEBHOOK_DEDUP_COOLDOWN * 2
+    for k in list(_webhook_dedup.keys()):
+        if _webhook_dedup[k] < cutoff:
+            del _webhook_dedup[k]
+
+    # Record webhook
+    sync_loop = get_sync_loop()
+    sync_loop.record_webhook()
+
+    # Route events
+    cycle_id = config.get("plane_active_cycle_id")
+    if not cycle_id:
+        return {"status": "ok", "action": "no_active_cycle"}
+
+    try:
+        if event_type in ("issue", "work_item") and action == "update":
+            # Re-import the active cycle to pick up changes
+            project_dirs = sync_loop._get_project_dirs()
+            client = _build_client()
+            try:
+                for project_dir in project_dirs:
+                    import_cycle(client, project_dir, cycle_id)
+            finally:
+                client.close()
+
+        elif event_type == "cycle" and action == "update":
+            # Check if this matches our active cycle
+            if data.get("id") == cycle_id:
+                project_dirs = sync_loop._get_project_dirs()
+                client = _build_client()
+                try:
+                    for project_dir in project_dirs:
+                        import_cycle(client, project_dir, cycle_id)
+                finally:
+                    client.close()
+
+    except Exception as e:
+        logger.warning("Webhook processing error: %s", e)
+        return {"status": "ok", "action": "error", "message": str(e)}
+
+    return {"status": "ok", "action": "processed"}

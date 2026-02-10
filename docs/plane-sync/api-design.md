@@ -22,7 +22,8 @@ Huidige Plane configuratie ophalen. API key wordt gemaskeerd.
   "plane_project_id": "550e8400-e29b-41d4-a716-446655440000",
   "plane_sync_enabled": false,
   "plane_poll_interval": 30,
-  "plane_active_cycle_id": null
+  "plane_active_cycle_id": null,
+  "plane_webhook_secret_set": false
 }
 ```
 
@@ -156,62 +157,117 @@ Status van de sync service.
 {
   "enabled": true,
   "running": true,
-  "last_poll": "2026-02-10T14:30:00Z",
-  "last_sync_result": {
-    "imported": 0,
-    "updated": 2,
-    "pushed": 1
+  "last_sync_at": "2026-02-10T14:30:00Z",
+  "last_error": null,
+  "items_synced": 3,
+  "active_cycle_name": "Sprint 5",
+  "sprint_complete": false,
+  "sprint_stats": {
+    "total": 8,
+    "passing": 6,
+    "failed": 2,
+    "total_test_runs": 42,
+    "overall_pass_rate": 85.7
   },
-  "active_cycle_id": "cycle-uuid-1",
-  "active_cycle_name": "Sprint 4",
-  "poll_interval": 30,
-  "errors": []
+  "last_webhook_at": "2026-02-10T14:29:55Z",
+  "webhook_count": 12
 }
 ```
 
 ### Sync Control
 
-#### `POST /api/plane/sync/start`
+#### `POST /api/plane/sync/toggle`
 
-Start de background polling loop.
+Toggle de background sync loop aan/uit.
+
+**Response:** Zelfde als `GET /api/plane/sync-status`.
+
+### Sprint Completion
+
+#### `POST /api/plane/complete-sprint`
+
+Complete de huidige sprint: DoD verificatie, retrospective naar Plane, git tag, release notes.
+
+**Request:**
+```json
+{
+  "project_name": "my-project"
+}
+```
 
 **Response:**
 ```json
 {
-  "status": "started",
-  "poll_interval": 30
+  "success": true,
+  "features_completed": 8,
+  "features_failed": 0,
+  "git_tag": "sprint/sprint-5",
+  "change_log": "abc1234 feat: add OAuth2 login\ndef5678 fix: token refresh",
+  "release_notes_path": "/path/to/project/releases/sprint-sprint-5.md",
+  "error": null
 }
 ```
 
-#### `POST /api/plane/sync/stop`
+### Test Report
 
-Stop de background polling loop.
+#### `GET /api/plane/test-report?project_name=X`
+
+Geaggregeerd test rapport voor alle Plane-gelinkte features in een project.
 
 **Response:**
 ```json
 {
-  "status": "stopped"
+  "total_features": 8,
+  "features_tested": 6,
+  "features_never_tested": 2,
+  "total_test_runs": 42,
+  "overall_pass_rate": 85.7,
+  "feature_summaries": [
+    {
+      "feature_id": 1,
+      "feature_name": "OAuth2 login",
+      "total_runs": 8,
+      "pass_count": 7,
+      "fail_count": 1,
+      "last_tested_at": "2026-02-10T14:30:00",
+      "last_result": true
+    }
+  ],
+  "generated_at": "2026-02-10T14:30:00Z"
 }
 ```
 
-### Webhooks (optioneel)
+### Webhooks
 
 #### `POST /api/plane/webhooks`
 
-Ontvang webhook events van Plane. HMAC-SHA256 signed.
+Ontvang webhook events van Plane. HMAC-SHA256 verificatie indien geconfigureerd.
+
+**Beveiliging:**
+- Exempt van localhost middleware (HMAC is de authenticatie)
+- Als `plane_webhook_secret` is geconfigureerd, wordt de signature geverifieerd
+- Event dedup: zelfde event key wordt 5 seconden genegeerd
 
 **Headers:**
 ```
-X-Plane-Signature: sha256=xxxxx
+X-Plane-Signature: <hmac-sha256-hex>
 ```
 
-**Request body:** Plane webhook payload (cycle/issue events).
+**Request body:** Plane webhook payload (JSON).
 
-**Response:** `200 OK`
+**Response:**
+```json
+{
+  "status": "ok",
+  "action": "processed"
+}
+```
 
-**Ondersteunde events:**
-- `work_item.updated` - Status/priority/beschrijving gewijzigd
-- `cycle.updated` - Cycle start/eind, items toegevoegd/verwijderd
+**Acties per event:**
+- `issue.update` / `work_item.update` -> `import_cycle()` voor actieve cycle
+- `cycle.update` (matching cycle ID) -> `import_cycle()` voor actieve cycle
+
+**Mogelijke response actions:** `"processed"`, `"deduped"`, `"no_active_cycle"`, `"error"`
 
 ## Authenticatie
 

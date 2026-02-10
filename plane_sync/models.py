@@ -122,6 +122,7 @@ class PlaneConfig(BaseModel):
     plane_sync_enabled: bool = False
     plane_poll_interval: int = 30
     plane_active_cycle_id: str | None = None
+    plane_webhook_secret_set: bool = False
 
 
 class PlaneConfigUpdate(BaseModel):
@@ -134,6 +135,7 @@ class PlaneConfigUpdate(BaseModel):
     plane_sync_enabled: bool | None = None
     plane_poll_interval: int | None = None
     plane_active_cycle_id: str | None = None
+    plane_webhook_secret: str | None = None
 
 
 class PlaneConnectionResult(BaseModel):
@@ -184,12 +186,38 @@ class PlaneOutboundResult(BaseModel):
     errors: int = 0
 
 
+class TestRunSummary(BaseModel):
+    """Test run summary for a single feature."""
+
+    feature_id: int
+    feature_name: str = ""
+    total_runs: int = 0
+    pass_count: int = 0
+    fail_count: int = 0
+    last_tested_at: str | None = None
+    last_result: bool | None = None
+
+
+class TestReport(BaseModel):
+    """Aggregate test report across all features."""
+
+    total_features: int = 0
+    features_tested: int = 0
+    features_never_tested: int = 0
+    total_test_runs: int = 0
+    overall_pass_rate: float = 0.0
+    feature_summaries: list[TestRunSummary] = Field(default_factory=list)
+    generated_at: str = ""
+
+
 class SprintStats(BaseModel):
     """Sprint completion statistics."""
 
     total: int = 0
     passing: int = 0
     failed: int = 0
+    total_test_runs: int = 0
+    overall_pass_rate: float = 0.0
 
 
 class PlaneSyncStatus(BaseModel):
@@ -203,6 +231,8 @@ class PlaneSyncStatus(BaseModel):
     active_cycle_name: str | None = None
     sprint_complete: bool = False
     sprint_stats: SprintStats | None = None
+    last_webhook_at: str | None = None
+    webhook_count: int = 0
 
 
 class SprintCompletionResult(BaseModel):
@@ -213,6 +243,7 @@ class SprintCompletionResult(BaseModel):
     features_failed: int = 0
     git_tag: str | None = None
     change_log: str = ""
+    release_notes_path: str | None = None
     error: str | None = None
 
 

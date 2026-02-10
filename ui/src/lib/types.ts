@@ -614,6 +614,7 @@ export interface PlaneConfig {
   plane_sync_enabled: boolean
   plane_poll_interval: number
   plane_active_cycle_id: string | null
+  plane_webhook_secret_set: boolean
 }
 
 export interface PlaneConfigUpdate {
@@ -624,6 +625,7 @@ export interface PlaneConfigUpdate {
   plane_sync_enabled?: boolean
   plane_poll_interval?: number
   plane_active_cycle_id?: string
+  plane_webhook_secret?: string
 }
 
 export interface PlaneConnectionResult {
@@ -662,6 +664,8 @@ export interface SprintStats {
   total: number
   passing: number
   failed: number
+  total_test_runs?: number
+  overall_pass_rate?: number
 }
 
 export interface PlaneSyncStatus {
@@ -673,6 +677,28 @@ export interface PlaneSyncStatus {
   active_cycle_name: string | null
   sprint_complete: boolean
   sprint_stats: SprintStats | null
+  last_webhook_at: string | null
+  webhook_count: number
+}
+
+export interface TestRunSummary {
+  feature_id: number
+  feature_name: string
+  total_runs: number
+  pass_count: number
+  fail_count: number
+  last_tested_at: string | null
+  last_result: boolean | null
+}
+
+export interface TestReport {
+  total_features: number
+  features_tested: number
+  features_never_tested: number
+  total_test_runs: number
+  overall_pass_rate: number
+  feature_summaries: TestRunSummary[]
+  generated_at: string
 }
 
 export interface SprintCompletionResult {
@@ -681,5 +707,6 @@ export interface SprintCompletionResult {
   features_failed: number
   git_tag: string | null
   change_log: string
+  release_notes_path: string | null
   error: string | null
 }

@@ -410,3 +410,13 @@ export function useCompleteSprint() {
     },
   })
 }
+
+export function useTestReport(projectName: string | null) {
+  return useQuery({
+    queryKey: ['test-report', projectName],
+    queryFn: () => api.getTestReport(projectName!),
+    enabled: !!projectName,
+    staleTime: 30000,
+    retry: 1,
+  })
+}

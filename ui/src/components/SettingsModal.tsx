@@ -447,6 +447,7 @@ function PlaneSettingsSection() {
     plane_api_key: '',
     plane_workspace_slug: '',
     plane_project_id: '',
+    plane_webhook_secret: '',
   })
   const [formDirty, setFormDirty] = useState(false)
   const [connectionResult, setConnectionResult] = useState<PlaneConnectionResult | null>(null)
@@ -480,6 +481,7 @@ function PlaneSettingsSection() {
     if (formValues.plane_api_key) update.plane_api_key = formValues.plane_api_key
     if (formValues.plane_workspace_slug) update.plane_workspace_slug = formValues.plane_workspace_slug
     if (formValues.plane_project_id) update.plane_project_id = formValues.plane_project_id
+    if (formValues.plane_webhook_secret) update.plane_webhook_secret = formValues.plane_webhook_secret
 
     updateConfig.mutate(update, {
       onSuccess: () => {
@@ -592,6 +594,21 @@ function PlaneSettingsSection() {
                   onChange={(e) => handleFieldChange('plane_project_id', e.target.value)}
                   className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
+              </div>
+
+              {/* Webhook Secret */}
+              <div className="space-y-1">
+                <Label className="text-sm">Webhook Secret {planeConfig?.plane_webhook_secret_set && <span className="text-xs text-green-600">(set)</span>}</Label>
+                <input
+                  type="password"
+                  placeholder={planeConfig?.plane_webhook_secret_set ? '********' : 'Optional HMAC secret'}
+                  value={formValues.plane_webhook_secret || ''}
+                  onChange={(e) => handleFieldChange('plane_webhook_secret', e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Configure in Plane's webhook settings. URL: <code className="bg-muted px-1 rounded">{'{your-autoforge-url}'}/api/plane/webhooks</code>
+                </p>
               </div>
 
               {/* Save + Test buttons */}
@@ -743,6 +760,12 @@ function PlaneSettingsSection() {
                         Error: {syncStatus.last_error}
                       </div>
                     )}
+                    {syncStatus.webhook_count > 0 && (
+                      <div>
+                        Webhooks: {syncStatus.webhook_count} received
+                        {syncStatus.last_webhook_at && ` (last: ${new Date(syncStatus.last_webhook_at).toLocaleTimeString()})`}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -763,6 +786,12 @@ function PlaneSettingsSection() {
                         </span>
                       )}
                     </div>
+
+                    {syncStatus.sprint_stats.total_test_runs != null && syncStatus.sprint_stats.total_test_runs > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        {syncStatus.sprint_stats.total_test_runs} test runs, {syncStatus.sprint_stats.overall_pass_rate?.toFixed(0) ?? 0}% pass rate
+                      </div>
+                    )}
 
                     {!syncStatus.sprint_complete && syncStatus.sprint_stats.failed > 0 && (
                       <p className="text-xs text-muted-foreground">
@@ -806,6 +835,11 @@ function PlaneSettingsSection() {
                           {completionResult.git_tag && (
                             <div className="text-xs text-muted-foreground">
                               Git tag: <code className="bg-muted px-1 rounded">{completionResult.git_tag}</code>
+                            </div>
+                          )}
+                          {completionResult.release_notes_path && (
+                            <div className="text-xs text-muted-foreground">
+                              Release notes: <code className="bg-muted px-1 rounded">{completionResult.release_notes_path}</code>
                             </div>
                           )}
                         </div>

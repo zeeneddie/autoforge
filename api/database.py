@@ -158,6 +158,27 @@ class Schedule(Base):
         return bool(self.days_of_week & day_bit)
 
 
+class TestRun(Base):
+    """Record of a single test run against a feature."""
+
+    __tablename__ = "test_runs"
+    __table_args__ = (
+        Index('ix_test_run_feature_completed', 'feature_id', 'completed_at'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    feature_id = Column(Integer, ForeignKey("features.id", ondelete="CASCADE"), nullable=False, index=True)
+    passed = Column(Boolean, nullable=False)
+    agent_type = Column(String(20), nullable=False)  # "testing" or "coding"
+    agent_pid = Column(Integer, nullable=True)
+    feature_ids_in_batch = Column(JSON, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=False, default=_utc_now)
+    return_code = Column(Integer, nullable=True)
+
+    feature = relationship("Feature", backref="test_runs")
+
+
 class ScheduleOverride(Base):
     """Persisted manual override for a schedule window."""
 
@@ -389,6 +410,17 @@ def _migrate_add_schedules_tables(engine) -> None:
                 conn.commit()
 
 
+def _migrate_add_test_runs_table(engine) -> None:
+    """Create test_runs table if it doesn't exist."""
+    from sqlalchemy import inspect
+
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    if "test_runs" not in existing_tables:
+        TestRun.__table__.create(bind=engine)  # type: ignore[attr-defined]
+
+
 def _configure_sqlite_immediate_transactions(engine) -> None:
     """Configure engine for IMMEDIATE transactions via event hooks.
 
@@ -487,6 +519,9 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add schedules tables
     _migrate_add_schedules_tables(engine)
+
+    # Migrate to add test_runs table
+    _migrate_add_test_runs_table(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -132,24 +132,63 @@ Na elke outbound push:
 3. Gelijk = eigen update = skip
 4. Verschillend = menselijke edit = sync
 
-## Fase 7: Sprint Completion
+## Fase 7: Sprint Completion & Delivery
 
-**Trigger:** Alle features in sprint passing, of cycle einddatum bereikt.
+**Trigger:** Alle features in sprint passing (`sprint_complete: true` in sync status).
 
-**Proces:**
-1. AutoForge detecteert: alle cycle features hebben `passes=true`
-2. Genereer change documents per feature:
-   - Git diff samenvatting
-   - Gewijzigde bestanden + regelnummers
-   - Acceptance criteria status
-3. Push change docs naar Plane (als work item comments)
-4. Optioneel: push change docs naar MarQed story directories
-5. Optioneel: archiveer cycle in Plane
-6. Incomplete items -> volgende cycle (handmatig in Plane)
+**Stap 1: DoD Verificatie**
+- AutoForge controleert of alle Plane-gelinkte features `passes=true` hebben
+- Als niet alle features passing zijn, wordt completion geweigerd met details
 
-**Git:**
-- Tag: `sprint-{N}-v{version}`
-- Release notes gegenereerd uit voltooide features
+**Stap 2: Change Log**
+- `git log --oneline` sinds de laatste git tag
+
+**Stap 3: Retrospective naar Plane**
+- Completion comment op elk work item met status + change log
+- Cycle description update met retrospective samenvatting (pass rate, feature lijst)
+
+**Stap 4: Git Tag**
+- Format: `sprint/{cycle-name-lowercase-dashes}`
+- Bevat tag message met pass rate
+
+**Stap 5: Release Notes**
+- Markdown document gegenereerd naar `releases/sprint-{slug}.md`
+- Bevat: summary (datum, tag, pass rate), features per categorie, test results tabel, change log
+- Test results tabel bevat per-feature: runs, pass/fail count, rate, last result
+- Data komt uit het `TestRun` model (geregistreerd door de orchestrator)
+
+**Stap 6: Registry Flag**
+- `plane_sprint_completed_{cycle_id}=true` in registry
+
+**Output:**
+- Git tag op HEAD
+- Release notes in `releases/` directory
+- Retrospective comments op Plane work items
+- Cycle description update in Plane
+
+## Test History (Sprint 5)
+
+De orchestrator registreert `TestRun` records na elke agent completion:
+
+| Agent type | Wanneer | Data |
+|---|---|---|
+| Testing agent | Na elke batch completion | feature_ids, passed state, batch info, timing, return code |
+| Coding agent | Na elke feature completion | feature_ids, passed state, return code |
+
+**Aggregatie:**
+- `GET /api/plane/test-report?project_name=X` geeft per-feature en totaal overzicht
+- Sprint stats in sync status bevatten `total_test_runs` en `overall_pass_rate`
+- Release notes bevatten een test results tabel
+
+## Webhooks (Sprint 5)
+
+Naast de 30-seconde polling loop ondersteunt AutoForge ook real-time webhooks:
+
+- Configureer webhook secret in AutoForge settings (optioneel maar aanbevolen)
+- Configureer in Plane: webhook URL = `{autoforge-url}/api/plane/webhooks`
+- Events (`issue.update`, `cycle.update`) triggeren directe re-import van de actieve cycle
+- Event dedup voorkomt dubbele verwerking (5s cooldown per event key)
+- Webhook count en timestamp zichtbaar in sync status UI
 
 ## Foutscenario's
 

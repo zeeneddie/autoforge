@@ -2,8 +2,8 @@
 
 ## Architectuur & Ontwerp
 
-- [**architecture.md**](architecture.md) - Systeemarchitectuur: MarQed + Plane + AutoForge pipeline, component overzicht, deployment
-- [**roadmap.md**](roadmap.md) - Sprint planning v2 (5 sprints, Plane-integratie)
+- [**architecture.md**](architecture.md) - Systeemarchitectuur: MarQed + Plane + AutoForge pipeline, component overzicht, test history, webhooks, deployment
+- [**roadmap.md**](roadmap.md) - Sprint planning v2 (5 sprints voltooid: multi-model, Plane sync, DoD, continuous delivery)
 
 ## Architectuur Decision Records (ADR)
 
@@ -13,5 +13,5 @@
 
 ## Plane Sync Module
 
-- [**api-design.md**](plane-sync/api-design.md) - REST API endpoints voor Plane integratie: config, test-connection, cycles, import, sync, webhooks
-- [**sprint-lifecycle.md**](plane-sync/sprint-lifecycle.md) - Complete sprint lifecycle van analyse tot completion, alle 7 fasen, foutscenario's
+- [**api-design.md**](plane-sync/api-design.md) - REST API endpoints: config, cycles, import, sync, webhooks, test-report, sprint completion
+- [**sprint-lifecycle.md**](plane-sync/sprint-lifecycle.md) - Complete sprint lifecycle: 7 fasen, test history, webhooks, release notes, foutscenario's

@@ -41,6 +41,8 @@ class PlaneSyncLoop:
         self._items_synced: int = 0
         self._sprint_complete: bool = False
         self._sprint_stats: dict | None = None
+        self._last_webhook_at: str | None = None
+        self._webhook_count: int = 0
 
     @property
     def running(self) -> bool:
@@ -113,7 +115,7 @@ class PlaneSyncLoop:
         return dirs
 
     def _check_sprint_completion(self) -> None:
-        """Check if all Plane-linked features are passing."""
+        """Check if all Plane-linked features are passing. Also aggregate test stats."""
         project_dirs = self._get_project_dirs()
         if not project_dirs:
             return
@@ -121,13 +123,16 @@ class PlaneSyncLoop:
         _ensure_registry()
         total = 0
         passing = 0
+        total_test_runs = 0
+        passed_test_runs = 0
 
         for project_dir in project_dirs:
             try:
                 root = Path(__file__).parent.parent
                 if str(root) not in sys.path:
                     sys.path.insert(0, str(root))
-                from api.database import Feature, create_database
+                from api.database import Feature, TestRun, create_database
+                from sqlalchemy import func
 
                 _, SessionLocal = create_database(project_dir)
                 session = SessionLocal()
@@ -135,10 +140,24 @@ class PlaneSyncLoop:
                     linked = session.query(Feature).filter(
                         Feature.plane_work_item_id.isnot(None)
                     ).all()
+                    linked_ids = []
                     for f in linked:
                         total += 1
+                        linked_ids.append(f.id)
                         if f.passes:
                             passing += 1
+
+                    # Query test run stats for linked features
+                    if linked_ids:
+                        stats = session.query(
+                            func.count(TestRun.id),
+                            func.sum(func.cast(TestRun.passed, type_=None)),
+                        ).filter(
+                            TestRun.feature_id.in_(linked_ids)
+                        ).first()
+                        if stats:
+                            total_test_runs += stats[0] or 0
+                            passed_test_runs += int(stats[1] or 0)
                 finally:
                     session.close()
             except Exception as e:
@@ -146,10 +165,13 @@ class PlaneSyncLoop:
 
         if total > 0:
             self._sprint_complete = passing == total
+            pass_rate = (passed_test_runs / total_test_runs * 100) if total_test_runs > 0 else 0.0
             self._sprint_stats = {
                 "total": total,
                 "passing": passing,
                 "failed": total - passing,
+                "total_test_runs": total_test_runs,
+                "overall_pass_rate": round(pass_rate, 1),
             }
         else:
             self._sprint_complete = False
@@ -259,6 +281,11 @@ class PlaneSyncLoop:
                 pass
         self._task = None
 
+    def record_webhook(self) -> None:
+        """Record that a webhook was received."""
+        self._webhook_count += 1
+        self._last_webhook_at = datetime.now(timezone.utc).isoformat()
+
     def get_status(self) -> dict:
         """Get current sync status for the API."""
         config = self._get_config()
@@ -271,6 +298,8 @@ class PlaneSyncLoop:
             "active_cycle_name": None,  # Filled by the API endpoint if needed
             "sprint_complete": self._sprint_complete,
             "sprint_stats": self._sprint_stats,
+            "last_webhook_at": self._last_webhook_at,
+            "webhook_count": self._webhook_count,
         }
 
 
