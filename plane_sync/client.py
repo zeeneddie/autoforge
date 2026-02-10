@@ -212,6 +212,73 @@ class PlaneApiClient:
         results = data if isinstance(data, list) else data.get("results", data)
         return [PlaneModule(**m) for m in results]
 
+    # --- Work Items (write) ---
+
+    def create_work_item(self, data: dict) -> PlaneWorkItem:
+        """Create a new work item (issue).
+
+        Args:
+            data: Dict with fields like name, description_html, priority,
+                  state, parent, etc.
+
+        Returns:
+            The created PlaneWorkItem.
+        """
+        result = self._request("POST", "/issues/", json=data)
+        return PlaneWorkItem(**result)
+
+    # --- Modules (write) ---
+
+    def create_module(self, data: dict) -> PlaneModule:
+        """Create a new module.
+
+        Args:
+            data: Dict with fields like name, description, status.
+
+        Returns:
+            The created PlaneModule.
+        """
+        result = self._request("POST", "/modules/", json=data)
+        return PlaneModule(**result)
+
+    def add_work_items_to_module(
+        self, module_id: str, issue_ids: list[str]
+    ) -> Any:
+        """Add work items to a module.
+
+        Args:
+            module_id: The module UUID.
+            issue_ids: List of work item UUIDs to add.
+
+        Returns:
+            API response.
+        """
+        return self._request(
+            "POST",
+            f"/modules/{module_id}/module-issues/",
+            json={"issues": issue_ids},
+        )
+
+    # --- Cycles (add items) ---
+
+    def add_work_items_to_cycle(
+        self, cycle_id: str, issue_ids: list[str]
+    ) -> Any:
+        """Add work items to a cycle.
+
+        Args:
+            cycle_id: The cycle UUID.
+            issue_ids: List of work item UUIDs to add.
+
+        Returns:
+            API response.
+        """
+        return self._request(
+            "POST",
+            f"/cycles/{cycle_id}/cycle-issues/",
+            json={"issues": issue_ids},
+        )
+
     def close(self) -> None:
         """Close the HTTP session."""
         self._session.close()
