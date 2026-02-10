@@ -657,3 +657,12 @@ export interface PlaneImportDetail {
   reason: string
   feature_id: number | null
 }
+
+export interface PlaneSyncStatus {
+  enabled: boolean
+  running: boolean
+  last_sync_at: string | null
+  last_error: string | null
+  items_synced: number
+  active_cycle_name: string | null
+}

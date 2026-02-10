@@ -15,6 +15,7 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 from plane_sync.client import PlaneApiClient, PlaneApiError
+from plane_sync.background import get_sync_loop
 from plane_sync.models import (
     PlaneConfig,
     PlaneConfigUpdate,
@@ -22,6 +23,7 @@ from plane_sync.models import (
     PlaneCycleSummary,
     PlaneImportRequest,
     PlaneImportResult,
+    PlaneSyncStatus,
 )
 from plane_sync.sync_service import import_cycle
 from registry import get_all_settings, get_setting, set_setting
@@ -216,3 +218,49 @@ async def import_cycle_endpoint(request: PlaneImportRequest):
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
     finally:
         client.close()
+
+
+# --- Sync status ---
+
+
+@router.get("/sync-status", response_model=PlaneSyncStatus)
+async def get_sync_status():
+    """Get current Plane sync loop status."""
+    sync_loop = get_sync_loop()
+    status = sync_loop.get_status()
+
+    # Try to get active cycle name
+    active_cycle_name = None
+    cycle_id = status.get("active_cycle_id") or _get_plane_config().get("plane_active_cycle_id")
+    if cycle_id:
+        try:
+            client = _build_client()
+            try:
+                cycle = client.get_cycle(cycle_id)
+                active_cycle_name = cycle.name
+            finally:
+                client.close()
+        except Exception:
+            pass  # Don't fail status endpoint for this
+
+    return PlaneSyncStatus(
+        enabled=status["enabled"],
+        running=status["running"],
+        last_sync_at=status["last_sync_at"],
+        last_error=status["last_error"],
+        items_synced=status["items_synced"],
+        active_cycle_name=active_cycle_name,
+    )
+
+
+@router.post("/sync/toggle", response_model=PlaneSyncStatus)
+async def toggle_sync():
+    """Toggle the Plane sync loop on/off."""
+    config = _get_plane_config()
+    currently_enabled = config["plane_sync_enabled"].lower() == "true"
+
+    # Toggle
+    new_state = not currently_enabled
+    set_setting("plane_sync_enabled", "true" if new_state else "false")
+
+    return await get_sync_status()

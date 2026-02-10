@@ -377,3 +377,24 @@ export function useImportPlaneCycle() {
     },
   })
 }
+
+export function usePlaneSyncStatus() {
+  return useQuery({
+    queryKey: ['plane-sync-status'],
+    queryFn: api.getPlaneSyncStatus,
+    refetchInterval: 10000, // Poll every 10s to show live sync status
+    retry: 1,
+  })
+}
+
+export function useTogglePlaneSync() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => api.togglePlaneSync(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plane-sync-status'] })
+      queryClient.invalidateQueries({ queryKey: ['plane-config'] })
+    },
+  })
+}

@@ -64,19 +64,21 @@ Work items uit Plane importeren als AutoForge Features.
 
 ---
 
-## Sprint 3: Plane Integratie - Bidirectionele Sync
+## Sprint 3: Plane Integratie - Bidirectionele Sync -- DONE
 
-> Doel: Status updates heen en weer syncen, real-time.
+> Afgerond: 2026-02-10
+
+Bidirectionele status sync: AutoForge feature status wordt automatisch naar Plane gepusht, en Plane wijzigingen worden opgehaald via een achtergrond polling loop.
 
 | # | Item | Status |
 |---|---|---|
-| 3.1 | Outbound sync: Feature status -> Plane work item state | pending |
-| 3.2 | Echo prevention via timestamp vergelijking | pending |
-| 3.3 | Background polling loop (30s, auto-detect active cycle) | pending |
-| 3.4 | Mid-sprint sync (nieuwe/gewijzigde/verwijderde items) | pending |
-| 3.5 | Plane sync status in AutoForge UI | pending |
-| 3.6 | Optionele webhook handler met HMAC-SHA256 verificatie | pending |
-| 3.7 | Change document generatie (git diff + AI summary) | pending |
+| 3.1 | Outbound sync: Feature status -> Plane work item state | done |
+| 3.2 | Echo prevention via status hash + timestamp vergelijking | done |
+| 3.3 | Background polling loop (configurable interval) | done |
+| 3.4 | Mid-sprint sync (nieuwe/gewijzigde/verwijderde items) | done |
+| 3.5 | Plane sync status in AutoForge UI | done |
+| 3.6 | Optionele webhook handler met HMAC-SHA256 verificatie | deferred (Sprint 5+) |
+| 3.7 | Change document generatie (git diff + AI summary) | deferred (Sprint 4) |
 
 **Acceptatiecriteria:**
 1. Plane work items gaan automatisch naar "started" als AutoForge ze oppakt

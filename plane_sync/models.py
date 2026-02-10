@@ -176,6 +176,25 @@ class PlaneImportDetail(BaseModel):
     feature_id: int | None = None
 
 
+class PlaneOutboundResult(BaseModel):
+    """Result of outbound sync (pushing feature status to Plane)."""
+
+    pushed: int = 0
+    skipped: int = 0
+    errors: int = 0
+
+
+class PlaneSyncStatus(BaseModel):
+    """Current state of the background sync loop."""
+
+    enabled: bool = False
+    running: bool = False
+    last_sync_at: str | None = None
+    last_error: str | None = None
+    items_synced: int = 0
+    active_cycle_name: str | None = None
+
+
 class PlaneImportRequest(BaseModel):
     """Request to import a cycle."""
 

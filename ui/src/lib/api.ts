@@ -37,6 +37,7 @@ import type {
   PlaneConnectionResult,
   PlaneCycleSummary,
   PlaneImportResult,
+  PlaneSyncStatus,
 } from './types'
 
 const API_BASE = '/api'
@@ -564,5 +565,15 @@ export async function importPlaneCycle(
   return fetchJSON('/plane/import-cycle', {
     method: 'POST',
     body: JSON.stringify({ cycle_id: cycleId, project_name: projectName }),
+  })
+}
+
+export async function getPlaneSyncStatus(): Promise<PlaneSyncStatus> {
+  return fetchJSON('/plane/sync-status')
+}
+
+export async function togglePlaneSync(): Promise<PlaneSyncStatus> {
+  return fetchJSON('/plane/sync/toggle', {
+    method: 'POST',
   })
 }

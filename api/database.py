@@ -64,6 +64,7 @@ class Feature(Base):
     plane_work_item_id = Column(String(36), nullable=True, unique=True, index=True)
     plane_synced_at = Column(DateTime, nullable=True)
     plane_updated_at = Column(DateTime, nullable=True)
+    plane_last_status_hash = Column(String(20), nullable=True)
 
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
@@ -341,6 +342,19 @@ def _migrate_add_plane_sync_columns(engine) -> None:
             pass  # Index may already exist
 
 
+def _migrate_add_plane_status_hash(engine) -> None:
+    """Add plane_last_status_hash column to existing databases."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if "plane_last_status_hash" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN plane_last_status_hash VARCHAR(20) DEFAULT NULL"
+            ))
+            conn.commit()
+
+
 def _migrate_add_schedules_tables(engine) -> None:
     """Create schedules and schedule_overrides tables if they don't exist."""
     from sqlalchemy import inspect
@@ -467,6 +481,9 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add Plane sync columns
     _migrate_add_plane_sync_columns(engine)
+
+    # Migrate to add plane_last_status_hash column
+    _migrate_add_plane_status_hash(engine)
 
     # Migrate to add schedules tables
     _migrate_add_schedules_tables(engine)

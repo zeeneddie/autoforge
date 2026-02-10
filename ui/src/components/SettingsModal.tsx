@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Loader2, AlertCircle, Check, Moon, Sun, ChevronDown, ChevronRight } from 'lucide-react'
-import { useSettings, useUpdateSettings, useAvailableModels, usePlaneConfig, useUpdatePlaneConfig, useTestPlaneConnection, usePlaneCycles, useImportPlaneCycle } from '../hooks/useProjects'
+import { useSettings, useUpdateSettings, useAvailableModels, usePlaneConfig, useUpdatePlaneConfig, useTestPlaneConnection, usePlaneCycles, useImportPlaneCycle, usePlaneSyncStatus, useTogglePlaneSync } from '../hooks/useProjects'
 import { useTheme, THEMES } from '../hooks/useTheme'
 import {
   Dialog,
@@ -437,6 +437,8 @@ function PlaneSettingsSection() {
   const testConnection = useTestPlaneConnection()
   const { data: cycles, refetch: fetchCycles, isFetching: cyclesLoading } = usePlaneCycles()
   const importCycle = useImportPlaneCycle()
+  const { data: syncStatus } = usePlaneSyncStatus()
+  const toggleSync = useTogglePlaneSync()
 
   const [formValues, setFormValues] = useState({
     plane_api_url: '',
@@ -700,6 +702,48 @@ function PlaneSettingsSection() {
                   </AlertDescription>
                 </Alert>
               )}
+
+              <hr className="border-border" />
+
+              {/* Background Sync */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Background Sync</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Auto-sync status between AutoForge and Plane
+                    </p>
+                  </div>
+                  <Switch
+                    checked={syncStatus?.enabled ?? false}
+                    onCheckedChange={() => toggleSync.mutate()}
+                    disabled={toggleSync.isPending}
+                  />
+                </div>
+
+                {syncStatus?.enabled && (
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${syncStatus.running ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'}`} />
+                      <span>{syncStatus.running ? 'Sync active' : 'Sync idle'}</span>
+                      {syncStatus.active_cycle_name && (
+                        <span className="text-muted-foreground">({syncStatus.active_cycle_name})</span>
+                      )}
+                    </div>
+                    {syncStatus.last_sync_at && (
+                      <div>
+                        Last sync: {new Date(syncStatus.last_sync_at).toLocaleTimeString()}
+                        {syncStatus.items_synced > 0 && ` (${syncStatus.items_synced} items)`}
+                      </div>
+                    )}
+                    {syncStatus.last_error && (
+                      <div className="text-destructive">
+                        Error: {syncStatus.last_error}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

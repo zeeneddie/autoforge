@@ -53,6 +53,7 @@ from .services.expand_chat_session import cleanup_all_expand_sessions
 from .services.process_manager import cleanup_all_managers, cleanup_orphaned_locks
 from .services.scheduler_service import cleanup_scheduler, get_scheduler
 from .services.terminal_manager import cleanup_all_terminals
+from plane_sync.background import get_sync_loop
 from .websocket import project_websocket
 
 # Paths
@@ -70,9 +71,15 @@ async def lifespan(app: FastAPI):
     scheduler = get_scheduler()
     await scheduler.start()
 
+    # Start the Plane sync background loop
+    sync_loop = get_sync_loop()
+    await sync_loop.start()
+
     yield
 
-    # Shutdown - cleanup scheduler first to stop triggering new starts
+    # Shutdown - stop Plane sync loop
+    await sync_loop.stop()
+    # Cleanup scheduler to stop triggering new starts
     await cleanup_scheduler()
     # Then cleanup all running agents, sessions, terminals, and dev servers
     await cleanup_all_managers()
