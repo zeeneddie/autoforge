@@ -184,6 +184,14 @@ class PlaneOutboundResult(BaseModel):
     errors: int = 0
 
 
+class SprintStats(BaseModel):
+    """Sprint completion statistics."""
+
+    total: int = 0
+    passing: int = 0
+    failed: int = 0
+
+
 class PlaneSyncStatus(BaseModel):
     """Current state of the background sync loop."""
 
@@ -193,6 +201,19 @@ class PlaneSyncStatus(BaseModel):
     last_error: str | None = None
     items_synced: int = 0
     active_cycle_name: str | None = None
+    sprint_complete: bool = False
+    sprint_stats: SprintStats | None = None
+
+
+class SprintCompletionResult(BaseModel):
+    """Result of completing a sprint."""
+
+    success: bool
+    features_completed: int = 0
+    features_failed: int = 0
+    git_tag: str | None = None
+    change_log: str = ""
+    error: str | None = None
 
 
 class PlaneImportRequest(BaseModel):

@@ -90,17 +90,27 @@ Bidirectionele status sync: AutoForge feature status wordt automatisch naar Plan
 
 ---
 
-## Sprint 4: DoD & Sprint Completion
+## Sprint 4: DoD & Sprint Completion -- DONE
 
-> Doel: Definition of Done checks, acceptance criteria, sprint afsluiting.
+> Afgerond: 2026-02-10
+
+Structured sprint completion met DoD verificatie, retrospective naar Plane, en git tagging.
 
 | # | Item | Status |
 |---|---|---|
-| 4.1 | Acceptance criteria uit Plane work item description parsen | pending |
-| 4.2 | DoD checks per feature (acceptance criteria + regression) | pending |
-| 4.3 | Sprint completion detectie (alle features passing) | pending |
-| 4.4 | Retrospective data genereren (schrijf naar Plane als cycle comment) | pending |
-| 4.5 | Git tag per sprint | pending |
+| 4.1 | Acceptance criteria uit Plane work item description parsen | done |
+| 4.2 | DoD checks per feature (acceptance criteria + regression) | done |
+| 4.3 | Sprint completion detectie (alle features passing) | done |
+| 4.4 | Retrospective data genereren (schrijf naar Plane als cycle comment) | done |
+| 4.5 | Git tag per sprint | done |
+| 3.7 | Change document generatie (git log summary in retrospective) | done |
+
+**Acceptatiecriteria:**
+1. Import een Plane work item met "Acceptance Criteria:" sectie -- steps worden correct geextraheerd
+2. Importeer cycle, markeer alle features als passing -- sync status toont `sprint_complete: true`
+3. Klik "Complete Sprint" in UI -- comments op Plane work items, git tag aangemaakt, resultaat in UI
+4. Change log: git log sinds laatste tag zit in retrospective
+5. Idempotentie: dubbel klikken maakt geen duplicate tags/comments
 
 ---
 

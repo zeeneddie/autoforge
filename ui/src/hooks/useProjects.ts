@@ -398,3 +398,15 @@ export function useTogglePlaneSync() {
     },
   })
 }
+
+export function useCompleteSprint() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (projectName: string) => api.completeSprint(projectName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plane-sync-status'] })
+      queryClient.invalidateQueries({ queryKey: ['features'] })
+    },
+  })
+}

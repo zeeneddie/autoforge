@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 # Add project root to path for imports
 _root = Path(__file__).parent.parent.parent
@@ -24,6 +25,8 @@ from plane_sync.models import (
     PlaneImportRequest,
     PlaneImportResult,
     PlaneSyncStatus,
+    SprintCompletionResult,
+    SprintStats,
 )
 from plane_sync.sync_service import import_cycle
 from registry import get_all_settings, get_setting, set_setting
@@ -243,6 +246,9 @@ async def get_sync_status():
         except Exception:
             pass  # Don't fail status endpoint for this
 
+    sprint_stats_raw = status.get("sprint_stats")
+    sprint_stats = SprintStats(**sprint_stats_raw) if sprint_stats_raw else None
+
     return PlaneSyncStatus(
         enabled=status["enabled"],
         running=status["running"],
@@ -250,6 +256,8 @@ async def get_sync_status():
         last_error=status["last_error"],
         items_synced=status["items_synced"],
         active_cycle_name=active_cycle_name,
+        sprint_complete=status.get("sprint_complete", False),
+        sprint_stats=sprint_stats,
     )
 
 
@@ -264,3 +272,43 @@ async def toggle_sync():
     set_setting("plane_sync_enabled", "true" if new_state else "false")
 
     return await get_sync_status()
+
+
+# --- Sprint Completion ---
+
+
+class CompleteSprintRequest(BaseModel):
+    """Request to complete a sprint."""
+
+    project_name: str
+
+
+@router.post("/complete-sprint", response_model=SprintCompletionResult)
+async def complete_sprint_endpoint(request: CompleteSprintRequest):
+    """Complete the current sprint: verify DoD, post retrospective, create git tag."""
+    project_dir = get_project_path(request.project_name)
+    if not project_dir:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{request.project_name}' not found in registry",
+        )
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    config = _get_plane_config()
+    cycle_id = config.get("plane_active_cycle_id")
+    if not cycle_id:
+        return SprintCompletionResult(
+            success=False,
+            error="No active cycle configured. Import a cycle first.",
+        )
+
+    client = _build_client()
+    try:
+        from plane_sync.completion import complete_sprint
+        result = complete_sprint(client, project_dir, cycle_id)
+        return result
+    except PlaneApiError as e:
+        raise HTTPException(status_code=e.status_code or 502, detail=e.message)
+    finally:
+        client.close()

@@ -67,6 +67,84 @@ def _parse_steps_from_description(description: str) -> list[str]:
     return steps
 
 
+# Patterns that mark the start of an acceptance criteria section
+_AC_HEADER_RE = re.compile(
+    r"^(?:acceptance\s+criteria|ac:|definition\s+of\s+done|dod:)",
+    re.IGNORECASE,
+)
+
+# Markdown checkbox pattern: - [ ] item  or  - [x] item
+_CHECKBOX_RE = re.compile(r"^-\s*\[([ xX])\]\s+(.+)")
+
+# Given/When/Then pattern
+_GWT_RE = re.compile(r"^(given|when|then|and|but)\s+", re.IGNORECASE)
+
+
+def _extract_acceptance_criteria(description: str) -> list[str]:
+    """Extract acceptance criteria from a description.
+
+    Recognises:
+    - Section headers: "Acceptance Criteria", "AC:", "Definition of Done"
+    - Checkbox markdown: ``- [ ] item`` and ``- [x] item``
+    - Given/When/Then BDD-style criteria
+
+    Returns a list of criteria strings, or an empty list if none found.
+    """
+    if not description:
+        return []
+
+    lines = description.split("\n")
+    criteria: list[str] = []
+    in_ac_section = False
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # Check if this line is an AC section header
+        if _AC_HEADER_RE.match(stripped):
+            in_ac_section = True
+            # The header itself might have criteria after a colon
+            after_colon = stripped.split(":", 1)
+            if len(after_colon) > 1 and after_colon[1].strip():
+                criteria.append(after_colon[1].strip())
+            continue
+
+        # If we hit another section header while in AC section, stop
+        if in_ac_section and stripped.startswith("#"):
+            break
+
+        if in_ac_section:
+            # Checkbox items
+            m = _CHECKBOX_RE.match(stripped)
+            if m:
+                criteria.append(m.group(2))
+                continue
+            # Numbered/bulleted items
+            if re.match(r"^(\d+[\.\)]\s+|[-*+]\s+)", stripped):
+                step_text = re.sub(r"^(\d+[\.\)]\s+|[-*+]\s+)", "", stripped)
+                if step_text:
+                    criteria.append(step_text)
+                continue
+            # Plain text lines in section
+            if stripped:
+                criteria.append(stripped)
+            continue
+
+        # Outside AC section: check for checkbox items (standalone AC)
+        m = _CHECKBOX_RE.match(stripped)
+        if m:
+            criteria.append(m.group(2))
+            continue
+
+        # Given/When/Then lines outside AC section
+        if _GWT_RE.match(stripped):
+            criteria.append(stripped)
+
+    return criteria
+
+
 def state_group_for_id(
     state_id: str, states: list[PlaneState]
 ) -> str:
@@ -117,8 +195,8 @@ def work_item_to_feature_dict(
     # Description: prefer stripped text, fall back to HTML conversion
     description = item.description_stripped or _strip_html(item.description_html)
 
-    # Steps from description
-    steps = _parse_steps_from_description(description)
+    # Steps: prefer acceptance criteria over generic description steps
+    steps = _extract_acceptance_criteria(description) or _parse_steps_from_description(description)
 
     # State -> passes / in_progress
     group = state_group_for_id(item.state, states)

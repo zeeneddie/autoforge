@@ -39,6 +39,8 @@ class PlaneSyncLoop:
         self._last_sync_at: str | None = None
         self._last_error: str | None = None
         self._items_synced: int = 0
+        self._sprint_complete: bool = False
+        self._sprint_stats: dict | None = None
 
     @property
     def running(self) -> bool:
@@ -55,6 +57,14 @@ class PlaneSyncLoop:
     @property
     def items_synced(self) -> int:
         return self._items_synced
+
+    @property
+    def sprint_complete(self) -> bool:
+        return self._sprint_complete
+
+    @property
+    def sprint_stats(self) -> dict | None:
+        return self._sprint_stats
 
     def _get_config(self) -> dict[str, Any]:
         """Read sync config from registry settings."""
@@ -102,6 +112,49 @@ class PlaneSyncLoop:
                 dirs.append(p)
         return dirs
 
+    def _check_sprint_completion(self) -> None:
+        """Check if all Plane-linked features are passing."""
+        project_dirs = self._get_project_dirs()
+        if not project_dirs:
+            return
+
+        _ensure_registry()
+        total = 0
+        passing = 0
+
+        for project_dir in project_dirs:
+            try:
+                root = Path(__file__).parent.parent
+                if str(root) not in sys.path:
+                    sys.path.insert(0, str(root))
+                from api.database import Feature, create_database
+
+                _, SessionLocal = create_database(project_dir)
+                session = SessionLocal()
+                try:
+                    linked = session.query(Feature).filter(
+                        Feature.plane_work_item_id.isnot(None)
+                    ).all()
+                    for f in linked:
+                        total += 1
+                        if f.passes:
+                            passing += 1
+                finally:
+                    session.close()
+            except Exception as e:
+                logger.debug("Sprint completion check failed for %s: %s", project_dir, e)
+
+        if total > 0:
+            self._sprint_complete = passing == total
+            self._sprint_stats = {
+                "total": total,
+                "passing": passing,
+                "failed": total - passing,
+            }
+        else:
+            self._sprint_complete = False
+            self._sprint_stats = None
+
     async def _sync_iteration(self) -> None:
         """Run one sync cycle: outbound then inbound."""
         config = self._get_config()
@@ -138,6 +191,9 @@ class PlaneSyncLoop:
             self._items_synced = total_items
             self._last_sync_at = datetime.now(timezone.utc).isoformat()
             self._last_error = None
+
+            # Check sprint completion after sync
+            await asyncio.to_thread(self._check_sprint_completion)
 
         except Exception as e:
             self._last_error = str(e)
@@ -213,6 +269,8 @@ class PlaneSyncLoop:
             "last_error": self._last_error,
             "items_synced": self._items_synced,
             "active_cycle_name": None,  # Filled by the API endpoint if needed
+            "sprint_complete": self._sprint_complete,
+            "sprint_stats": self._sprint_stats,
         }
 
 

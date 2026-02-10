@@ -658,6 +658,12 @@ export interface PlaneImportDetail {
   feature_id: number | null
 }
 
+export interface SprintStats {
+  total: number
+  passing: number
+  failed: number
+}
+
 export interface PlaneSyncStatus {
   enabled: boolean
   running: boolean
@@ -665,4 +671,15 @@ export interface PlaneSyncStatus {
   last_error: string | null
   items_synced: number
   active_cycle_name: string | null
+  sprint_complete: boolean
+  sprint_stats: SprintStats | null
+}
+
+export interface SprintCompletionResult {
+  success: boolean
+  features_completed: number
+  features_failed: number
+  git_tag: string | null
+  change_log: string
+  error: string | null
 }

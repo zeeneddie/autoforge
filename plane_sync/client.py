@@ -169,6 +169,41 @@ class PlaneApiClient:
         data = self._request("PATCH", f"/issues/{work_item_id}/", json=updates)
         return PlaneWorkItem(**data)
 
+    # --- Comments ---
+
+    def create_issue_comment(
+        self, issue_id: str, comment_html: str
+    ) -> dict:
+        """Create a comment on a work item.
+
+        Args:
+            issue_id: The work item UUID.
+            comment_html: HTML content for the comment body.
+
+        Returns:
+            The created comment dict from the API.
+        """
+        return self._request(
+            "POST",
+            f"/issues/{issue_id}/comments/",
+            json={"comment_html": comment_html},
+        )
+
+    # --- Cycles (write) ---
+
+    def update_cycle(self, cycle_id: str, updates: dict) -> PlaneCycle:
+        """Update a cycle (e.g. append to description).
+
+        Args:
+            cycle_id: The cycle UUID.
+            updates: Dict of fields to update.
+
+        Returns:
+            The updated PlaneCycle.
+        """
+        data = self._request("PATCH", f"/cycles/{cycle_id}/", json=updates)
+        return PlaneCycle(**data)
+
     # --- Modules ---
 
     def list_modules(self) -> list[PlaneModule]:

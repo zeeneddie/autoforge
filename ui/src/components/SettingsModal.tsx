@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Loader2, AlertCircle, Check, Moon, Sun, ChevronDown, ChevronRight } from 'lucide-react'
-import { useSettings, useUpdateSettings, useAvailableModels, usePlaneConfig, useUpdatePlaneConfig, useTestPlaneConnection, usePlaneCycles, useImportPlaneCycle, usePlaneSyncStatus, useTogglePlaneSync } from '../hooks/useProjects'
+import { useSettings, useUpdateSettings, useAvailableModels, usePlaneConfig, useUpdatePlaneConfig, useTestPlaneConnection, usePlaneCycles, useImportPlaneCycle, usePlaneSyncStatus, useTogglePlaneSync, useCompleteSprint } from '../hooks/useProjects'
 import { useTheme, THEMES } from '../hooks/useTheme'
 import {
   Dialog,
@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import type { ModelInfo, PlaneConnectionResult, PlaneCycleSummary } from '../lib/types'
+import type { ModelInfo, PlaneConnectionResult, PlaneCycleSummary, SprintCompletionResult } from '../lib/types'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -439,6 +439,8 @@ function PlaneSettingsSection() {
   const importCycle = useImportPlaneCycle()
   const { data: syncStatus } = usePlaneSyncStatus()
   const toggleSync = useTogglePlaneSync()
+  const completeSprint = useCompleteSprint()
+  const [completionResult, setCompletionResult] = useState<SprintCompletionResult | null>(null)
 
   const [formValues, setFormValues] = useState({
     plane_api_url: '',
@@ -742,6 +744,84 @@ function PlaneSettingsSection() {
                       </div>
                     )}
                   </div>
+                )}
+              </div>
+
+              <hr className="border-border" />
+
+              {/* Sprint Completion */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Sprint Completion</Label>
+
+                {syncStatus?.sprint_stats && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span>{syncStatus.sprint_stats.passing}/{syncStatus.sprint_stats.total} features passing</span>
+                      {syncStatus.sprint_complete && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 font-medium">
+                          Sprint Complete!
+                        </span>
+                      )}
+                    </div>
+
+                    {!syncStatus.sprint_complete && syncStatus.sprint_stats.failed > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {syncStatus.sprint_stats.failed} feature(s) still need to pass before the sprint can be completed.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {!syncStatus?.sprint_stats && (
+                  <p className="text-xs text-muted-foreground">
+                    Enable background sync to track sprint progress.
+                  </p>
+                )}
+
+                <Button
+                  size="sm"
+                  disabled={!syncStatus?.sprint_complete || completeSprint.isPending}
+                  onClick={() => {
+                    const projectName = prompt('Project name to complete sprint for:')
+                    if (!projectName) return
+                    setCompletionResult(null)
+                    completeSprint.mutate(projectName, {
+                      onSuccess: (result) => setCompletionResult(result),
+                    })
+                  }}
+                >
+                  {completeSprint.isPending ? <Loader2 className="animate-spin mr-1" size={14} /> : null}
+                  Complete Sprint
+                </Button>
+
+                {completionResult && (
+                  <Alert variant={completionResult.success ? 'default' : 'destructive'}>
+                    <AlertDescription>
+                      {completionResult.success ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <Check size={14} className="text-green-600" />
+                            Sprint completed! {completionResult.features_completed} features passing.
+                          </div>
+                          {completionResult.git_tag && (
+                            <div className="text-xs text-muted-foreground">
+                              Git tag: <code className="bg-muted px-1 rounded">{completionResult.git_tag}</code>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        completionResult.error
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {completeSprint.isError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>
+                      Sprint completion failed: {completeSprint.error?.message || 'Unknown error'}
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
             </>
