@@ -351,7 +351,7 @@ async def get_test_report(project_name: str, all_features: bool = False):
         raise HTTPException(status_code=404, detail="Project directory not found")
 
     from api.database import Feature, TestRun, create_database
-    from sqlalchemy import func
+    from sqlalchemy import Integer, func
 
     _, SessionLocal = create_database(project_dir)
     session = SessionLocal()
@@ -374,7 +374,7 @@ async def get_test_report(project_name: str, all_features: bool = False):
         stats = session.query(
             TestRun.feature_id,
             func.count(TestRun.id).label("total"),
-            func.sum(func.cast(TestRun.passed, type_=None)).label("passes"),
+            func.sum(func.cast(TestRun.passed, Integer)).label("passes"),
             func.max(TestRun.completed_at).label("last_at"),
         ).filter(
             TestRun.feature_id.in_(linked_ids)
