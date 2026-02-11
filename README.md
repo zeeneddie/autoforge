@@ -436,6 +436,25 @@ Run `autoforge --repair` to delete and recreate the virtual environment from scr
 
 ---
 
+## Documentation
+
+Uitgebreide documentatie is beschikbaar in de [`docs/`](docs/) folder:
+
+### Architectuur & Ontwerp
+- [**Systeemarchitectuur**](docs/architecture.md) -- MarQed + Plane + AutoForge pipeline, component overzicht, test history, webhooks, deployment
+- [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (6 sprints voltooid: multi-model, Plane sync, DoD, continuous delivery, self-hosting)
+
+### Architecture Decision Records (ADR)
+- [**ADR-001: Plane Integratie**](docs/decisions/ADR-001-plane-integration.md) -- Waarom Plane als PM frontend ipv zelf bouwen
+- [**ADR-002: Analyse Pipeline**](docs/decisions/ADR-002-analysis-pipeline.md) -- Waar analyse, review en executie plaatsvindt
+- [**ADR-003: Data Mapping**](docs/decisions/ADR-003-data-mapping.md) -- Entity/state/priority mapping tussen MarQed, Plane en AutoForge
+
+### Plane Sync Module
+- [**API Design**](docs/plane-sync/api-design.md) -- REST API endpoints: config, cycles, import, sync, webhooks, test-report, sprint completion
+- [**Sprint Lifecycle**](docs/plane-sync/sprint-lifecycle.md) -- Complete sprint lifecycle: 7 fasen, test history, webhooks, release notes
+
+---
+
 ## License
 
 This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE.md](LICENSE.md) file for details.
