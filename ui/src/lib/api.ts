@@ -40,6 +40,9 @@ import type {
   PlaneSyncStatus,
   SprintCompletionResult,
   TestReport,
+  TestHistoryResponse,
+  ReleaseNotesList,
+  ReleaseNotesContent,
 } from './types'
 
 const API_BASE = '/api'
@@ -587,6 +590,31 @@ export async function completeSprint(projectName: string): Promise<SprintComplet
   })
 }
 
-export async function getTestReport(projectName: string): Promise<TestReport> {
-  return fetchJSON(`/plane/test-report?project_name=${encodeURIComponent(projectName)}`)
+export async function getTestReport(projectName: string, allFeatures: boolean = false): Promise<TestReport> {
+  const params = new URLSearchParams({ project_name: projectName })
+  if (allFeatures) params.set('all_features', 'true')
+  return fetchJSON(`/plane/test-report?${params}`)
+}
+
+export async function getTestHistory(
+  projectName: string,
+  featureId?: number,
+  limit?: number
+): Promise<TestHistoryResponse> {
+  const params = new URLSearchParams({ project_name: projectName })
+  if (featureId !== undefined) params.set('feature_id', String(featureId))
+  if (limit !== undefined) params.set('limit', String(limit))
+  return fetchJSON(`/plane/test-history?${params}`)
+}
+
+export async function listReleaseNotes(projectName: string): Promise<ReleaseNotesList> {
+  return fetchJSON(`/plane/release-notes?project_name=${encodeURIComponent(projectName)}`)
+}
+
+export async function getReleaseNotesContent(
+  projectName: string,
+  filename: string
+): Promise<ReleaseNotesContent> {
+  const params = new URLSearchParams({ project_name: projectName, filename })
+  return fetchJSON(`/plane/release-notes/content?${params}`)
 }

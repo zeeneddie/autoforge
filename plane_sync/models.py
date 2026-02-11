@@ -260,3 +260,47 @@ class PlaneImportRequest(BaseModel):
 
     cycle_id: str
     project_name: str
+
+
+# --- Analytics Dashboard Models ---
+
+
+class TestRunDetail(BaseModel):
+    """Individual test run record for timeline/heatmap display."""
+
+    id: int
+    feature_id: int
+    feature_name: str = ""
+    passed: bool
+    agent_type: str  # "testing" or "coding"
+    completed_at: str
+    return_code: int | None = None
+
+
+class TestHistoryResponse(BaseModel):
+    """List of individual test run records."""
+
+    runs: list[TestRunDetail] = Field(default_factory=list)
+    total_count: int = 0
+
+
+class ReleaseNotesItem(BaseModel):
+    """Metadata for a single release notes file."""
+
+    filename: str
+    cycle_name: str = ""
+    created_at: str = ""
+    size_bytes: int = 0
+
+
+class ReleaseNotesList(BaseModel):
+    """List of release notes files."""
+
+    items: list[ReleaseNotesItem] = Field(default_factory=list)
+
+
+class ReleaseNotesContent(BaseModel):
+    """Content of a single release notes file."""
+
+    filename: str
+    content: str = ""

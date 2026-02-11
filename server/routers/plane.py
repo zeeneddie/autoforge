@@ -31,10 +31,15 @@ from plane_sync.models import (
     PlaneImportRequest,
     PlaneImportResult,
     PlaneSyncStatus,
+    ReleaseNotesContent,
+    ReleaseNotesItem,
+    ReleaseNotesList,
     SelfHostSetupResult,
     SprintCompletionResult,
     SprintStats,
+    TestHistoryResponse,
     TestReport,
+    TestRunDetail,
     TestRunSummary,
 )
 from plane_sync.sync_service import import_cycle
@@ -334,7 +339,7 @@ async def complete_sprint_endpoint(request: CompleteSprintRequest):
 
 
 @router.get("/test-report", response_model=TestReport)
-async def get_test_report(project_name: str):
+async def get_test_report(project_name: str, all_features: bool = False):
     """Get regression test report for a project."""
     project_dir = get_project_path(project_name)
     if not project_dir:
@@ -351,10 +356,13 @@ async def get_test_report(project_name: str):
     _, SessionLocal = create_database(project_dir)
     session = SessionLocal()
     try:
-        # Get all features with Plane links
-        linked = session.query(Feature).filter(
-            Feature.plane_work_item_id.isnot(None)
-        ).all()
+        # Get features: all or only Plane-linked
+        if all_features:
+            linked = session.query(Feature).all()
+        else:
+            linked = session.query(Feature).filter(
+                Feature.plane_work_item_id.isnot(None)
+            ).all()
 
         if not linked:
             return TestReport(generated_at=datetime.now(timezone.utc).isoformat())
@@ -414,6 +422,122 @@ async def get_test_report(project_name: str):
         )
     finally:
         session.close()
+
+
+# --- Test History ---
+
+
+@router.get("/test-history", response_model=TestHistoryResponse)
+async def get_test_history(
+    project_name: str,
+    feature_id: int | None = None,
+    limit: int = 50,
+):
+    """Get individual test run records for timeline/heatmap display."""
+    project_dir = get_project_path(project_name)
+    if not project_dir:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{project_name}' not found in registry",
+        )
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    from api.database import Feature, TestRun, create_database
+
+    _, SessionLocal = create_database(project_dir)
+    session = SessionLocal()
+    try:
+        query = session.query(TestRun)
+        if feature_id is not None:
+            query = query.filter(TestRun.feature_id == feature_id)
+        total_count = query.count()
+
+        runs = query.order_by(TestRun.completed_at.desc()).limit(min(limit, 200)).all()
+
+        # Build feature name lookup
+        fids = {r.feature_id for r in runs}
+        features = session.query(Feature).filter(Feature.id.in_(fids)).all() if fids else []
+        fname_map = {f.id: f.name for f in features}
+
+        details = [
+            TestRunDetail(
+                id=r.id,
+                feature_id=r.feature_id,
+                feature_name=fname_map.get(r.feature_id, ""),
+                passed=r.passed,
+                agent_type=r.agent_type,
+                completed_at=r.completed_at.isoformat() if r.completed_at else "",
+                return_code=r.return_code,
+            )
+            for r in runs
+        ]
+
+        return TestHistoryResponse(runs=details, total_count=total_count)
+    finally:
+        session.close()
+
+
+# --- Release Notes ---
+
+
+@router.get("/release-notes", response_model=ReleaseNotesList)
+async def list_release_notes(project_name: str):
+    """List available release notes files for a project."""
+    project_dir = get_project_path(project_name)
+    if not project_dir:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{project_name}' not found in registry",
+        )
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    releases_dir = project_dir / "releases"
+    if not releases_dir.is_dir():
+        return ReleaseNotesList()
+
+    items = []
+    for f in sorted(releases_dir.glob("*.md"), reverse=True):
+        stat = f.stat()
+        # Derive cycle name from filename: sprint-foo-bar.md -> foo-bar
+        cycle_name = f.stem
+        if cycle_name.startswith("sprint-"):
+            cycle_name = cycle_name[7:]  # Remove "sprint-" prefix
+        cycle_name = cycle_name.replace("-", " ").title()
+
+        items.append(ReleaseNotesItem(
+            filename=f.name,
+            cycle_name=cycle_name,
+            created_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+            size_bytes=stat.st_size,
+        ))
+
+    return ReleaseNotesList(items=items)
+
+
+@router.get("/release-notes/content", response_model=ReleaseNotesContent)
+async def get_release_notes_content(project_name: str, filename: str):
+    """Get the content of a specific release notes file."""
+    project_dir = get_project_path(project_name)
+    if not project_dir:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{project_name}' not found in registry",
+        )
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    # Validate filename to prevent path traversal
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    filepath = project_dir / "releases" / filename
+    if not filepath.is_file():
+        raise HTTPException(status_code=404, detail=f"Release notes file not found: {filename}")
+
+    content = filepath.read_text(encoding="utf-8", errors="replace")
+    return ReleaseNotesContent(filename=filename, content=content)
 
 
 # --- Webhook ---

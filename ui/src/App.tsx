@@ -23,6 +23,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { DevServerControl } from './components/DevServerControl'
 import { ViewToggle, type ViewMode } from './components/ViewToggle'
 import { DependencyGraph } from './components/DependencyGraph'
+import { AnalyticsDashboard } from './components/AnalyticsDashboard'
 import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp'
 import { ThemeSelector } from './components/ThemeSelector'
 import { ResetProjectModal } from './components/ResetProjectModal'
@@ -69,7 +70,8 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
       const stored = localStorage.getItem(VIEW_MODE_KEY)
-      return (stored === 'graph' ? 'graph' : 'kanban') as ViewMode
+      if (stored === 'graph' || stored === 'analytics') return stored as ViewMode
+      return 'kanban'
     } catch {
       return 'kanban'
     }
@@ -201,6 +203,12 @@ function App() {
       if ((e.key === 'g' || e.key === 'G') && selectedProject) {
         e.preventDefault()
         setViewMode(prev => prev === 'kanban' ? 'graph' : 'kanban')
+      }
+
+      // I : Switch to Analytics view (when project selected)
+      if ((e.key === 'i' || e.key === 'I') && selectedProject) {
+        e.preventDefault()
+        setViewMode(prev => prev === 'analytics' ? 'kanban' : 'analytics')
       }
 
       // ? : Show keyboard shortcuts help
@@ -442,7 +450,7 @@ function App() {
               </div>
             )}
 
-            {/* Kanban Board or Dependency Graph based on view mode */}
+            {/* Kanban Board, Dependency Graph, or Analytics Dashboard based on view mode */}
             {viewMode === 'kanban' ? (
               <KanbanBoard
                 features={features}
@@ -453,7 +461,7 @@ function App() {
                 onCreateSpec={() => setShowSpecChat(true)}
                 hasSpec={hasSpec}
               />
-            ) : (
+            ) : viewMode === 'graph' ? (
               <Card className="overflow-hidden" style={{ height: '600px' }}>
                 {graphData ? (
                   <DependencyGraph
@@ -467,6 +475,8 @@ function App() {
                   </div>
                 )}
               </Card>
+            ) : (
+              <AnalyticsDashboard projectName={selectedProject} />
             )}
           </div>
         )}

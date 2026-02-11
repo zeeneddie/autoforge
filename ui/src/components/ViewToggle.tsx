@@ -1,7 +1,7 @@
-import { LayoutGrid, GitBranch } from 'lucide-react'
+import { LayoutGrid, GitBranch, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-export type ViewMode = 'kanban' | 'graph'
+export type ViewMode = 'kanban' | 'graph' | 'analytics'
 
 interface ViewToggleProps {
   viewMode: ViewMode
@@ -9,7 +9,7 @@ interface ViewToggleProps {
 }
 
 /**
- * Toggle button to switch between Kanban and Graph views
+ * Toggle button to switch between Kanban, Graph, and Analytics views
  */
 export function ViewToggle({ viewMode, onViewModeChange }: ViewToggleProps) {
   return (
@@ -31,6 +31,15 @@ export function ViewToggle({ viewMode, onViewModeChange }: ViewToggleProps) {
       >
         <GitBranch size={16} />
         Graph
+      </Button>
+      <Button
+        variant={viewMode === 'analytics' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => onViewModeChange('analytics')}
+        title="Analytics Dashboard (I)"
+      >
+        <BarChart3 size={16} />
+        Analytics
       </Button>
     </div>
   )

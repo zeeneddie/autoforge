@@ -411,12 +411,42 @@ export function useCompleteSprint() {
   })
 }
 
-export function useTestReport(projectName: string | null) {
+export function useTestReport(projectName: string | null, allFeatures: boolean = false) {
   return useQuery({
-    queryKey: ['test-report', projectName],
-    queryFn: () => api.getTestReport(projectName!),
+    queryKey: ['test-report', projectName, allFeatures],
+    queryFn: () => api.getTestReport(projectName!, allFeatures),
     enabled: !!projectName,
     staleTime: 30000,
+    retry: 1,
+  })
+}
+
+export function useTestHistory(projectName: string | null, featureId?: number, limit?: number) {
+  return useQuery({
+    queryKey: ['test-history', projectName, featureId, limit],
+    queryFn: () => api.getTestHistory(projectName!, featureId, limit),
+    enabled: !!projectName,
+    staleTime: 30000,
+    retry: 1,
+  })
+}
+
+export function useReleaseNotesList(projectName: string | null) {
+  return useQuery({
+    queryKey: ['release-notes-list', projectName],
+    queryFn: () => api.listReleaseNotes(projectName!),
+    enabled: !!projectName,
+    staleTime: 60000,
+    retry: 1,
+  })
+}
+
+export function useReleaseNotesContent(projectName: string | null, filename: string | null) {
+  return useQuery({
+    queryKey: ['release-notes-content', projectName, filename],
+    queryFn: () => api.getReleaseNotesContent(projectName!, filename!),
+    enabled: !!projectName && !!filename,
+    staleTime: 300000,
     retry: 1,
   })
 }

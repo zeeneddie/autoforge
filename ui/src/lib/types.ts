@@ -701,6 +701,39 @@ export interface TestReport {
   generated_at: string
 }
 
+// Analytics Dashboard Types
+
+export interface TestRunDetail {
+  id: number
+  feature_id: number
+  feature_name: string
+  passed: boolean
+  agent_type: string
+  completed_at: string
+  return_code: number | null
+}
+
+export interface TestHistoryResponse {
+  runs: TestRunDetail[]
+  total_count: number
+}
+
+export interface ReleaseNotesItem {
+  filename: string
+  cycle_name: string
+  created_at: string
+  size_bytes: number
+}
+
+export interface ReleaseNotesList {
+  items: ReleaseNotesItem[]
+}
+
+export interface ReleaseNotesContent {
+  filename: string
+  content: string
+}
+
 export interface SprintCompletionResult {
   success: boolean
   features_completed: number
