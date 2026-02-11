@@ -209,8 +209,26 @@ Het `TestRun` model in `api/database.py` registreert per-feature, per-agent test
 
 - **Recording:** De orchestrator schrijft `TestRun` rows na elke agent completion (testing + coding)
 - **Batch tracking:** `feature_ids_in_batch` legt vast welke features samen getest werden
-- **API:** `GET /api/plane/test-report?project_name=X` aggregeert pass/fail rates
+- **API:** `GET /api/plane/test-report?project_name=X` aggregeert pass/fail rates (`all_features=true` voor alle features)
+- **History API:** `GET /api/plane/test-history` retourneert individuele TestRun records voor heatmap/timeline
 - **Sprint stats:** `total_test_runs` en `overall_pass_rate` in sync status
+
+### Analytics Dashboard
+
+De UI biedt een Analytics view als derde view-modus naast Kanban en Dependency Graph:
+
+- **ViewToggle:** `kanban | graph | analytics`, keyboard shortcut `I`
+- **Test Report tab:** Summary cards (totaal, getest, pass rate, runs) + feature tabel met pass rate bars + expandable heatmap per feature (groen/rood cellen)
+- **Sprint Metrics tab:** Sprint voortgang, test activiteit, feature velocity, sync status — combineert `usePlaneSyncStatus()` + `useTestReport()`
+- **Release Notes tab:** Twee-paneel layout (bestandslijst + inhoud viewer) met ingebouwde markdown renderer (headers, bold, italic, lists, tables, code blocks — geen externe deps)
+
+```
+ui/src/components/
+  AnalyticsDashboard.tsx    # Container met 3 tabs
+  TestReportPanel.tsx       # Test results tabel + heatmap
+  SprintMetricsPanel.tsx    # Sprint voortgang + test activiteit
+  ReleaseNotesViewer.tsx    # Release notes lijst + viewer
+```
 
 ### Webhooks
 

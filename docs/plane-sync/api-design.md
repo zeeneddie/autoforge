@@ -210,9 +210,9 @@ Complete de huidige sprint: DoD verificatie, retrospective naar Plane, git tag, 
 
 ### Test Report
 
-#### `GET /api/plane/test-report?project_name=X`
+#### `GET /api/plane/test-report?project_name=X&all_features=true`
 
-Geaggregeerd test rapport voor alle Plane-gelinkte features in een project.
+Geaggregeerd test rapport voor features in een project. Standaard alleen Plane-gelinkte features; met `all_features=true` alle features.
 
 **Response:**
 ```json
@@ -234,6 +234,62 @@ Geaggregeerd test rapport voor alle Plane-gelinkte features in een project.
     }
   ],
   "generated_at": "2026-02-10T14:30:00Z"
+}
+```
+
+### Test History
+
+#### `GET /api/plane/test-history?project_name=X&feature_id=N&limit=50`
+
+Individuele TestRun records voor timeline/heatmap weergave. `feature_id` en `limit` zijn optioneel.
+
+**Response:**
+```json
+{
+  "runs": [
+    {
+      "id": 42,
+      "feature_id": 1,
+      "feature_name": "OAuth2 login",
+      "passed": true,
+      "agent_type": "testing",
+      "completed_at": "2026-02-10T14:30:00",
+      "return_code": 0
+    }
+  ],
+  "total_count": 42
+}
+```
+
+### Release Notes
+
+#### `GET /api/plane/release-notes?project_name=X`
+
+Lijst van beschikbare release notes bestanden in `{project}/releases/`.
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "filename": "sprint-sprint-5.md",
+      "cycle_name": "Sprint 5",
+      "created_at": "2026-02-10T14:30:00Z",
+      "size_bytes": 2048
+    }
+  ]
+}
+```
+
+#### `GET /api/plane/release-notes/content?project_name=X&filename=Y`
+
+Inhoud van een specifiek release notes bestand. Beschermd tegen path traversal.
+
+**Response:**
+```json
+{
+  "filename": "sprint-sprint-5.md",
+  "content": "# Sprint 5 Release Notes\n\n..."
 }
 ```
 

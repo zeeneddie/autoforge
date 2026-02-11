@@ -1,10 +1,10 @@
 # AutoForge Roadmap v2
 
-> Bijgewerkt: 2026-02-10
+> Bijgewerkt: 2026-02-11
 
 ## Strategische Wijziging
 
-De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **Plane** (open-source PM tool) en **MarQed** (codebase analyse platform) wordt dit teruggebracht naar **5 sprints**.
+De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **Plane** (open-source PM tool) en **MarQed** (codebase analyse platform) wordt het kern-platform in **7 sprints** opgeleverd.
 
 Zie [ADR-001](decisions/ADR-001-plane-integration.md) voor de rationale.
 
@@ -168,6 +168,38 @@ Self-hosting setup en MarQed-to-Plane import pipeline.
 4. Items in juiste module, optioneel in cycle
 5. Fouten per item stoppen niet de gehele import
 6. Server start zonder errors, alle endpoints bereikbaar
+
+---
+
+## Sprint 7: Analytics Dashboard -- DONE
+
+> Afgerond: 2026-02-11
+
+Analytics view als derde view-modus naast Kanban en Dependency Graph. Test report visualisatie, sprint metrics, en release notes viewer.
+
+| # | Item | Status |
+|---|---|---|
+| 7.1 | Backend: 5 Pydantic modellen + 3 nieuwe endpoints (test-history, release-notes, release-notes/content), test-report uitgebreid met `all_features` param | done |
+| 7.2 | Frontend: 5 TypeScript interfaces, 3 API functies, 3 React Query hooks | done |
+| 7.3 | ViewToggle uitbreiding met `analytics` mode + `BarChart3` icon, App.tsx wiring + `I` keyboard shortcut | done |
+| 7.4 | AnalyticsDashboard container met 3 tabs (Test Report, Sprint Metrics, Release Notes) | done |
+| 7.5 | TestReportPanel: summary cards, feature tabel met pass rate bars, expandable heatmap (groen/rood cellen) | done |
+| 7.6 | SprintMetricsPanel: sprint voortgang, test activiteit, feature velocity, sync status | done |
+| 7.7 | ReleaseNotesViewer: twee-paneel layout, ingebouwde markdown renderer (geen externe deps) | done |
+
+**Acceptatiecriteria:**
+1. Klik Analytics in ViewToggle -> dashboard met 3 tabs
+2. Test Report tab: summary cards, feature tabel, klik feature voor heatmap
+3. Sprint Metrics tab: voortgang cards met data uit sync status + test report
+4. Release Notes tab: bestandslijst links, inhoud rechts met markdown rendering
+5. Keyboard shortcut `I` schakelt naar/van analytics view
+6. Lege staten: correcte meldingen bij ontbreken van test data of release notes
+
+**Technische details:**
+- Backend: `TestRunDetail`, `TestHistoryResponse`, `ReleaseNotesItem`, `ReleaseNotesList`, `ReleaseNotesContent` modellen
+- Path traversal bescherming op release-notes/content endpoint
+- Frontend: pure Tailwind heatmap (geen chart library), ingebouwde markdown renderer
+- 4 nieuwe componenten, 7 gewijzigde bestanden
 
 ---
 
