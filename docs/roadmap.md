@@ -1,25 +1,25 @@
-# AutoForge Roadmap v2
+# MarQed.ai Roadmap v2
 
 > Bijgewerkt: 2026-02-12
 
 ## Strategische Wijziging
 
-De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **Plane** (open-source PM tool) en **MarQed** (codebase analyse platform) is het kern-platform in **7 sprints** opgeleverd.
+De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **Plane** (open-source PM tool) en **Onboarding** (codebase analyse) is het kern-platform in **7 sprints** opgeleverd.
 
-Fase 2 (Sprint 8+) bouwt de **Discovery-laag**: een grafische, interactieve requirements-workflow die BMAD vervangt als front-end voor product managers en stakeholders.
+Fase 2 (Sprint 8+) bouwt de **Discovery-laag** en het **PM Dashboard**: een grafische, interactieve requirements-workflow die BMAD vervangt, plus een hiërarchisch overzicht voor product managers en stakeholders. Samen vormen deze componenten het **MarQed.ai platform**.
 
 Zie [ADR-001](decisions/ADR-001-plane-integration.md) voor de rationale.
 
 ## Pipeline Overzicht
 
 ```
-BMAD / Discovery UI (Requirements) -> Plane (Planning) -> AutoForge (Executie) -> Testing
-         ^
-         |
-    MarQed (Codebase Analyse & Onboarding)
+Onboarding (Analyse) -> Discovery Tool (Requirements) -> Plane (Planning) -> AutoForge (Executie)
+                                                              |
+                                                         PM Dashboard (Monitoring)
+                                                       [data uit Plane + AutoForge + Onboarding]
 ```
 
-MarQed levert codebase-kennis (kwaliteit, performance, security, user journeys) die de Discovery-workflow voedt. Zie [architecture.md](architecture.md) voor de volledige architectuur.
+Onboarding levert codebase-kennis (kwaliteit, performance, security, IFPUG FP) die de Discovery-workflow voedt. Het PM Dashboard aggregeert data uit Plane, AutoForge en Onboarding. Zie [platform-overview.md](platform-overview.md) voor het volledige platformdiagram en [architecture.md](architecture.md) voor de architectuur.
 
 ---
 
@@ -131,7 +131,7 @@ Test history tracking, release notes generatie, en real-time Plane webhooks.
 | 5.1 | Release notes generatie uit voltooide features (markdown, per sprint) | done |
 | 3.6 | Plane webhooks: HMAC-SHA256 verificatie, event dedup, issue/cycle routing | done |
 | 5.3 | Self-hosting: AutoForge eigen backlog in Plane | done (Sprint 6) |
-| 5.4 | MarQed -> Plane importer (markdown -> Plane entities) | done (Sprint 6) |
+| 5.4 | Onboarding -> Plane importer (markdown -> Plane entities) | done (Sprint 6) |
 
 **Acceptatiecriteria:**
 1. Start agents met `testing_agent_ratio >= 1`, wacht op completion, `GET /api/plane/test-report` -> runs geregistreerd
@@ -151,25 +151,25 @@ Test history tracking, release notes generatie, en real-time Plane webhooks.
 
 ---
 
-## Sprint 6: Self-Hosting + MarQed Importer -- DONE
+## Sprint 6: Self-Hosting + Onboarding Importer -- DONE
 
 > Afgerond: 2026-02-10
 
-Self-hosting setup en MarQed-to-Plane import pipeline.
+Self-hosting setup en Onboarding-to-Plane import pipeline.
 
 | # | Item | Status |
 |---|---|---|
 | 6.1 | Fix `background.py` registry import bug (`get_all_projects` -> `list_registered_projects`) | done |
 | 6.2 | Self-hosting setup: `POST /api/plane/self-host-setup` registreert AutoForge in eigen registry | done |
 | 6.3 | PlaneApiClient write operations: `create_work_item`, `create_module`, `add_work_items_to_module`, `add_work_items_to_cycle` | done |
-| 6.4 | MarQed markdown parser: `marqed_import/parser.py` met `parse_marqed_tree()` | done |
-| 6.5 | MarQed-to-Plane importer: `POST /api/plane/marqed-import` creates modules + work items in Plane | done |
+| 6.4 | Onboarding markdown parser: `marqed_import/parser.py` met `parse_marqed_tree()` | done |
+| 6.5 | Onboarding-to-Plane importer: `POST /api/plane/marqed-import` creates modules + work items in Plane | done |
 | 6.6 | Documentatie update: roadmap, architecture, API design | done |
 
 **Acceptatiecriteria:**
 1. `POST /api/plane/self-host-setup` registreert "autoforge" in registry (idempotent)
-2. MarQed parser: 1 epic + 2 features + 3 stories -> correct nested entity tree
-3. MarQed import: creates 1 module + 5 work items in Plane met correcte parent relaties
+2. Onboarding parser: 1 epic + 2 features + 3 stories -> correct nested entity tree
+3. Onboarding import: creates 1 module + 5 work items in Plane met correcte parent relaties
 4. Items in juiste module, optioneel in cycle
 5. Fouten per item stoppen niet de gehele import
 6. Server start zonder errors, alle endpoints bereikbaar
@@ -208,11 +208,14 @@ Analytics view als derde view-modus naast Kanban en Dependency Graph. Test repor
 
 ---
 
-## Sprint 8: Discovery Tool (Standalone Project) -- PLANNED
+## Sprint 8: Discovery Tool + PM Dashboard (Standalone Project) -- PLANNED
 
-> Doel: Standalone requirements gathering tool met grafische UI die bidirectioneel met Plane communiceert.
+> Doel: Standalone requirements gathering tool met brownpaper/greenpaper modi, plus hiërarchisch PM Dashboard. Bidirectioneel met Plane.
 
-De Discovery Tool is een **apart project** (niet in AutoForge) dat PMs en stakeholders door een interactief requirements-gesprek leidt. Het kan bestaande Plane backlogs inladen en verfijnen, en schrijft resultaat terug naar Plane.
+De Discovery Tool en het PM Dashboard zijn **aparte projecten** (niet in AutoForge) die samen de PM-facing kant van het MarQed.ai platform vormen:
+
+- **Discovery Tool** leidt PMs door requirements gathering in twee modi: **brownpaper** (bestaande codebase, bevestig Onboarding-bevindingen + interview) en **greenpaper** (nieuwbouw, blanco + interview).
+- **PM Dashboard** biedt een hiërarchisch overzicht met 4-niveau drill-down (Applicatie -> Epic -> Feature -> Story), metriek per niveau, en configureerbare CRUD-rechten.
 
 **Architectuurbeslissing:** geen Eververse fork (te zware Supabase-ontkoppeling, geen hiërarchie, solo maintainer). In plaats daarvan: lichtgewicht standalone tool met bewezen bouwstenen.
 
@@ -220,7 +223,7 @@ De Discovery Tool is een **apart project** (niet in AutoForge) dat PMs en stakeh
 |---|---|---|
 | 8.1 | Project setup: nieuw repo, React + assistant-ui + shadcn/ui frontend, FastAPI backend, PostgreSQL in Docker | planned |
 | 8.2 | Plane SDK integratie: bestaande backlog inladen (modules, work items, sub-work items) | planned |
-| 8.3 | AI chat backend: Claude API via FastAPI, BMAD-stijl gefaseerde prompts (visie, features, epics, stories, review) | planned |
+| 8.3 | AI chat backend: Claude API via FastAPI, BMAD-stijl gefaseerde prompts, brownpaper (bevestig Onboarding + interview) en greenpaper (blanco + interview) modi | planned |
 | 8.4 | UI: split-screen -- links conversational chat (assistant-ui), rechts live hiërarchie-boom | planned |
 | 8.5 | UI: wizard voortgangsindicator (fasen 1-6) + gestructureerde vraag/antwoord cards | planned |
 | 8.6 | Gestructureerd output schema (Claude structured outputs, `strict: true`) voor Epic → Feature → Story → Task | planned |
@@ -228,6 +231,10 @@ De Discovery Tool is een **apart project** (niet in AutoForge) dat PMs en stakeh
 | 8.8 | Confidence scoring: AI markeert onzekere items visueel (oranje/rood) voor review-aandacht | planned |
 | 8.9 | Push naar Plane: modules, work items, sub-work items, cycle assignment via Plane Python SDK | planned |
 | 8.10 | Multi-sessie support: sessies opslaan in PostgreSQL, hervatten over meerdere dagen | planned |
+| 8.11 | Aggregatie API: data ophalen uit Plane (modules, work items, sub-items, cycles), AutoForge (test results), Onboarding (IFPUG functiepunten) | planned |
+| 8.12 | Dashboard UI: 4-niveau drill-down (Applicatie → Epic → Feature → Story) met breadcrumb navigatie | planned |
+| 8.13 | Metriek per niveau: aantal children, FP (IFPUG), tests per categorie (unit/integration/e2e), fase-status | planned |
+| 8.14 | Configureerbare CRUD-modus: read-only (fase 1), add+view (fase 2), full CRUD (fase 3) — per klant instelbaar | planned |
 
 **Tech stack:**
 
@@ -238,7 +245,7 @@ De Discovery Tool is een **apart project** (niet in AutoForge) dat PMs en stakeh
 | Database | PostgreSQL in Docker | Sessie opslag, discovery state, alles lokaal |
 | AI | Claude API | BMAD-stijl prompts als gefaseerde workflow |
 | PM koppeling | Plane Python SDK (v0.2.0) | Bidirectioneel lezen/schrijven |
-| Kennis | MarQed MD files (mount/read) | Codebase context voor AI |
+| Kennis | Onboarding MD files (mount/read) | Codebase context voor AI |
 
 **Acceptatiecriteria:**
 1. Open Discovery UI, beantwoord 5-10 vragen over een nieuw project
@@ -250,51 +257,105 @@ De Discovery Tool is een **apart project** (niet in AutoForge) dat PMs en stakeh
 7. "Push naar Plane" maakt modules, work items, sub-work items aan in correcte structuur
 8. Sessie afsluiten en volgende dag hervatten werkt zonder dataverlies
 9. Niet-technische gebruiker kan het proces doorlopen zonder CLI-kennis
+10. Dashboard: PM kan van Applicatie-niveau doorklikken naar Epic → Feature → Story
+11. Dashboard: elk niveau toont aantal children, IFPUG functiepunten, tests per categorie, en fase-status
+12. Dashboard: breadcrumb navigatie werkt correct op alle niveaus
+13. Dashboard: CRUD-modus is configureerbaar per klant (standaard read-only)
+14. Aggregatie API: combineert data uit Plane, AutoForge test results, en Onboarding IFPUG bron
 
 **Later (als workflows complexer worden):** evalueer migratie van assistant-ui naar CopilotKit voor generative UI en CoAgents support.
 
 ---
 
-## Sprint 9: Feedback Loop & Knowledge Management -- PLANNED
+## Sprint 9: Intake & Traceerbaarheid -- PLANNED
 
-> Doel: Sluit de feedback loop (AutoForge → PM → Discovery) en bepaal waar MarQed-kennis het beste opgeslagen en benut wordt.
+> Doel: PM kan requirements, changes en bugs invoeren via het PM Dashboard, met volledige traceerbaarheid en automatische routing.
 
-De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien naar de Discovery Tool. MarQed-kennis (kwaliteit, performance, security, user journeys) moet het Discovery-proces voeden.
+Het PM Dashboard wordt het **intake-portaal** voor alle doorlopende wijzigingen op een bestaande applicatie. De PM navigeert naar het juiste niveau in de hiërarchie (epic/feature/story), klikt [+], en voert een nieuw item in. Het systeem routeert automatisch op basis van type.
+
+Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specificatie.
 
 | # | Item | Status |
 |---|---|---|
-| 9.1 | Feedback loop: AutoForge test resultaten + change docs als Plane work item comments | planned |
-| 9.2 | Feedback loop: Discovery Tool kan afgewezen Plane items + feedback inladen als context voor verfijning | planned |
-| 9.3 | Feedback loop: notificatie naar PM bij feature completion (Plane notificatie of email/Slack) | planned |
-| 9.4 | **Analyse**: inventariseer alle kennis-artefacten die MarQed en onboarding opleveren (MD files, rapporten, metrics) | planned |
-| 9.5 | **Analyse**: bepaal optimale opslaglocatie(s) -- project-level `.knowledge/` folder, Plane wiki, of Discovery DB | planned |
-| 9.6 | **Analyse**: bepaal hoe Discovery Tool MarQed-kennis consumeert (context injection, RAG, of directe file reads) | planned |
-| 9.7 | Implementatie: kennis-pipeline MarQed → opslag → Discovery Tool context | planned |
-| 9.8 | Finetuning: evalueer of feedback loop en kennis-integratie werkt in de praktijk, pas aan waar nodig | planned |
+| 9.1 | Intake formulier UI: type selectie (requirement / change / bug), titel, omschrijving, prioriteit, automatische koppeling aan parent item. Na formulier: AI FP-inschatting met budget-indicator (maandbudget, verbruikt, beschikbaar) en PM review stap (aanpassen, bevestigen, annuleren) | planned |
+| 9.2 | Intake API: Plane work items aanmaken met type labels (`intake:bug`, `intake:change`, `intake:requirement`), parent relatie, bron metadata (`source:pm-dashboard`, PM naam, timestamp) | planned |
+| 9.3 | Intake routing: requirements → Discovery Tool (brownpaper) voor decompositie; changes en bugs → direct naar Plane cycle | planned |
+| 9.4 | Audit trail: volledige event history per intake item als Plane work item comments (INTAKE → PLAN → BUILD → TEST → REVIEW → DONE) | planned |
+| 9.5 | Intake overzicht panel: lijst van alle intake items met status, type, prioriteit, FP, gekoppeld item, en laatste actie -- naast de bestaande hiërarchie-view. Inclusief FP-verbruik tracking per periode. | planned |
+| 9.6 | Prioriteit-escalatie: critical bugs gaan voor in de huidige cycle; low-prio requirements naar backlog | planned |
+| 9.7 | Intake metriek: aantal open/actief/afgerond per type, gemiddelde doorlooptijd per type, in sprint metrics | planned |
+| 9.8 | Helpdesk connector architectuur: API spec + adapter-patroon voor externe ITSM-integratie (design document, implementatie later) | planned |
+| 9.9 | FP-estimatie engine: AI-inschatting op basis van beschrijving-analyse (NLP), historische data (gemiddelde FP vergelijkbare items), en Onboarding IFPUG data (FP van parent-item). Confidence scoring bij beperkte bronnen. Admin-override: MarQed-admins kunnen FP-inschattingen challengen en handmatig corrigeren. | planned |
+| 9.10 | FP-budget dashboard: maandbudget meter (verbruikt/ingepland/beschikbaar), overschrijdingsbeveiliging (waarschuwing, blokkade, intake uitgeschakeld bij 0 FP). Integreert met FP-abonnementsmodel. | planned |
 
 **Acceptatiecriteria:**
-1. Feature completion in AutoForge -> automatisch comment op Plane work item met test resultaten
+1. PM navigeert naar Feature "Data Export" in Dashboard, klikt [+], kiest "Bug", vult formulier in → Plane work item aangemaakt met label `intake:bug` en parent relatie
+2. Bug met prioriteit "High" verschijnt automatisch in actieve Plane cycle
+3. Nieuw requirement gaat via Discovery Tool (brownpaper) → gedecomponeerd tot micro features → terug in Plane
+4. Change request gaat direct naar Plane, AutoForge pakt op, PM ziet resultaat in intake overzicht
+5. Audit trail toont volledige geschiedenis: wie, wanneer, welke fase, welke acties, test results
+6. Intake overzicht filtert op type, status, en prioriteit
+7. Sprint metrics tonen intake statistieken (open/actief/afgerond per type, doorlooptijd)
+8. Helpdesk connector design document beschrijft adapter-patroon, gemeenschappelijke IntakeEvent interface, en mapping voor minimaal 2 ITSM-platformen (bv. ServiceNow + Zendesk)
+9. PM vult intake in → ziet AI FP-inschatting + budget-impact (maandbudget, verbruikt, beschikbaar) → kan FP aanpassen → bevestigt of annuleert
+10. Bij requirement intake → Discovery decomposeert → PM ziet FP-breakdown per sub-item → bevestigt voordat items naar Plane gaan
+11. Budget dashboard toont verbruikt/ingepland/beschikbaar FP; altijd zichtbaar in PM Dashboard
+12. Overschrijdingsbeveiliging: waarschuwing bij grenswaarde, intake geblokkeerd als maandbudget op is, blokkademelding bij overschrijding
+13. Admin-override: MarQed-admins kunnen elke FP-inschatting challengen, corrigeren en de gecorrigeerde waarde als definitief markeren
+
+**Technische details:**
+- CRUD fase 2 (toevoegen + bekijken) is prerequisite -- implementatie uit Sprint 8.14
+- Plane labels voor type-classificatie: `intake:bug`, `intake:change`, `intake:requirement`, `source:pm-dashboard`
+- Routing beslissing op client-side: requirement → redirect naar Discovery Tool met pre-filled context; change/bug → direct Plane API call
+- Audit trail events geschreven als Plane work item comments met gestructureerd formaat (timestamp, fase, actor, actie)
+- Intake overzicht: React component naast hiërarchie, met filters en sorteer-opties
+- Helpdesk design: adapter-patroon met `IntakeEvent` interface, AI-classificatie voor type + item matching
+- FP-estimatie: drie bronnen (beschrijving NLP, historische data, Onboarding IFPUG), confidence score, greenpaper fallback met bredere range
+- FP-budget: maandelijks abonnement (25 FP basis), geen rollover, verbruikt/ingepland/beschikbaar tracking, overschrijdingsbeveiliging (3 niveaus), admin-override voor FP-correctie
+- Human-in-the-loop: 2 review momenten voor requirements (intake + na decompositie), 1 voor changes/bugs (intake)
+
+---
+
+## Sprint 10: Feedback Loop & Knowledge Management -- PLANNED
+
+> Doel: Sluit de feedback loop (AutoForge → PM → Discovery) en bepaal waar Onboarding-kennis het beste opgeslagen en benut wordt.
+
+De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien naar de Discovery Tool. Onboarding-kennis (kwaliteit, performance, security, user journeys, IFPUG FP) moet het Discovery-proces voeden.
+
+| # | Item | Status |
+|---|---|---|
+| 10.1 | Feedback loop: AutoForge test resultaten + change docs als Plane work item comments | planned |
+| 10.2 | Feedback loop: Discovery Tool kan afgewezen Plane items + feedback inladen als context voor verfijning | planned |
+| 10.3 | Feedback loop: notificatie naar PM bij feature completion (Plane notificatie of email/Slack) | planned |
+| 10.4 | **Analyse**: inventariseer alle kennis-artefacten die Onboarding oplevert (MD files, rapporten, metrics, IFPUG FP) | planned |
+| 10.5 | **Analyse**: bepaal optimale opslaglocatie(s) -- project-level `.knowledge/` folder, Plane wiki, of Discovery DB | planned |
+| 10.6 | **Analyse**: bepaal hoe Discovery Tool en PM Dashboard Onboarding-kennis consumeren (context injection, RAG, of directe file reads) | planned |
+| 10.7 | Implementatie: kennis-pipeline Onboarding → opslag → Discovery Tool + PM Dashboard context | planned |
+| 10.8 | Finetuning: evalueer of feedback loop en kennis-integratie werkt in de praktijk, pas aan waar nodig | planned |
+
+**Acceptatiecriteria:**
+1. Feature completion in AutoForge → automatisch comment op Plane work item met test resultaten
 2. PM kan in Plane goedkeuren (Done) of afwijzen (comment met feedback)
 3. Discovery Tool kan afgewezen items + feedback laden en requirements verfijnen
-4. MarQed-kennis beschikbaar in Discovery chat (bv. "je huidige auth gebruikt JWT, wil je dat uitbreiden?")
+4. Onboarding-kennis beschikbaar in Discovery chat (bv. "je huidige auth gebruikt JWT, wil je dat uitbreiden?")
 5. Geen merkbare vertraging door kennis-loading
 6. Documentatie: ADR voor gekozen opslagstrategie en feedback loop ontwerp
 
 ---
 
-## Sprint 10: Twee-Sporen Review Workflow -- PLANNED
+## Sprint 11: Twee-Sporen Review Workflow -- PLANNED
 
 > Doel: Implementeer business review (PM) + technisch review (Git PR) voordat Discovery output naar Plane gaat.
 
 | # | Item | Status |
 |---|---|---|
-| 10.1 | **Analyse**: welke review stappen zijn noodzakelijk vs. nice-to-have? | planned |
-| 10.2 | **Analyse**: wie voert welke actie uit? (PM business review, tech lead Git PR review) | planned |
-| 10.3 | **Analyse**: wat is user-friendly voor niet-technische PM? (Discovery UI review vs. gedeelde link vs. export) | planned |
-| 10.4 | Business review: PM keurt hiërarchie goed in Discovery Tool UI (approve/reject per epic/feature) | planned |
-| 10.5 | Technisch review: Discovery output exporteren als markdown in Git branch + PR creatie | planned |
-| 10.6 | Na beide goedkeuringen: automatisch naar Plane pushen | planned |
-| 10.7 | Workflow documentatie: rolbeschrijvingen (wie doet wat wanneer) | planned |
+| 11.1 | **Analyse**: welke review stappen zijn noodzakelijk vs. nice-to-have? | planned |
+| 11.2 | **Analyse**: wie voert welke actie uit? (PM business review, tech lead Git PR review) | planned |
+| 11.3 | **Analyse**: wat is user-friendly voor niet-technische PM? (Discovery UI review vs. gedeelde link vs. export) | planned |
+| 11.4 | Business review: PM keurt hiërarchie goed in Discovery Tool UI (approve/reject per epic/feature) | planned |
+| 11.5 | Technisch review: Discovery output exporteren als markdown in Git branch + PR creatie | planned |
+| 11.6 | Na beide goedkeuringen: automatisch naar Plane pushen | planned |
+| 11.7 | Workflow documentatie: rolbeschrijvingen (wie doet wat wanneer) | planned |
 
 **Acceptatiecriteria:**
 1. PM kan in Discovery Tool de voorgestelde hiërarchie reviewen en goedkeuren/afwijzen
@@ -309,7 +370,7 @@ De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien na
 | Originele Sprint | Onderwerp | Reden |
 |---|---|---|
 | Sprint 2 (oud) | Data Model (Epic, UserStory, Sprint tabellen) | Plane heeft Modules, Work Items, Cycles |
-| Sprint 3 (oud) | Analyse Workflow (analyse agent, sprint planning) | Planning gebeurt in Plane, analyse in MarQed |
+| Sprint 3 (oud) | Analyse Workflow (analyse agent, sprint planning) | Planning gebeurt in Plane, analyse in Onboarding |
 | Sprint 5 (oud) | Dual Kanban Board UI | Plane IS het kanban board |
 | Sprint 6 (oud) | Velocity & Metrics | Plane heeft ingebouwde analytics |
 
