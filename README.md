@@ -2,18 +2,19 @@
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/leonvanzyl)
 
-A long-running autonomous coding agent powered by the Claude Agent SDK. AutoForge is the **execution engine** in a larger pipeline: Discovery Tool (requirements) → Plane (planning) → AutoForge (execution) → Testing.
+A long-running autonomous coding agent powered by the Claude Agent SDK. AutoForge is the **execution engine** in the **MarQed.ai platform**: Onboarding (analysis) → Discovery Tool (requirements) → Plane (planning) → AutoForge (execution) → PM Dashboard (monitoring).
 
 ## Pipeline
 
 ```
-Discovery Tool ←→ Plane (SSOT) ←→ AutoForge ←→ Testing
-       ^                                            |
-       |              feedback loop                 |
-       └────────────────────────────────────────────┘
+MarQed.ai Platform
+Onboarding → Discovery Tool → Plane (SSOT) ←→ AutoForge
+                                    |
+                               PM Dashboard
+                          [Plane + AutoForge + Onboarding]
 ```
 
-MarQed provides codebase analysis and knowledge that feeds into the Discovery Tool.
+**Onboarding** provides codebase analysis, knowledge, and IFPUG function points. **Discovery Tool** gathers requirements in two modes: brownpaper (existing codebase) and greenpaper (new build). **PM Dashboard** gives PMs a hierarchical drill-down view aggregating data from Plane, AutoForge, and Onboarding. See [platform-overview.md](docs/platform-overview.md) for the full diagram.
 
 ## Design Principles
 
@@ -22,11 +23,12 @@ MarQed provides codebase analysis and knowledge that feeds into the Discovery To
 3. **Micro features (max 2 hours)** -- Every feature must be small enough to build and test within 2 hours, so users can review and course-correct quickly.
 4. **Fail fast, cycle short** -- Short cycles, fast feedback. Rejections flow back into Discovery immediately. Never work on the wrong thing for long.
 5. **Feedback loop always closes** -- Test results and user feedback flow back to Discovery. Every outcome leads to a next action. No dead ends.
-6. **Separation of duties** -- Each tool has exactly one responsibility: Discovery (gather), MarQed (analyze), Plane (plan), AutoForge (build), Testing (verify).
-7. **Two audiences** -- PMs see Discovery + Plane. Developers manage MarQed + AutoForge + Testing. Developers share outcomes with PMs via Plane.
+6. **Separation of duties** -- Each tool has exactly one responsibility: Onboarding (analyze), Discovery (gather), PM Dashboard (monitor), Plane (plan), AutoForge (build).
+7. **Two audiences** -- PMs see Discovery Tool + PM Dashboard + Plane. Developers manage Onboarding + AutoForge. Developers share outcomes with PMs via Plane and the PM Dashboard.
 8. **Confidence scoring** -- AI marks uncertain items visually so humans know where to focus review attention.
 9. **Two-track review** -- Business review (PM approves content) + Technical review (tech lead approves architecture via Git PR). Both required before Plane push.
 10. **Progressive disclosure** -- Start broad, go deeper where the human chooses. Sessions are resumable across days.
+11. **Phased onboarding** -- New clients start read-only, growing toward full CRUD as they mature. CRUD level is configurable per client.
 
 See [architecture.md](docs/architecture.md) for the full pipeline and detailed principle descriptions.
 
@@ -467,14 +469,15 @@ Run `autoforge --repair` to delete and recreate the virtual environment from scr
 Uitgebreide documentatie is beschikbaar in de [`docs/`](docs/) folder:
 
 ### Architectuur & Ontwerp
-- [**Systeemarchitectuur**](docs/architecture.md) -- MarQed + Plane + AutoForge pipeline, component overzicht, test history, webhooks, deployment
-- [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (7 sprints voltooid, 3 geplande sprints: Discovery Tool, feedback loop, review workflow)
+- [**Platform Overzicht**](docs/platform-overview.md) -- MarQed.ai platform: 5 componenten, platformdiagram, datastromen, brownpaper/greenpaper, PM Dashboard
+- [**Systeemarchitectuur**](docs/architecture.md) -- Onboarding + Discovery + PM Dashboard + Plane + AutoForge pipeline, component overzicht, deployment
+- [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (7 sprints voltooid, 4 geplande sprints: Discovery Tool + PM Dashboard, intake & traceerbaarheid, feedback loop, review workflow)
 - [**Operations Guide**](docs/operations-guide.md) -- Plane + AutoForge opstarten, sync configureren, agent starten, troubleshooting
 
 ### Architecture Decision Records (ADR)
 - [**ADR-001: Plane Integratie**](docs/decisions/ADR-001-plane-integration.md) -- Waarom Plane als PM frontend ipv zelf bouwen
 - [**ADR-002: Analyse Pipeline**](docs/decisions/ADR-002-analysis-pipeline.md) -- Waar analyse, review en executie plaatsvindt
-- [**ADR-003: Data Mapping**](docs/decisions/ADR-003-data-mapping.md) -- Entity/state/priority mapping tussen MarQed, Plane en AutoForge
+- [**ADR-003: Data Mapping**](docs/decisions/ADR-003-data-mapping.md) -- Entity/state/priority mapping tussen Onboarding, Plane en AutoForge
 
 ### Plane Sync Module
 - [**API Design**](docs/plane-sync/api-design.md) -- REST API endpoints: config, cycles, import, sync, webhooks, test-report, sprint completion

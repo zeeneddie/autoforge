@@ -1,53 +1,55 @@
-# AutoForge Systeemarchitectuur
+# MarQed.ai Systeemarchitectuur
 
 ## Overzicht
 
-AutoForge is een autonoom coding platform dat software bouwt in agile sprint-cycli. Het systeem bestaat uit vier onafhankelijke componenten die samen een volledige discovery-planning-executie-feedback pipeline vormen:
+Het **MarQed.ai platform** bestaat uit vijf componenten die samen een volledige onboarding-discovery-planning-executie-feedback pipeline vormen:
 
 | Component | Rol | Technologie | Doelgroep |
 |-----------|-----|-------------|-----------|
-| **Discovery Tool** | Requirements gathering, guided interviews | React/assistant-ui, FastAPI, PostgreSQL | Product Manager, Stakeholder |
-| **MarQed** | Codebase analyse, onboarding kennis | Python, 11 AI agents, markdown output | Developer, Tech Lead |
+| **Onboarding** | Codebase analyse, kennis opbouw, IFPUG functiepunten | Python, 11 AI agents, markdown output | Developer, Tech Lead |
+| **Discovery Tool** | Requirements gathering: brownpaper (bestaand) en greenpaper (nieuwbouw) | React/assistant-ui, FastAPI, PostgreSQL | Product Manager, Stakeholder |
+| **PM Dashboard** | Hiërarchisch overzicht met drill-down en metriek | React, Aggregatie API | Product Manager |
 | **Plane** | Planning, backlog, sprint management (SSOT) | Self-hosted, PostgreSQL, REST API | Product Manager, Developer |
 | **AutoForge** | Autonome code-uitvoering, testing, delivery | Python/FastAPI, Claude Agent SDK | Developer |
 
+Zie [platform-overview.md](platform-overview.md) voor het volledige platformdiagram met alle datastromen.
+
 ```
-                    MARQED                         DISCOVERY TOOL
-                 (Codebase Analyse)             (Requirements Gathering)
-                 +------------------+           +------------------------+
-                 | Codebase scanning|           | Guided AI interviews   |
-                 | Gap analyse      |           | BMAD-stijl workflows   |
-                 | Kennis opbouw    |---------->| Bestaande backlog      |
-                 | MD output        |  context  |   inladen + verfijnen  |
-                 +------------------+           | Micro feature decomp.  |
-                                                +------------------------+
-                                                         |
-                                                    schrijft naar
-                                                         |
-                                                         v
-                                          +============================+
-                                          ||    PLANE (SSOT)           ||
-                                          || Backlog, Cycles, Modules  ||
-                                          || Prioritering, Voortgang   ||
-                                          +============================+
-                                                    |          ^
-                                              import |          | status + feedback
-                                                    v          |
-                                          +------------------------+
-                                          |    AUTOFORGE            |
-                                          |    (Executie Engine)    |
-                                          |    Coding + Testing     |
-                                          +------------------------+
-                                                    |
-                                                    | test resultaten +
-                                                    | change docs
-                                                    v
-                                          +------------------------+
-                                          |    FEEDBACK LOOP        |
-                                          |    PM reviewt in Plane  |
-                                          |    Approve -> Done      |
-                                          |    Reject  -> Discovery |
-                                          +------------------------+
+MarQed.ai Platform
++---------------------------------------------------------------------------+
+|                                                                           |
+|  ONBOARDING            DISCOVERY TOOL               PM DASHBOARD          |
+|  (Codebase Analyse)    (Requirements)               (Monitoring)          |
+|  +----------------+    +----------------------+     +------------------+  |
+|  | Codebase scan  |    | Brownpaper:          |     | App > Epic >     |  |
+|  | Gap analyse    |--->|  bevestig onboarding |     |  Feature > Story |  |
+|  | Kennis opbouw  |    |  docu wat er is      |     |                  |  |
+|  | IFPUG FP       |    |  + interview         |     | Per niveau:      |  |
+|  |                |    |                      |     |  children, FP,   |  |
+|  |                |    | Greenpaper:          |     |  tests, fase     |  |
+|  |                |    |  nieuwbouw           |     |                  |  |
+|  |                |    |  docu + interview    |     | CRUD: R / CR / F |  |
+|  +-------+--------+    +----------+-----------+     +--+----+----+-----+  |
+|          |                        |                    |    |    |        |
+|          | IFPUG FP               | schrijft           |    |    |        |
+|          | + kennis               | naar               |    |    |        |
+|          |                        |                    |    |    |        |
+|          |       +================+================+   |    |    |        |
+|          |       ||        PLANE (SSOT)            ||--+    |    |        |
+|          |       ||  Backlog, Cycles, Modules      || hierarchie |        |
+|          |       ||  Prioritering, Voortgang       || + states   |        |
+|          |       +================+====+===========+        |    |        |
+|          |                  import |    ^ status            |    |        |
+|          |                        v    | + feedback         |    |        |
+|          |       +---------------------+---+                |    |        |
+|          |       |       AUTOFORGE         |----------------+    |        |
+|          |       |     Coding + Testing    |  test results       |        |
+|          |       +-------------------------+                     |        |
+|          |                                                       |        |
+|          +-------------------------------------------------------+        |
+|                         IFPUG FP                                          |
+|                                                                           |
++---------------------------------------------------------------------------+
 ```
 
 ## Ontwerpprincipes
@@ -58,7 +60,7 @@ De AI doet het zware werk (analyseren, genereren, bouwen, testen). De mens maakt
 
 ### 2. Plane is Single Source of Truth
 
-Plane is de enige bron van waarheid voor alle work items. De Discovery Tool is ephemeer (sessie resulteert in Plane items). MarQed is referentiemateriaal. AutoForge leest uit en schrijft terug naar Plane. Geen dubbele administratie.
+Plane is de enige bron van waarheid voor alle work items. De Discovery Tool is ephemeer (sessie resulteert in Plane items). Onboarding is referentiemateriaal. AutoForge leest uit en schrijft terug naar Plane. Geen dubbele administratie.
 
 ### 3. Micro features: maximaal 2 uur bouwen + testen
 
@@ -85,8 +87,9 @@ Geen dood spoor. Elke uitkomst leidt tot een volgende actie.
 ### 6. Separation of duties
 
 Elk tool heeft precies één verantwoordelijkheid:
-- **Discovery Tool**: requirements ophalen en verfijnen
-- **MarQed**: codebase analyseren en kennis opbouwen
+- **Onboarding**: bestaande codebase analyseren en kennis opbouwen
+- **Discovery Tool**: requirements ophalen en verfijnen (brownpaper + greenpaper)
+- **PM Dashboard**: voortgang monitoren met drill-down
 - **Plane**: werk plannen en voortgang beheren
 - **AutoForge**: code schrijven en testen
 
@@ -96,10 +99,10 @@ Geen tool doet het werk van een ander tool.
 
 | Rol | Ziet | Doet |
 |-----|------|------|
-| **Product Manager / Stakeholder** | Discovery Tool, Plane (kanban + voortgang) | Requirements sturen, prioriteren, reviewen, goedkeuren |
-| **Developer / Tech Lead** | MarQed, Plane, AutoForge, Git | Analyse configureren, sprints starten, executie monitoren, resultaten delen |
+| **Product Manager / Stakeholder** | Discovery Tool, PM Dashboard, Plane (kanban + voortgang) | Requirements sturen, voortgang monitoren, prioriteren, reviewen, goedkeuren |
+| **Developer / Tech Lead** | Onboarding, Plane, AutoForge, Git | Codebase onboarden, sprints starten, executie monitoren, resultaten delen |
 
-De PM hoeft nooit in AutoForge of MarQed te werken. De developer deelt uitkomsten met de PM via Plane.
+De PM hoeft nooit in AutoForge of Onboarding te werken. De developer deelt uitkomsten met de PM via Plane en het PM Dashboard.
 
 ### 8. Confidence scoring
 
@@ -116,22 +119,29 @@ Beide sporen moeten goedgekeurd zijn voordat items naar Plane gepusht worden.
 
 De Discovery Tool start breed ("Wat bouw je? Voor wie?") en laat de AI een eerste schets maken. De mens kiest waar dieper op ingegaan wordt. Niet alles in één sessie afdwingen. Sessies zijn hervatbaar over meerdere dagen.
 
+### 11. Gefaseerd onboarden
+
+Nieuwe klanten starten met read-only toegang tot het dashboard en groeien naar volledige CRUD naarmate ze het platform adopteren. De CRUD-modus is per klant configureerbaar (fase 1: read-only, fase 2: toevoegen + bekijken, fase 3: volledige CRUD). Dit verlaagt de instapdrempel en voorkomt dat onervaren gebruikers per ongeluk data wijzigen.
+
 ## Complete Pipeline
 
-### Stap 1: Analyse (MarQed)
+### Stap 1: Codebase Analyse (Onboarding)
 
-MarQed analyseert een bestaande codebase en genereert een gestructureerde breakdown:
+> Bij greenpaper (nieuwbouw) wordt deze stap overgeslagen.
+
+Onboarding analyseert een bestaande codebase en genereert een gestructureerde breakdown:
 
 ```
 Bestaande codebase + requirements
          |
          v
-  MarQed AI agents scannen:
+  Onboarding AI agents scannen:
     - Welke modules/packages bestaan er?        -> Plane Modules
     - Wat zijn de grote functionele gebieden?    -> Plane Epics
     - Welke specifieke verbeteringen/features?   -> Plane Work Items
     - Welke sub-taken per work item?             -> Plane Sub-Work Items
     - Welke dependencies tussen items?           -> Plane Relations
+    - IFPUG functiepunten per entity
          |
          v
   Output: Markdown bestanden in git + kennis voor Discovery Tool
@@ -144,19 +154,23 @@ Bestaande codebase + requirements
 
 ### Stap 2: Requirements Gathering (Discovery Tool)
 
-De Discovery Tool leidt de PM/stakeholder door een interactief gesprek:
+De Discovery Tool heeft twee modi:
+
+**Brownpaper** (bestaande codebase): Onboarding heeft al gescand. De Discovery Tool presenteert bevindingen aan de PM ter bevestiging, documenteert de huidige staat, en interviewt over gewenste wijzigingen.
+
+**Greenpaper** (nieuwbouw): Er is geen bestaande codebase. De Discovery Tool start blanco met documentatie en interviews.
 
 ```
-Input:
-  - MarQed kennis (codebase context)
-  - Bestaande Plane backlog (items om op door te werken)
-  - PM/stakeholder antwoorden
-         |
-         v
+Brownpaper input:                     Greenpaper input:
+  - Onboarding kennis + IFPUG FP       - PM/stakeholder visie
+  - Bestaande Plane backlog             - Referentie-architectuur (optioneel)
+  - PM/stakeholder antwoorden           - PM/stakeholder antwoorden
+         |                                      |
+         v                                      v
   AI-gestuurde workflow (BMAD-stijl fasen):
     1. Visie & context ("Wat bouw je? Voor wie?")
     2. Feature discovery ("Welke functionaliteit?")
-    3. Epic decomposie (clusteren in grote gebieden)
+    3. Epic decompositie (clusteren in grote gebieden)
     4. Story breakdown (per feature: stories + acceptance criteria)
     5. Micro feature validatie (elke story <= 2 uur)
     6. Review + confidence scoring
@@ -179,6 +193,21 @@ Discovery output
          v (beide goedgekeurd)
   Push naar Plane
 ```
+
+### Stap 3b: PM Dashboard (apart component)
+
+Het PM Dashboard is een **zelfstandig component** naast de andere tools met twee functies:
+
+1. **Monitoring:** Aggregeert data uit Plane (hiërarchie, states), AutoForge (test results), en Onboarding (IFPUG functiepunten) tot een 4-niveau drill-down overzicht.
+
+2. **Intake portaal** (vanaf CRUD fase 2): De PM kan direct vanuit de hiërarchie nieuwe requirements, change requests en bug reports aanmaken. Items worden automatisch gerouteerd:
+   - **Nieuw requirement** → Discovery Tool (brownpaper) voor decompositie → Plane
+   - **Change request** → Direct naar Plane cycle → AutoForge
+   - **Bug report** → Direct naar Plane cycle (hoge prio) → AutoForge
+
+Elk intake item heeft een volledige audit trail (wie, wanneer, welke fase, welke acties, test results) en is traceerbaar via Plane labels en parent-relaties.
+
+Zie [platform-overview.md](platform-overview.md) voor de volledige specificatie: drill-down niveaus, metriek, fase-tracking, CRUD-modus, intake flow, audit trail, en helpdesk connector architectuur.
 
 ### Stap 4: Sprint Planning (Plane)
 
@@ -224,7 +253,7 @@ Feature completion
          +---> Plane work item: status update + comment met resultaten
          |
          v
-  PM reviewt in Plane:
+  PM reviewt in PM Dashboard of Plane:
     - Goedgekeurd  -> status "Done", volgende feature
     - Afgekeurd    -> comment met feedback
                            |
@@ -235,6 +264,27 @@ Feature completion
                            v
                    Verfijnde requirements -> Plane -> AutoForge
 ```
+
+### Stap 7: Doorlopende Intake (na initiële oplevering)
+
+```
+PM ziet item in Dashboard
+         |
+         +-- klikt [+] op epic/feature/story niveau
+         |
+         v
+  Intake formulier: type (requirement/change/bug) + details
+         |
+         +--- Requirement --> Discovery Tool (brownpaper) --> Plane
+         |
+         +--- Change/Bug --> Direct Plane cycle --> AutoForge
+         |
+         v
+  Resultaat zichtbaar in Dashboard intake-overzicht
+  met volledige audit trail per item
+```
+
+Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specificatie.
 
 ## AutoForge Interne Architectuur
 
@@ -283,7 +333,7 @@ autoforge/
     self_host.py        # Self-hosting: register AutoForge in eigen registry
 ```
 
-### MarQed Import Module
+### Onboarding Import Module
 
 ```
 autoforge/
@@ -294,10 +344,10 @@ autoforge/
     importer.py         # import_to_plane(): MarQedEntity tree -> Plane modules + work items
 ```
 
-De MarQed importer parseert MarQed markdown directory trees en creëert de corresponderende
+De Onboarding importer parseert markdown directory trees en creëert de corresponderende
 Plane entiteiten:
 
-| MarQed entity | Plane entity | Rationale |
+| Onboarding entity | Plane entity | Rationale |
 |---|---|---|
 | Epic | Module | Modules bieden grouping + status |
 | Feature | Work Item | Direct mapping |
@@ -349,12 +399,14 @@ Naast de polling loop ondersteunt AutoForge ook real-time webhooks van Plane:
 - Claude Code CLI (of Anthropic API key)
 - Optioneel: OpenRouter voor multi-model support
 
-### Volledig (MarQed + Plane + AutoForge)
+### Volledig (MarQed.ai platform)
 
 | Service | Vereisten | Port |
 |---------|-----------|------|
-| MarQed | Python 3.12+, Docker, ChromaDB | 8000 |
+| Onboarding | Python 3.12+, Docker, ChromaDB | 8000 |
 | Plane | Docker Compose (PostgreSQL, Redis, MinIO) | 8080 |
 | AutoForge | Python 3.11+, Node.js 20+ | 5175 |
+| Discovery Tool | React, FastAPI, PostgreSQL in Docker | 3000 |
+| PM Dashboard | React (onderdeel Discovery Tool of standalone) | 3000 |
 
-Alle drie self-hosted, volledige controle over data.
+Alle componenten self-hosted, volledige controle over data.
