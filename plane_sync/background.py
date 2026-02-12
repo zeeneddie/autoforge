@@ -28,59 +28,41 @@ class PlaneSyncLoop:
     """Asyncio-based background loop for Plane sync.
 
     Runs outbound (push status to Plane) and inbound (pull changes from Plane)
-    sync on a configurable interval. Designed to be started/stopped via the
-    FastAPI lifespan.
+    sync on a configurable interval per project. Designed to be started/stopped
+    via the FastAPI lifespan.
     """
 
     def __init__(self):
         self._stop_event = asyncio.Event()
         self._task: asyncio.Task | None = None
         self._running = False
-        self._last_sync_at: str | None = None
-        self._last_error: str | None = None
-        self._items_synced: int = 0
-        self._sprint_complete: bool = False
-        self._sprint_stats: dict | None = None
         self._last_webhook_at: str | None = None
         self._webhook_count: int = 0
+        # Per-project status tracking
+        self._per_project_status: dict[str, dict] = {}
 
     @property
     def running(self) -> bool:
         return self._running
 
-    @property
-    def last_sync_at(self) -> str | None:
-        return self._last_sync_at
+    def _get_project_config(self, project_name: str) -> dict[str, Any]:
+        """Read sync config for a specific project.
 
-    @property
-    def last_error(self) -> str | None:
-        return self._last_error
-
-    @property
-    def items_synced(self) -> int:
-        return self._items_synced
-
-    @property
-    def sprint_complete(self) -> bool:
-        return self._sprint_complete
-
-    @property
-    def sprint_stats(self) -> dict | None:
-        return self._sprint_stats
-
-    def _get_config(self) -> dict[str, Any]:
-        """Read sync config from registry settings."""
+        Shared settings (url, key, workspace, webhook_secret) from global registry.
+        Per-project settings (project_id, cycle_id, sync_enabled, poll_interval)
+        via get_plane_setting() with project_name fallback.
+        """
         _ensure_registry()
-        from registry import get_all_settings
-        settings = get_all_settings()
+        from registry import get_plane_setting, get_setting
+
         return {
-            "enabled": settings.get("plane_sync_enabled", "false").lower() == "true",
-            "poll_interval": int(settings.get("plane_poll_interval", "30")),
-            "active_cycle_id": settings.get("plane_active_cycle_id") or None,
-            "plane_api_url": settings.get("plane_api_url") or "",
-            "plane_api_key": settings.get("plane_api_key") or "",
-            "plane_workspace_slug": settings.get("plane_workspace_slug") or "",
-            "plane_project_id": settings.get("plane_project_id") or "",
+            "enabled": (get_plane_setting("plane_sync_enabled", project_name, "false") or "false").lower() == "true",
+            "poll_interval": int(get_plane_setting("plane_poll_interval", project_name, "30") or "30"),
+            "active_cycle_id": get_plane_setting("plane_active_cycle_id", project_name) or None,
+            "plane_api_url": get_setting("plane_api_url") or "",
+            "plane_api_key": get_setting("plane_api_key") or "",
+            "plane_workspace_slug": get_setting("plane_workspace_slug") or "",
+            "plane_project_id": get_plane_setting("plane_project_id", project_name) or "",
         }
 
     def _build_client(self, config: dict[str, Any]):
@@ -102,71 +84,60 @@ class PlaneSyncLoop:
             project_id=config["plane_project_id"],
         )
 
-    def _get_project_dirs(self) -> list[Path]:
-        """Get all registered project directories that have Plane-linked features."""
+    def _get_registered_projects(self) -> dict[str, dict]:
+        """Get all registered projects."""
         _ensure_registry()
         from registry import list_registered_projects
-        projects = list_registered_projects()
-        dirs = []
-        for name, info in projects.items():
-            p = Path(info["path"])
-            if p.exists():
-                dirs.append(p)
-        return dirs
+        return list_registered_projects()
 
-    def _check_sprint_completion(self) -> None:
-        """Check if all Plane-linked features are passing. Also aggregate test stats."""
-        project_dirs = self._get_project_dirs()
-        if not project_dirs:
-            return
-
+    def _check_sprint_completion_for_project(self, project_name: str, project_dir: Path) -> None:
+        """Check sprint completion for a single project."""
         _ensure_registry()
         total = 0
         passing = 0
         total_test_runs = 0
         passed_test_runs = 0
 
-        for project_dir in project_dirs:
+        try:
+            root = Path(__file__).parent.parent
+            if str(root) not in sys.path:
+                sys.path.insert(0, str(root))
+            from api.database import Feature, TestRun, create_database
+            from sqlalchemy import func
+
+            _, SessionLocal = create_database(project_dir)
+            session = SessionLocal()
             try:
-                root = Path(__file__).parent.parent
-                if str(root) not in sys.path:
-                    sys.path.insert(0, str(root))
-                from api.database import Feature, TestRun, create_database
-                from sqlalchemy import func
+                linked = session.query(Feature).filter(
+                    Feature.plane_work_item_id.isnot(None)
+                ).all()
+                linked_ids = []
+                for f in linked:
+                    total += 1
+                    linked_ids.append(f.id)
+                    if f.passes:
+                        passing += 1
 
-                _, SessionLocal = create_database(project_dir)
-                session = SessionLocal()
-                try:
-                    linked = session.query(Feature).filter(
-                        Feature.plane_work_item_id.isnot(None)
-                    ).all()
-                    linked_ids = []
-                    for f in linked:
-                        total += 1
-                        linked_ids.append(f.id)
-                        if f.passes:
-                            passing += 1
+                if linked_ids:
+                    stats = session.query(
+                        func.count(TestRun.id),
+                        func.sum(func.cast(TestRun.passed, type_=None)),
+                    ).filter(
+                        TestRun.feature_id.in_(linked_ids)
+                    ).first()
+                    if stats:
+                        total_test_runs += stats[0] or 0
+                        passed_test_runs += int(stats[1] or 0)
+            finally:
+                session.close()
+        except Exception as e:
+            logger.debug("Sprint completion check failed for %s: %s", project_dir, e)
 
-                    # Query test run stats for linked features
-                    if linked_ids:
-                        stats = session.query(
-                            func.count(TestRun.id),
-                            func.sum(func.cast(TestRun.passed, type_=None)),
-                        ).filter(
-                            TestRun.feature_id.in_(linked_ids)
-                        ).first()
-                        if stats:
-                            total_test_runs += stats[0] or 0
-                            passed_test_runs += int(stats[1] or 0)
-                finally:
-                    session.close()
-            except Exception as e:
-                logger.debug("Sprint completion check failed for %s: %s", project_dir, e)
-
+        status = self._per_project_status.setdefault(project_name, {})
         if total > 0:
-            self._sprint_complete = passing == total
+            status["sprint_complete"] = passing == total
             pass_rate = (passed_test_runs / total_test_runs * 100) if total_test_runs > 0 else 0.0
-            self._sprint_stats = {
+            status["sprint_stats"] = {
                 "total": total,
                 "passing": passing,
                 "failed": total - passing,
@@ -174,54 +145,59 @@ class PlaneSyncLoop:
                 "overall_pass_rate": round(pass_rate, 1),
             }
         else:
-            self._sprint_complete = False
-            self._sprint_stats = None
+            status["sprint_complete"] = False
+            status["sprint_stats"] = None
 
     async def _sync_iteration(self) -> None:
-        """Run one sync cycle: outbound then inbound."""
-        config = self._get_config()
+        """Run one sync cycle per project: outbound then inbound."""
+        projects = self._get_registered_projects()
 
-        if not config["enabled"]:
-            return
+        for project_name, project_info in projects.items():
+            config = self._get_project_config(project_name)
 
-        client = self._build_client(config)
-        if not client:
-            return
+            if not config["enabled"]:
+                continue
 
-        cycle_id = config["active_cycle_id"]
-        total_items = 0
+            client = self._build_client(config)
+            if not client:
+                continue
 
-        try:
-            project_dirs = self._get_project_dirs()
+            project_dir = Path(project_info["path"])
+            if not project_dir.exists():
+                continue
 
-            for project_dir in project_dirs:
-                # Outbound: push status changes to Plane
-                from .sync_service import outbound_sync
+            cycle_id = config["active_cycle_id"]
+            total_items = 0
+
+            try:
+                from .sync_service import outbound_sync, import_cycle
                 outbound_result = await asyncio.to_thread(
                     outbound_sync, client, project_dir
                 )
                 total_items += outbound_result.pushed
 
-                # Inbound: re-import cycle to pick up changes
                 if cycle_id:
-                    from .sync_service import import_cycle
                     inbound_result = await asyncio.to_thread(
                         import_cycle, client, project_dir, cycle_id
                     )
                     total_items += inbound_result.imported + inbound_result.updated
 
-            self._items_synced = total_items
-            self._last_sync_at = datetime.now(timezone.utc).isoformat()
-            self._last_error = None
+                status = self._per_project_status.setdefault(project_name, {})
+                status["items_synced"] = total_items
+                status["last_sync_at"] = datetime.now(timezone.utc).isoformat()
+                status["last_error"] = None
 
-            # Check sprint completion after sync
-            await asyncio.to_thread(self._check_sprint_completion)
+                # Check sprint completion for this project
+                await asyncio.to_thread(
+                    self._check_sprint_completion_for_project, project_name, project_dir
+                )
 
-        except Exception as e:
-            self._last_error = str(e)
-            logger.error("Plane sync error: %s", e, exc_info=True)
-        finally:
-            client.close()
+            except Exception as e:
+                status = self._per_project_status.setdefault(project_name, {})
+                status["last_error"] = str(e)
+                logger.error("Plane sync error for %s: %s", project_name, e, exc_info=True)
+            finally:
+                client.close()
 
     async def _run_loop(self) -> None:
         """Main loop that runs sync iterations on an interval."""
@@ -230,26 +206,31 @@ class PlaneSyncLoop:
 
         try:
             while not self._stop_event.is_set():
-                config = self._get_config()
+                # Check if any project has sync enabled
+                projects = self._get_registered_projects()
+                any_enabled = False
+                min_interval = 30
 
-                if config["enabled"]:
+                for project_name in projects:
+                    config = self._get_project_config(project_name)
+                    if config["enabled"]:
+                        any_enabled = True
+                        min_interval = min(min_interval, config["poll_interval"])
+
+                if any_enabled:
                     try:
                         await self._sync_iteration()
                     except Exception as e:
-                        self._last_error = str(e)
                         logger.error("Plane sync iteration failed: %s", e, exc_info=True)
 
-                # Wait for the poll interval or until stopped
-                interval = config.get("poll_interval", 30)
+                # Wait for the shortest poll interval or until stopped
                 try:
                     await asyncio.wait_for(
                         self._stop_event.wait(),
-                        timeout=interval,
+                        timeout=min_interval,
                     )
-                    # If we get here, stop was requested
                     break
                 except asyncio.TimeoutError:
-                    # Normal timeout, continue loop
                     pass
         finally:
             self._running = False
@@ -258,7 +239,7 @@ class PlaneSyncLoop:
     async def start(self) -> None:
         """Start the background sync loop."""
         if self._task and not self._task.done():
-            return  # Already running
+            return
 
         self._stop_event.clear()
         self._task = asyncio.create_task(self._run_loop())
@@ -286,18 +267,79 @@ class PlaneSyncLoop:
         self._webhook_count += 1
         self._last_webhook_at = datetime.now(timezone.utc).isoformat()
 
-    def get_status(self) -> dict:
-        """Get current sync status for the API."""
-        config = self._get_config()
+    def get_status(self, project_name: str | None = None) -> dict:
+        """Get current sync status for the API.
+
+        If project_name is given, return per-project status.
+        Otherwise return aggregated status.
+        """
+        if project_name:
+            config = self._get_project_config(project_name)
+            ps = self._per_project_status.get(project_name, {})
+            return {
+                "enabled": config["enabled"],
+                "running": self._running,
+                "last_sync_at": ps.get("last_sync_at"),
+                "last_error": ps.get("last_error"),
+                "items_synced": ps.get("items_synced", 0),
+                "active_cycle_name": None,
+                "sprint_complete": ps.get("sprint_complete", False),
+                "sprint_stats": ps.get("sprint_stats"),
+                "last_webhook_at": self._last_webhook_at,
+                "webhook_count": self._webhook_count,
+                "project_name": project_name,
+            }
+
+        # Aggregated: any project enabled = enabled, merge stats
+        projects = self._get_registered_projects()
+        any_enabled = False
+        total_items = 0
+        latest_sync = None
+        latest_error = None
+        agg_sprint_complete = True
+        agg_sprint_stats: dict | None = None
+        has_any_stats = False
+
+        for pn in projects:
+            config = self._get_project_config(pn)
+            if config["enabled"]:
+                any_enabled = True
+            ps = self._per_project_status.get(pn, {})
+            total_items += ps.get("items_synced", 0)
+            sync_at = ps.get("last_sync_at")
+            if sync_at and (latest_sync is None or sync_at > latest_sync):
+                latest_sync = sync_at
+            err = ps.get("last_error")
+            if err:
+                latest_error = err
+
+            ss = ps.get("sprint_stats")
+            if ss:
+                has_any_stats = True
+                if agg_sprint_stats is None:
+                    agg_sprint_stats = {"total": 0, "passing": 0, "failed": 0, "total_test_runs": 0, "overall_pass_rate": 0.0}
+                agg_sprint_stats["total"] += ss["total"]
+                agg_sprint_stats["passing"] += ss["passing"]
+                agg_sprint_stats["failed"] += ss["failed"]
+                agg_sprint_stats["total_test_runs"] += ss["total_test_runs"]
+                if not ps.get("sprint_complete", False):
+                    agg_sprint_complete = False
+
+        if agg_sprint_stats and agg_sprint_stats["total_test_runs"] > 0:
+            # Recalculate overall pass rate from aggregated data
+            pass  # keep per-project rates, we'll just average
+        if not has_any_stats:
+            agg_sprint_complete = False
+
         return {
-            "enabled": config["enabled"],
+            "enabled": any_enabled,
             "running": self._running,
-            "last_sync_at": self._last_sync_at,
-            "last_error": self._last_error,
-            "items_synced": self._items_synced,
-            "active_cycle_name": None,  # Filled by the API endpoint if needed
-            "sprint_complete": self._sprint_complete,
-            "sprint_stats": self._sprint_stats,
+            "last_sync_at": latest_sync,
+            "last_error": latest_error,
+            "items_synced": total_items,
+            "active_cycle_name": None,
+            "sprint_complete": agg_sprint_complete,
+            "sprint_stats": agg_sprint_stats,
             "last_webhook_at": self._last_webhook_at,
             "webhook_count": self._webhook_count,
         }

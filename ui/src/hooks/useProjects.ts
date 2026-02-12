@@ -330,10 +330,10 @@ export function useUpdateSettings() {
 // Plane Integration
 // ============================================================================
 
-export function usePlaneConfig() {
+export function usePlaneConfig(projectName?: string | null) {
   return useQuery({
-    queryKey: ['plane-config'],
-    queryFn: api.getPlaneConfig,
+    queryKey: ['plane-config', projectName],
+    queryFn: () => api.getPlaneConfig(projectName || undefined),
     staleTime: 60000,
     retry: 1,
   })
@@ -344,22 +344,24 @@ export function useUpdatePlaneConfig() {
 
   return useMutation({
     mutationFn: (config: PlaneConfigUpdate) => api.updatePlaneConfig(config),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['plane-config'] })
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['plane-config', variables.project_name] })
+      queryClient.invalidateQueries({ queryKey: ['plane-config', null] })
+      queryClient.invalidateQueries({ queryKey: ['plane-config', undefined] })
     },
   })
 }
 
 export function useTestPlaneConnection() {
   return useMutation({
-    mutationFn: () => api.testPlaneConnection(),
+    mutationFn: (projectName?: string) => api.testPlaneConnection(projectName),
   })
 }
 
-export function usePlaneCycles() {
+export function usePlaneCycles(projectName?: string | null) {
   return useQuery({
-    queryKey: ['plane-cycles'],
-    queryFn: api.getPlaneCycles,
+    queryKey: ['plane-cycles', projectName],
+    queryFn: () => api.getPlaneCycles(projectName || undefined),
     enabled: false, // Only fetch on demand
     retry: 1,
   })
@@ -371,19 +373,21 @@ export function useImportPlaneCycle() {
   return useMutation({
     mutationFn: ({ cycleId, projectName }: { cycleId: string; projectName: string }) =>
       api.importPlaneCycle(cycleId, projectName),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['features'] })
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['features', variables.projectName] })
       queryClient.invalidateQueries({ queryKey: ['project'] })
+      queryClient.invalidateQueries({ queryKey: ['plane-config', variables.projectName] })
     },
   })
 }
 
-export function usePlaneSyncStatus() {
+export function usePlaneSyncStatus(projectName?: string | null) {
   return useQuery({
-    queryKey: ['plane-sync-status'],
-    queryFn: api.getPlaneSyncStatus,
-    refetchInterval: 10000, // Poll every 10s to show live sync status
+    queryKey: ['plane-sync-status', projectName],
+    queryFn: () => api.getPlaneSyncStatus(projectName || undefined),
+    refetchInterval: 10000,
     retry: 1,
+    enabled: !!projectName,
   })
 }
 
@@ -391,10 +395,10 @@ export function useTogglePlaneSync() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: () => api.togglePlaneSync(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['plane-sync-status'] })
-      queryClient.invalidateQueries({ queryKey: ['plane-config'] })
+    mutationFn: (projectName?: string) => api.togglePlaneSync(projectName),
+    onSuccess: (_data, projectName) => {
+      queryClient.invalidateQueries({ queryKey: ['plane-sync-status', projectName] })
+      queryClient.invalidateQueries({ queryKey: ['plane-config', projectName] })
     },
   })
 }
@@ -404,9 +408,9 @@ export function useCompleteSprint() {
 
   return useMutation({
     mutationFn: (projectName: string) => api.completeSprint(projectName),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['plane-sync-status'] })
-      queryClient.invalidateQueries({ queryKey: ['features'] })
+    onSuccess: (_data, projectName) => {
+      queryClient.invalidateQueries({ queryKey: ['plane-sync-status', projectName] })
+      queryClient.invalidateQueries({ queryKey: ['features', projectName] })
     },
   })
 }

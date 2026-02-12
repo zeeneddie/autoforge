@@ -612,3 +612,49 @@ def get_all_settings() -> dict[str, str]:
     except Exception as e:
         logger.warning("Failed to read settings: %s", e)
         return {}
+
+
+# =============================================================================
+# Per-Project Plane Settings
+# =============================================================================
+
+_PER_PROJECT_PLANE_KEYS = [
+    "plane_project_id",
+    "plane_active_cycle_id",
+    "plane_sync_enabled",
+    "plane_poll_interval",
+]
+
+
+def get_plane_setting(key: str, project_name: str | None = None, default=None):
+    """Read a Plane setting. Per-project keys tried first, then global fallback."""
+    if project_name and key in _PER_PROJECT_PLANE_KEYS:
+        val = get_setting(f"{key}:{project_name}")
+        if val is not None:
+            return val
+    return get_setting(key, default)
+
+
+def set_plane_setting(key: str, value: str, project_name: str | None = None):
+    """Write a Plane setting. Per-project keys used when applicable."""
+    if project_name and key in _PER_PROJECT_PLANE_KEYS:
+        set_setting(f"{key}:{project_name}", value)
+    else:
+        set_setting(key, value)
+
+
+def migrate_global_plane_settings():
+    """One-time migration: copy global per-project keys to first registered project."""
+    projects = list_registered_projects()
+    if not projects:
+        return
+    first_project = next(iter(projects))
+    migrated = False
+    for key in _PER_PROJECT_PLANE_KEYS:
+        global_val = get_setting(key)
+        per_project_val = get_setting(f"{key}:{first_project}")
+        if global_val and not per_project_val:
+            set_setting(f"{key}:{first_project}", global_val)
+            migrated = True
+    if migrated:
+        logger.info("Migrated global Plane settings to project '%s'", first_project)

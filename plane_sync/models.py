@@ -123,6 +123,7 @@ class PlaneConfig(BaseModel):
     plane_poll_interval: int = 30
     plane_active_cycle_id: str | None = None
     plane_webhook_secret_set: bool = False
+    project_name: str | None = None
 
 
 class PlaneConfigUpdate(BaseModel):
@@ -136,6 +137,7 @@ class PlaneConfigUpdate(BaseModel):
     plane_poll_interval: int | None = None
     plane_active_cycle_id: str | None = None
     plane_webhook_secret: str | None = None
+    project_name: str | None = None
 
 
 class PlaneConnectionResult(BaseModel):
@@ -233,6 +235,7 @@ class PlaneSyncStatus(BaseModel):
     sprint_stats: SprintStats | None = None
     last_webhook_at: str | None = None
     webhook_count: int = 0
+    project_name: str | None = None
 
 
 class SprintCompletionResult(BaseModel):

@@ -615,6 +615,7 @@ export interface PlaneConfig {
   plane_poll_interval: number
   plane_active_cycle_id: string | null
   plane_webhook_secret_set: boolean
+  project_name: string | null
 }
 
 export interface PlaneConfigUpdate {
@@ -626,6 +627,7 @@ export interface PlaneConfigUpdate {
   plane_poll_interval?: number
   plane_active_cycle_id?: string
   plane_webhook_secret?: string
+  project_name?: string
 }
 
 export interface PlaneConnectionResult {
@@ -679,6 +681,7 @@ export interface PlaneSyncStatus {
   sprint_stats: SprintStats | null
   last_webhook_at: string | null
   webhook_count: number
+  project_name?: string | null
 }
 
 export interface TestRunSummary {

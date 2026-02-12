@@ -542,8 +542,9 @@ export async function getNextScheduledRun(projectName: string): Promise<NextRunR
 // Plane Integration API
 // ============================================================================
 
-export async function getPlaneConfig(): Promise<PlaneConfig> {
-  return fetchJSON('/plane/config')
+export async function getPlaneConfig(projectName?: string): Promise<PlaneConfig> {
+  const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
+  return fetchJSON(`/plane/config${params}`)
 }
 
 export async function updatePlaneConfig(config: PlaneConfigUpdate): Promise<PlaneConfig> {
@@ -553,14 +554,16 @@ export async function updatePlaneConfig(config: PlaneConfigUpdate): Promise<Plan
   })
 }
 
-export async function testPlaneConnection(): Promise<PlaneConnectionResult> {
-  return fetchJSON('/plane/test-connection', {
+export async function testPlaneConnection(projectName?: string): Promise<PlaneConnectionResult> {
+  const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
+  return fetchJSON(`/plane/test-connection${params}`, {
     method: 'POST',
   })
 }
 
-export async function getPlaneCycles(): Promise<PlaneCycleSummary[]> {
-  return fetchJSON('/plane/cycles')
+export async function getPlaneCycles(projectName?: string): Promise<PlaneCycleSummary[]> {
+  const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
+  return fetchJSON(`/plane/cycles${params}`)
 }
 
 export async function importPlaneCycle(
@@ -573,12 +576,14 @@ export async function importPlaneCycle(
   })
 }
 
-export async function getPlaneSyncStatus(): Promise<PlaneSyncStatus> {
-  return fetchJSON('/plane/sync-status')
+export async function getPlaneSyncStatus(projectName?: string): Promise<PlaneSyncStatus> {
+  const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
+  return fetchJSON(`/plane/sync-status${params}`)
 }
 
-export async function togglePlaneSync(): Promise<PlaneSyncStatus> {
-  return fetchJSON('/plane/sync/toggle', {
+export async function togglePlaneSync(projectName?: string): Promise<PlaneSyncStatus> {
+  const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
+  return fetchJSON(`/plane/sync/toggle${params}`, {
     method: 'POST',
   })
 }

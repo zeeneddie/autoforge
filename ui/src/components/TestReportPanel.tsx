@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useTestReport, useTestHistory } from '../hooks/useProjects'
-import { ChevronDown, ChevronRight, FlaskConical, CheckCircle2, XCircle, BarChart3 } from 'lucide-react'
+import { ChevronDown, ChevronRight, FlaskConical, CheckCircle2, BarChart3 } from 'lucide-react'
 import type { TestRunSummary } from '../lib/types'
 
 interface TestReportPanelProps {

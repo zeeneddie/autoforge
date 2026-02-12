@@ -71,6 +71,10 @@ async def lifespan(app: FastAPI):
     scheduler = get_scheduler()
     await scheduler.start()
 
+    # Migrate global Plane settings to per-project keys (one-time)
+    from registry import migrate_global_plane_settings
+    migrate_global_plane_settings()
+
     # Start the Plane sync background loop
     sync_loop = get_sync_loop()
     await sync_loop.start()

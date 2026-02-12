@@ -17,6 +17,7 @@ import type { ModelInfo, PlaneConnectionResult, PlaneCycleSummary, SprintComplet
 interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
+  selectedProject: string | null
 }
 
 /** Reusable model selector with Default, known models, and Custom input. */
@@ -131,7 +132,7 @@ function ModelSelector({
   )
 }
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, selectedProject }: SettingsModalProps) {
   const { data: settings, isLoading, isError, refetch } = useSettings()
   const { data: modelsData } = useAvailableModels()
   const updateSettings = useUpdateSettings()
@@ -421,7 +422,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <hr className="border-border" />
 
             {/* Plane Integration Section */}
-            <PlaneSettingsSection />
+            <PlaneSettingsSection selectedProject={selectedProject} />
           </div>
         )}
       </DialogContent>
@@ -430,14 +431,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 }
 
 /** Collapsible Plane integration settings section. */
-function PlaneSettingsSection() {
+function PlaneSettingsSection({ selectedProject }: { selectedProject: string | null }) {
   const [expanded, setExpanded] = useState(false)
-  const { data: planeConfig, isLoading } = usePlaneConfig()
+  const { data: planeConfig, isLoading } = usePlaneConfig(selectedProject)
   const updateConfig = useUpdatePlaneConfig()
   const testConnection = useTestPlaneConnection()
-  const { data: cycles, refetch: fetchCycles, isFetching: cyclesLoading } = usePlaneCycles()
+  const { data: cycles, refetch: fetchCycles, isFetching: cyclesLoading } = usePlaneCycles(selectedProject)
   const importCycle = useImportPlaneCycle()
-  const { data: syncStatus } = usePlaneSyncStatus()
+  const { data: syncStatus } = usePlaneSyncStatus(selectedProject)
   const toggleSync = useTogglePlaneSync()
   const completeSprint = useCompleteSprint()
   const [completionResult, setCompletionResult] = useState<SprintCompletionResult | null>(null)
@@ -461,6 +462,7 @@ function PlaneSettingsSection() {
         plane_api_key: '',
         plane_workspace_slug: planeConfig.plane_workspace_slug || '',
         plane_project_id: planeConfig.plane_project_id || '',
+        plane_webhook_secret: '',
       })
     }
   }
@@ -476,12 +478,13 @@ function PlaneSettingsSection() {
   }
 
   const handleSave = () => {
-    const update: Record<string, string> = {}
+    const update: Record<string, string | undefined> = {}
     if (formValues.plane_api_url) update.plane_api_url = formValues.plane_api_url
     if (formValues.plane_api_key) update.plane_api_key = formValues.plane_api_key
     if (formValues.plane_workspace_slug) update.plane_workspace_slug = formValues.plane_workspace_slug
     if (formValues.plane_project_id) update.plane_project_id = formValues.plane_project_id
     if (formValues.plane_webhook_secret) update.plane_webhook_secret = formValues.plane_webhook_secret
+    if (selectedProject) update.project_name = selectedProject
 
     updateConfig.mutate(update, {
       onSuccess: () => {
@@ -493,7 +496,7 @@ function PlaneSettingsSection() {
 
   const handleTestConnection = () => {
     setConnectionResult(null)
-    testConnection.mutate(undefined, {
+    testConnection.mutate(selectedProject || undefined, {
       onSuccess: (result) => setConnectionResult(result),
     })
   }
@@ -503,13 +506,11 @@ function PlaneSettingsSection() {
   }
 
   const handleImport = (cycle: PlaneCycleSummary) => {
-    // For now, use a prompt or the first project. In a real app, this would come from context.
-    const projectName = prompt('Project name to import into:')
-    if (!projectName) return
+    if (!selectedProject) return
 
     setImportResult(null)
     importCycle.mutate(
-      { cycleId: cycle.id, projectName },
+      { cycleId: cycle.id, projectName: selectedProject },
       {
         onSuccess: (result) => {
           setImportResult({
@@ -541,7 +542,11 @@ function PlaneSettingsSection() {
 
       {expanded && (
         <div className="space-y-4 pl-6">
-          {isLoading ? (
+          {!selectedProject ? (
+            <p className="text-sm text-muted-foreground py-2">
+              Select a project to configure Plane sync.
+            </p>
+          ) : isLoading ? (
             <div className="flex items-center gap-2 py-4">
               <Loader2 className="animate-spin" size={16} />
               <span className="text-sm text-muted-foreground">Loading...</span>
@@ -586,7 +591,7 @@ function PlaneSettingsSection() {
 
               {/* Project ID */}
               <div className="space-y-1">
-                <Label className="text-sm">Project ID</Label>
+                <Label className="text-sm">Plane Project ID</Label>
                 <input
                   type="text"
                   placeholder="project-uuid"
@@ -735,7 +740,7 @@ function PlaneSettingsSection() {
                   </div>
                   <Switch
                     checked={syncStatus?.enabled ?? false}
-                    onCheckedChange={() => toggleSync.mutate()}
+                    onCheckedChange={() => toggleSync.mutate(selectedProject || undefined)}
                     disabled={toggleSync.isPending}
                   />
                 </div>
@@ -811,10 +816,9 @@ function PlaneSettingsSection() {
                   size="sm"
                   disabled={!syncStatus?.sprint_complete || completeSprint.isPending}
                   onClick={() => {
-                    const projectName = prompt('Project name to complete sprint for:')
-                    if (!projectName) return
+                    if (!selectedProject) return
                     setCompletionResult(null)
-                    completeSprint.mutate(projectName, {
+                    completeSprint.mutate(selectedProject, {
                       onSuccess: (result) => setCompletionResult(result),
                     })
                   }}
