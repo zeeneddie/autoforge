@@ -2,37 +2,119 @@
 
 ## Overzicht
 
-AutoForge is een autonoom coding platform dat software bouwt in agile sprint-cycli. Het systeem bestaat uit drie onafhankelijke componenten die samen een volledige analyse-planning-executie pipeline vormen:
+AutoForge is een autonoom coding platform dat software bouwt in agile sprint-cycli. Het systeem bestaat uit vier onafhankelijke componenten die samen een volledige discovery-planning-executie-feedback pipeline vormen:
 
-| Component | Rol | Technologie |
-|-----------|-----|-------------|
-| **MarQed** | Codebase analyse, work item decompositie | Python, 11 AI agents, markdown output |
-| **Plane** | Project planning, sprint management, voortgang | Self-hosted, PostgreSQL, REST API |
-| **AutoForge** | Autonome code-uitvoering, testing, delivery | Python/FastAPI, Claude Agent SDK |
+| Component | Rol | Technologie | Doelgroep |
+|-----------|-----|-------------|-----------|
+| **Discovery Tool** | Requirements gathering, guided interviews | React/assistant-ui, FastAPI, PostgreSQL | Product Manager, Stakeholder |
+| **MarQed** | Codebase analyse, onboarding kennis | Python, 11 AI agents, markdown output | Developer, Tech Lead |
+| **Plane** | Planning, backlog, sprint management (SSOT) | Self-hosted, PostgreSQL, REST API | Product Manager, Developer |
+| **AutoForge** | Autonome code-uitvoering, testing, delivery | Python/FastAPI, Claude Agent SDK | Developer |
 
 ```
-MARQED (Analyse)              PLANE (Planning)              AUTOFORGE (Executie)
-+------------------------+    +------------------------+    +------------------------+
-| - Codebase scanning    |    | - Backlog beheer       |    | - Feature DB (SQLite)  |
-| - Gap analyse          | -> | - Sprint/Cycle planning| -> | - Orchestrator         |
-| - Epic/Feature/Story   |    | - Prioritering         |    | - Coding agents        |
-|   decompositie         |    | - Kanban boards        | <- | - Testing agents       |
-| - Markdown output      |    | - Burndown charts      |    | - MCP server           |
-+------------------------+    +------------------------+    +------------------------+
-         |                            |          ^
-         v                            v          |
-   Git repository              +------+----------+------+
-   (human review via PR)       |   PLANE SYNC SERVICE   |
-                               |   (module in AutoForge) |
-                               |                        |
-                               |  - PlaneApiClient      |
-                               |  - DataMapper          |
-                               |  - Polling loop (30s)  |
-                               |  - Webhook handler     |
-                               |  - Release notes gen   |
-                               |  - Test run tracking   |
-                               +------------------------+
+                    MARQED                         DISCOVERY TOOL
+                 (Codebase Analyse)             (Requirements Gathering)
+                 +------------------+           +------------------------+
+                 | Codebase scanning|           | Guided AI interviews   |
+                 | Gap analyse      |           | BMAD-stijl workflows   |
+                 | Kennis opbouw    |---------->| Bestaande backlog      |
+                 | MD output        |  context  |   inladen + verfijnen  |
+                 +------------------+           | Micro feature decomp.  |
+                                                +------------------------+
+                                                         |
+                                                    schrijft naar
+                                                         |
+                                                         v
+                                          +============================+
+                                          ||    PLANE (SSOT)           ||
+                                          || Backlog, Cycles, Modules  ||
+                                          || Prioritering, Voortgang   ||
+                                          +============================+
+                                                    |          ^
+                                              import |          | status + feedback
+                                                    v          |
+                                          +------------------------+
+                                          |    AUTOFORGE            |
+                                          |    (Executie Engine)    |
+                                          |    Coding + Testing     |
+                                          +------------------------+
+                                                    |
+                                                    | test resultaten +
+                                                    | change docs
+                                                    v
+                                          +------------------------+
+                                          |    FEEDBACK LOOP        |
+                                          |    PM reviewt in Plane  |
+                                          |    Approve -> Done      |
+                                          |    Reject  -> Discovery |
+                                          +------------------------+
 ```
+
+## Ontwerpprincipes
+
+### 1. Mens als regisseur
+
+De AI doet het zware werk (analyseren, genereren, bouwen, testen). De mens maakt **alle GO/NO-GO beslissingen**. Geen enkel item mag automatisch van Discovery naar Plane of van Plane naar productie zonder menselijke goedkeuring.
+
+### 2. Plane is Single Source of Truth
+
+Plane is de enige bron van waarheid voor alle work items. De Discovery Tool is ephemeer (sessie resulteert in Plane items). MarQed is referentiemateriaal. AutoForge leest uit en schrijft terug naar Plane. Geen dubbele administratie.
+
+### 3. Micro features: maximaal 2 uur bouwen + testen
+
+Elke feature moet klein genoeg zijn om binnen 2 uur gebouwd en getest te worden. Dit zorgt ervoor dat:
+- Gebruikers snel resultaat zien en kunnen beoordelen
+- Feedback sneller terugkomt
+- Er nooit lang aan het verkeerde wordt gewerkt
+- Falen goedkoop is
+
+### 4. Snel en vaak falen, kort cyclisch werken
+
+Korte cycles, snelle feedback. Als iets niet klopt, wordt het binnen uren ontdekt — niet na dagen. De Discovery Tool decomposeert werk tot micro features. AutoForge bouwt ze snel. De PM beoordeelt snel. Afwijzingen gaan direct terug de Discovery in.
+
+### 5. Feedback loop sluit altijd
+
+De pipeline is cyclisch, niet lineair:
+- Test resultaten → Plane work item comment
+- PM reviewt → goedkeuren of afwijzen met feedback
+- Afgewezen items → terug naar Discovery met context
+- Verfijnde requirements → opnieuw naar Plane → opnieuw bouwen
+
+Geen dood spoor. Elke uitkomst leidt tot een volgende actie.
+
+### 6. Separation of duties
+
+Elk tool heeft precies één verantwoordelijkheid:
+- **Discovery Tool**: requirements ophalen en verfijnen
+- **MarQed**: codebase analyseren en kennis opbouwen
+- **Plane**: werk plannen en voortgang beheren
+- **AutoForge**: code schrijven en testen
+
+Geen tool doet het werk van een ander tool.
+
+### 7. Twee doelgroepen, gescheiden werkstromen
+
+| Rol | Ziet | Doet |
+|-----|------|------|
+| **Product Manager / Stakeholder** | Discovery Tool, Plane (kanban + voortgang) | Requirements sturen, prioriteren, reviewen, goedkeuren |
+| **Developer / Tech Lead** | MarQed, Plane, AutoForge, Git | Analyse configureren, sprints starten, executie monitoren, resultaten delen |
+
+De PM hoeft nooit in AutoForge of MarQed te werken. De developer deelt uitkomsten met de PM via Plane.
+
+### 8. Confidence scoring
+
+De AI markeert items waar het onzeker over is. Onzekere requirements worden visueel gemarkeerd zodat de mens weet waar extra aandacht nodig is bij review. Dit voorkomt dat AI-hallucinaties ongemerkt de pipeline in gaan.
+
+### 9. Twee-sporen review
+
+- **Business review**: leesbaar overzicht in Discovery Tool of gedeelde link — PM beoordeelt inhoud
+- **Technisch review**: Git PR met markdown — tech lead beoordeelt architectuur en haalbaarheid
+
+Beide sporen moeten goedgekeurd zijn voordat items naar Plane gepusht worden.
+
+### 10. Progressive disclosure
+
+De Discovery Tool start breed ("Wat bouw je? Voor wie?") en laat de AI een eerste schets maken. De mens kiest waar dieper op ingegaan wordt. Niet alles in één sessie afdwingen. Sessies zijn hervatbaar over meerdere dagen.
 
 ## Complete Pipeline
 
@@ -52,7 +134,7 @@ Bestaande codebase + requirements
     - Welke dependencies tussen items?           -> Plane Relations
          |
          v
-  Output: Markdown bestanden in git
+  Output: Markdown bestanden in git + kennis voor Discovery Tool
     project.md
       epics/EPIC-001/epic.md
         features/FEATURE-001/feature.md
@@ -60,29 +142,42 @@ Bestaande codebase + requirements
             tasks/TASK-001.md
 ```
 
-### Stap 2: Human-in-the-Loop Review (Git PR)
+### Stap 2: Requirements Gathering (Discovery Tool)
 
-De markdown bestanden worden als Pull Request aangeboden:
-
-- Mens reviewt in GitHub/Gitea met inline comments
-- Kan epics splitsen, acceptance criteria aanpassen, priorities wijzigen
-- PR approval = inhoudelijke goedkeuring
-- Audit trail van wie wat heeft goedgekeurd
-
-### Stap 3: Import naar Plane (MarQed -> Plane importer)
-
-Na PR merge worden de markdown bestanden automatisch of handmatig naar Plane ge-importeerd:
+De Discovery Tool leidt de PM/stakeholder door een interactief gesprek:
 
 ```
-Markdown hiërarchie    ->    Plane entiteiten
-  project.md           ->    Project
-  epic.md              ->    Epic
-  feature.md           ->    Work Item (onder Epic)
-  story.md             ->    Sub-Work Item (onder Work Item)
-  TASK-*.md            ->    Sub-Work Item of checklist
-  Dependencies         ->    Relations (blocked-by)
-  Priority emoji       ->    Priority (urgent/high/medium/low)
-  Status               ->    State (backlog/started/completed)
+Input:
+  - MarQed kennis (codebase context)
+  - Bestaande Plane backlog (items om op door te werken)
+  - PM/stakeholder antwoorden
+         |
+         v
+  AI-gestuurde workflow (BMAD-stijl fasen):
+    1. Visie & context ("Wat bouw je? Voor wie?")
+    2. Feature discovery ("Welke functionaliteit?")
+    3. Epic decomposie (clusteren in grote gebieden)
+    4. Story breakdown (per feature: stories + acceptance criteria)
+    5. Micro feature validatie (elke story <= 2 uur)
+    6. Review + confidence scoring
+         |
+         v
+  Output: gestructureerde hiërarchie (JSON)
+    Epic -> Feature -> Story -> Task
+    met prioriteiten, acceptance criteria, dependencies
+```
+
+### Stap 3: Twee-sporen Review
+
+```
+Discovery output
+         |
+         +---> Business review: PM keurt inhoud goed in Discovery Tool
+         |
+         +---> Technisch review: Git PR met markdown voor tech lead
+         |
+         v (beide goedgekeurd)
+  Push naar Plane
 ```
 
 ### Stap 4: Sprint Planning (Plane)
@@ -111,27 +206,34 @@ Plane Cycle (actief)
          |
          v
   Orchestrator pakt features op
-    - Coding agents implementeren
+    - Coding agents implementeren (micro features, <= 2 uur)
     - Testing agents verifiëren
     - Status updates terug naar Plane
 ```
 
-### Stap 6: Change Document (AutoForge -> MarQed + Plane)
-
-Na elke voltooide feature genereert AutoForge een wijzigingsdocument:
+### Stap 6: Feedback Loop
 
 ```
 Feature completion
          |
          v
-  AutoForge genereert change doc:
-    - Gewijzigde bestanden + regelnummers
-    - Git diff samenvatting
-    - Acceptance criteria: voldaan/niet voldaan
+  AutoForge genereert:
     - Test resultaten
+    - Change document (git diff + AC check)
          |
-         +---> Opslaan als change-doc.md in MarQed story
-         +---> Pushen als comment naar Plane work item
+         +---> Plane work item: status update + comment met resultaten
+         |
+         v
+  PM reviewt in Plane:
+    - Goedgekeurd  -> status "Done", volgende feature
+    - Afgekeurd    -> comment met feedback
+                           |
+                           v
+                   Terug naar Discovery Tool
+                   (item + feedback als context)
+                           |
+                           v
+                   Verfijnde requirements -> Plane -> AutoForge
 ```
 
 ## AutoForge Interne Architectuur

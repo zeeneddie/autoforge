@@ -1,20 +1,25 @@
 # AutoForge Roadmap v2
 
-> Bijgewerkt: 2026-02-11
+> Bijgewerkt: 2026-02-12
 
 ## Strategische Wijziging
 
-De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **Plane** (open-source PM tool) en **MarQed** (codebase analyse platform) wordt het kern-platform in **7 sprints** opgeleverd.
+De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **Plane** (open-source PM tool) en **MarQed** (codebase analyse platform) is het kern-platform in **7 sprints** opgeleverd.
+
+Fase 2 (Sprint 8+) bouwt de **Discovery-laag**: een grafische, interactieve requirements-workflow die BMAD vervangt als front-end voor product managers en stakeholders.
 
 Zie [ADR-001](decisions/ADR-001-plane-integration.md) voor de rationale.
 
 ## Pipeline Overzicht
 
 ```
-MarQed (Analyse) -> Git PR (Review) -> Plane (Planning) -> AutoForge (Executie)
+BMAD / Discovery UI (Requirements) -> Plane (Planning) -> AutoForge (Executie) -> Testing
+         ^
+         |
+    MarQed (Codebase Analyse & Onboarding)
 ```
 
-Zie [architecture.md](architecture.md) voor de volledige architectuur.
+MarQed levert codebase-kennis (kwaliteit, performance, security, user journeys) die de Discovery-workflow voedt. Zie [architecture.md](architecture.md) voor de volledige architectuur.
 
 ---
 
@@ -200,6 +205,102 @@ Analytics view als derde view-modus naast Kanban en Dependency Graph. Test repor
 - Path traversal bescherming op release-notes/content endpoint
 - Frontend: pure Tailwind heatmap (geen chart library), ingebouwde markdown renderer
 - 4 nieuwe componenten, 7 gewijzigde bestanden
+
+---
+
+## Sprint 8: Discovery Tool (Standalone Project) -- PLANNED
+
+> Doel: Standalone requirements gathering tool met grafische UI die bidirectioneel met Plane communiceert.
+
+De Discovery Tool is een **apart project** (niet in AutoForge) dat PMs en stakeholders door een interactief requirements-gesprek leidt. Het kan bestaande Plane backlogs inladen en verfijnen, en schrijft resultaat terug naar Plane.
+
+**Architectuurbeslissing:** geen Eververse fork (te zware Supabase-ontkoppeling, geen hiërarchie, solo maintainer). In plaats daarvan: lichtgewicht standalone tool met bewezen bouwstenen.
+
+| # | Item | Status |
+|---|---|---|
+| 8.1 | Project setup: nieuw repo, React + assistant-ui + shadcn/ui frontend, FastAPI backend, PostgreSQL in Docker | planned |
+| 8.2 | Plane SDK integratie: bestaande backlog inladen (modules, work items, sub-work items) | planned |
+| 8.3 | AI chat backend: Claude API via FastAPI, BMAD-stijl gefaseerde prompts (visie, features, epics, stories, review) | planned |
+| 8.4 | UI: split-screen -- links conversational chat (assistant-ui), rechts live hiërarchie-boom | planned |
+| 8.5 | UI: wizard voortgangsindicator (fasen 1-6) + gestructureerde vraag/antwoord cards | planned |
+| 8.6 | Gestructureerd output schema (Claude structured outputs, `strict: true`) voor Epic → Feature → Story → Task | planned |
+| 8.7 | Micro feature validatie: AI decomposeert tot items van max 2 uur bouwen + testen | planned |
+| 8.8 | Confidence scoring: AI markeert onzekere items visueel (oranje/rood) voor review-aandacht | planned |
+| 8.9 | Push naar Plane: modules, work items, sub-work items, cycle assignment via Plane Python SDK | planned |
+| 8.10 | Multi-sessie support: sessies opslaan in PostgreSQL, hervatten over meerdere dagen | planned |
+
+**Tech stack:**
+
+| Laag | Keuze | Reden |
+|------|-------|-------|
+| Frontend | React + assistant-ui + shadcn/ui | Bewezen chat components, onze design patterns, MIT |
+| Backend | FastAPI (Python) | Claude SDK, Plane SDK, consistentie |
+| Database | PostgreSQL in Docker | Sessie opslag, discovery state, alles lokaal |
+| AI | Claude API | BMAD-stijl prompts als gefaseerde workflow |
+| PM koppeling | Plane Python SDK (v0.2.0) | Bidirectioneel lezen/schrijven |
+| Kennis | MarQed MD files (mount/read) | Codebase context voor AI |
+
+**Acceptatiecriteria:**
+1. Open Discovery UI, beantwoord 5-10 vragen over een nieuw project
+2. AI genereert hiërarchie: minimaal 2 epics, 5 features, 15 stories met acceptance criteria
+3. Elke story is max 2 uur te bouwen + testen (micro feature principe)
+4. Hiërarchie-boom groeit live mee in rechter paneel tijdens het gesprek
+5. Bestaande Plane backlog inladen en verfijnen werkt
+6. Onzekere items zijn visueel gemarkeerd (confidence scoring)
+7. "Push naar Plane" maakt modules, work items, sub-work items aan in correcte structuur
+8. Sessie afsluiten en volgende dag hervatten werkt zonder dataverlies
+9. Niet-technische gebruiker kan het proces doorlopen zonder CLI-kennis
+
+**Later (als workflows complexer worden):** evalueer migratie van assistant-ui naar CopilotKit voor generative UI en CoAgents support.
+
+---
+
+## Sprint 9: Feedback Loop & Knowledge Management -- PLANNED
+
+> Doel: Sluit de feedback loop (AutoForge → PM → Discovery) en bepaal waar MarQed-kennis het beste opgeslagen en benut wordt.
+
+De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien naar de Discovery Tool. MarQed-kennis (kwaliteit, performance, security, user journeys) moet het Discovery-proces voeden.
+
+| # | Item | Status |
+|---|---|---|
+| 9.1 | Feedback loop: AutoForge test resultaten + change docs als Plane work item comments | planned |
+| 9.2 | Feedback loop: Discovery Tool kan afgewezen Plane items + feedback inladen als context voor verfijning | planned |
+| 9.3 | Feedback loop: notificatie naar PM bij feature completion (Plane notificatie of email/Slack) | planned |
+| 9.4 | **Analyse**: inventariseer alle kennis-artefacten die MarQed en onboarding opleveren (MD files, rapporten, metrics) | planned |
+| 9.5 | **Analyse**: bepaal optimale opslaglocatie(s) -- project-level `.knowledge/` folder, Plane wiki, of Discovery DB | planned |
+| 9.6 | **Analyse**: bepaal hoe Discovery Tool MarQed-kennis consumeert (context injection, RAG, of directe file reads) | planned |
+| 9.7 | Implementatie: kennis-pipeline MarQed → opslag → Discovery Tool context | planned |
+| 9.8 | Finetuning: evalueer of feedback loop en kennis-integratie werkt in de praktijk, pas aan waar nodig | planned |
+
+**Acceptatiecriteria:**
+1. Feature completion in AutoForge -> automatisch comment op Plane work item met test resultaten
+2. PM kan in Plane goedkeuren (Done) of afwijzen (comment met feedback)
+3. Discovery Tool kan afgewezen items + feedback laden en requirements verfijnen
+4. MarQed-kennis beschikbaar in Discovery chat (bv. "je huidige auth gebruikt JWT, wil je dat uitbreiden?")
+5. Geen merkbare vertraging door kennis-loading
+6. Documentatie: ADR voor gekozen opslagstrategie en feedback loop ontwerp
+
+---
+
+## Sprint 10: Twee-Sporen Review Workflow -- PLANNED
+
+> Doel: Implementeer business review (PM) + technisch review (Git PR) voordat Discovery output naar Plane gaat.
+
+| # | Item | Status |
+|---|---|---|
+| 10.1 | **Analyse**: welke review stappen zijn noodzakelijk vs. nice-to-have? | planned |
+| 10.2 | **Analyse**: wie voert welke actie uit? (PM business review, tech lead Git PR review) | planned |
+| 10.3 | **Analyse**: wat is user-friendly voor niet-technische PM? (Discovery UI review vs. gedeelde link vs. export) | planned |
+| 10.4 | Business review: PM keurt hiërarchie goed in Discovery Tool UI (approve/reject per epic/feature) | planned |
+| 10.5 | Technisch review: Discovery output exporteren als markdown in Git branch + PR creatie | planned |
+| 10.6 | Na beide goedkeuringen: automatisch naar Plane pushen | planned |
+| 10.7 | Workflow documentatie: rolbeschrijvingen (wie doet wat wanneer) | planned |
+
+**Acceptatiecriteria:**
+1. PM kan in Discovery Tool de voorgestelde hiërarchie reviewen en goedkeuren/afwijzen
+2. Tech lead ontvangt Git PR met leesbare markdown samenvatting
+3. Items worden pas naar Plane gepusht na beide goedkeuringen
+4. Workflow is gedocumenteerd met duidelijke rolbeschrijvingen
 
 ---
 

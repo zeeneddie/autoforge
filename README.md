@@ -2,7 +2,33 @@
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/leonvanzyl)
 
-A long-running autonomous coding agent powered by the Claude Agent SDK. This tool can build complete applications over multiple sessions using a two-agent pattern (initializer + coding agent). Includes a React-based UI for monitoring progress in real-time.
+A long-running autonomous coding agent powered by the Claude Agent SDK. AutoForge is the **execution engine** in a larger pipeline: Discovery Tool (requirements) → Plane (planning) → AutoForge (execution) → Testing.
+
+## Pipeline
+
+```
+Discovery Tool ←→ Plane (SSOT) ←→ AutoForge ←→ Testing
+       ^                                            |
+       |              feedback loop                 |
+       └────────────────────────────────────────────┘
+```
+
+MarQed provides codebase analysis and knowledge that feeds into the Discovery Tool.
+
+## Design Principles
+
+1. **Human as director** -- AI does the heavy lifting; humans make all GO/NO-GO decisions. No item flows between tools without human approval.
+2. **Plane is Single Source of Truth** -- All work items live in Plane. Other tools read from and write to Plane. No duplicate administration.
+3. **Micro features (max 2 hours)** -- Every feature must be small enough to build and test within 2 hours, so users can review and course-correct quickly.
+4. **Fail fast, cycle short** -- Short cycles, fast feedback. Rejections flow back into Discovery immediately. Never work on the wrong thing for long.
+5. **Feedback loop always closes** -- Test results and user feedback flow back to Discovery. Every outcome leads to a next action. No dead ends.
+6. **Separation of duties** -- Each tool has exactly one responsibility: Discovery (gather), MarQed (analyze), Plane (plan), AutoForge (build), Testing (verify).
+7. **Two audiences** -- PMs see Discovery + Plane. Developers manage MarQed + AutoForge + Testing. Developers share outcomes with PMs via Plane.
+8. **Confidence scoring** -- AI marks uncertain items visually so humans know where to focus review attention.
+9. **Two-track review** -- Business review (PM approves content) + Technical review (tech lead approves architecture via Git PR). Both required before Plane push.
+10. **Progressive disclosure** -- Start broad, go deeper where the human chooses. Sessions are resumable across days.
+
+See [architecture.md](docs/architecture.md) for the full pipeline and detailed principle descriptions.
 
 ## Video Tutorial
 
@@ -442,7 +468,8 @@ Uitgebreide documentatie is beschikbaar in de [`docs/`](docs/) folder:
 
 ### Architectuur & Ontwerp
 - [**Systeemarchitectuur**](docs/architecture.md) -- MarQed + Plane + AutoForge pipeline, component overzicht, test history, webhooks, deployment
-- [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (6 sprints voltooid: multi-model, Plane sync, DoD, continuous delivery, self-hosting)
+- [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (7 sprints voltooid, 3 geplande sprints: Discovery Tool, feedback loop, review workflow)
+- [**Operations Guide**](docs/operations-guide.md) -- Plane + AutoForge opstarten, sync configureren, agent starten, troubleshooting
 
 ### Architecture Decision Records (ADR)
 - [**ADR-001: Plane Integratie**](docs/decisions/ADR-001-plane-integration.md) -- Waarom Plane als PM frontend ipv zelf bouwen
