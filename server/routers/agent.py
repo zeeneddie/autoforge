@@ -164,6 +164,18 @@ async def stop_agent(project_name: str):
     )
 
 
+@router.post("/soft-stop", response_model=AgentActionResponse)
+async def soft_stop_agent(project_name: str):
+    """Soft stop: finish current work, then stop."""
+    manager = get_project_manager(project_name)
+    success, message = await manager.soft_stop()
+    return AgentActionResponse(
+        success=success,
+        status=manager.status,
+        message=message,
+    )
+
+
 @router.post("/pause", response_model=AgentActionResponse)
 async def pause_agent(project_name: str):
     """Pause the agent for a project."""

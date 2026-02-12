@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -77,7 +78,7 @@ class AgentProcessManager:
         self.project_dir = project_dir
         self.root_dir = root_dir
         self.process: subprocess.Popen | None = None
-        self._status: Literal["stopped", "running", "paused", "crashed"] = "stopped"
+        self._status: Literal["stopped", "running", "paused", "crashed", "finishing"] = "stopped"
         self.started_at: datetime | None = None
         self._output_task: asyncio.Task | None = None
         self.yolo_mode: bool = False  # YOLO mode for rapid prototyping
@@ -96,11 +97,11 @@ class AgentProcessManager:
         self.lock_file = get_agent_lock_path(self.project_dir)
 
     @property
-    def status(self) -> Literal["stopped", "running", "paused", "crashed"]:
+    def status(self) -> Literal["stopped", "running", "paused", "crashed", "finishing"]:
         return self._status
 
     @status.setter
-    def status(self, value: Literal["stopped", "running", "paused", "crashed"]):
+    def status(self, value: Literal["stopped", "running", "paused", "crashed", "finishing"]):
         old_status = self._status
         self._status = value
         if old_status != value:
@@ -278,7 +279,9 @@ class AgentProcessManager:
             # Check if process ended
             if self.process and self.process.poll() is not None:
                 exit_code = self.process.returncode
-                if exit_code != 0 and self.status == "running":
+                if self.status == "finishing" and exit_code == 0:
+                    self.status = "stopped"
+                elif exit_code != 0 and self.status in ("running", "finishing"):
                     # Check buffered output for auth errors if we haven't detected one yet
                     if not auth_error_detected:
                         combined_output = '\n'.join(output_buffer)
@@ -459,6 +462,21 @@ class AgentProcessManager:
             logger.exception("Failed to stop agent")
             return False, f"Failed to stop agent: {e}"
 
+    async def soft_stop(self) -> tuple[bool, str]:
+        """Soft stop: finish current work, then stop automatically."""
+        if not self.process or self.status not in ("running", "paused"):
+            return False, "Agent is not running"
+
+        if self.status == "paused":
+            await self.resume()
+
+        try:
+            self.process.send_signal(signal.SIGUSR1)
+            self.status = "finishing"
+            return True, "Soft stop initiated, agents finishing current work"
+        except OSError as e:
+            return False, f"Failed to send signal: {e}"
+
     async def pause(self) -> tuple[bool, str]:
         """
         Pause the agent using psutil for cross-platform support.
@@ -520,7 +538,10 @@ class AgentProcessManager:
         poll = self.process.poll()
         if poll is not None:
             # Process has terminated
-            if self.status in ("running", "paused"):
+            if self.status == "finishing" and self.process.returncode == 0:
+                self.status = "stopped"
+                self._remove_lock()
+            elif self.status in ("running", "paused", "finishing"):
                 self.status = "crashed"
                 self._remove_lock()
             return False

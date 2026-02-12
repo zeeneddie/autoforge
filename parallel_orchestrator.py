@@ -1773,6 +1773,14 @@ async def run_parallel_orchestrator(
     # TerminateProcess() which bypasses signal handlers entirely.
     signal.signal(signal.SIGTERM, signal_handler)
 
+    # SIGUSR1 = soft stop: finish active agents, don't claim new work
+    def soft_stop_handler(signum, frame):
+        orchestrator._shutdown_requested = True
+        print("\nSoft stop requested. Finishing active agents...", flush=True)
+
+    if hasattr(signal, 'SIGUSR1'):
+        signal.signal(signal.SIGUSR1, soft_stop_handler)
+
     # Note: We intentionally do NOT register SIGINT handler
     # Let Python raise KeyboardInterrupt naturally so the except block works
 

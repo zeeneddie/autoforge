@@ -120,7 +120,7 @@ export interface FeatureUpdate {
 }
 
 // Agent types
-export type AgentStatus = 'stopped' | 'running' | 'paused' | 'crashed' | 'loading'
+export type AgentStatus = 'stopped' | 'running' | 'paused' | 'crashed' | 'loading' | 'finishing'
 
 export interface AgentStatusResponse {
   status: AgentStatus

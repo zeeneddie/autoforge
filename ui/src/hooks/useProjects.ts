@@ -175,6 +175,17 @@ export function useStopAgent(projectName: string) {
   })
 }
 
+export function useSoftStopAgent(projectName: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => api.softStopAgent(projectName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent-status', projectName] })
+    },
+  })
+}
+
 export function usePauseAgent(projectName: string) {
   const queryClient = useQueryClient()
 

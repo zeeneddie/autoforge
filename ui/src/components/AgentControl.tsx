@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Play, Square, Loader2, GitBranch, Clock } from 'lucide-react'
+import { Play, Square, Loader2, GitBranch, Clock, CircleStop } from 'lucide-react'
 import {
   useStartAgent,
   useStopAgent,
+  useSoftStopAgent,
   useSettings,
   useUpdateProjectSettings,
 } from '../hooks/useProjects'
@@ -60,12 +61,14 @@ export function AgentControl({ projectName, status, defaultConcurrency = 3 }: Ag
 
   const startAgent = useStartAgent(projectName)
   const stopAgent = useStopAgent(projectName)
+  const softStopAgent = useSoftStopAgent(projectName)
   const { data: nextRun } = useNextScheduledRun(projectName)
 
   const [showScheduleModal, setShowScheduleModal] = useState(false)
 
-  const isLoading = startAgent.isPending || stopAgent.isPending
+  const isLoading = startAgent.isPending || stopAgent.isPending || softStopAgent.isPending
   const isRunning = status === 'running' || status === 'paused'
+  const isFinishing = status === 'finishing'
   const isLoadingStatus = status === 'loading'
   const isParallel = concurrency > 1
 
@@ -76,6 +79,7 @@ export function AgentControl({ projectName, status, defaultConcurrency = 3 }: Ag
     testingAgentRatio: settings?.testing_agent_ratio,
   })
   const handleStop = () => stopAgent.mutate()
+  const handleSoftStop = () => softStopAgent.mutate()
 
   const isStopped = status === 'stopped' || status === 'crashed'
 
@@ -126,7 +130,7 @@ export function AgentControl({ projectName, status, defaultConcurrency = 3 }: Ag
           </Badge>
         )}
 
-        {/* Start/Stop button */}
+        {/* Start/Stop buttons */}
         {isLoadingStatus ? (
           <Button disabled variant="outline" size="sm">
             <Loader2 size={18} className="animate-spin" />
@@ -145,20 +149,51 @@ export function AgentControl({ projectName, status, defaultConcurrency = 3 }: Ag
               <Play size={18} />
             )}
           </Button>
-        ) : (
-          <Button
-            onClick={handleStop}
-            disabled={isLoading}
-            variant="destructive"
-            size="sm"
-            title={yoloMode ? 'Stop Agent (YOLO Mode)' : 'Stop Agent'}
-          >
-            {isLoading ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
+        ) : isFinishing ? (
+          <>
+            <Badge variant="secondary" className="gap-1">
+              <Loader2 size={14} className="animate-spin" />
+              Finishing...
+            </Badge>
+            <Button
+              onClick={handleStop}
+              disabled={isLoading}
+              variant="destructive"
+              size="sm"
+              title="Force stop (kills active agents)"
+            >
               <Square size={18} />
-            )}
-          </Button>
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              onClick={handleSoftStop}
+              disabled={isLoading}
+              variant="outline"
+              size="sm"
+              title="Finish current work, then stop"
+            >
+              {softStopAgent.isPending ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <CircleStop size={18} />
+              )}
+            </Button>
+            <Button
+              onClick={handleStop}
+              disabled={isLoading}
+              variant="destructive"
+              size="sm"
+              title="Force stop (kills active agents immediately)"
+            >
+              {stopAgent.isPending ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Square size={18} />
+              )}
+            </Button>
+          </>
         )}
 
         {/* Clock button to open schedule modal */}
