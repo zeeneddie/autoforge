@@ -326,7 +326,7 @@ autoforge/
     models.py           # Pydantic modellen voor Plane API + AutoForge endpoints
     mapper.py           # Work Item <-> Feature conversie, AC parsing
     sync_service.py     # import_cycle + outbound_sync (bidirectional)
-    background.py       # PlaneSyncLoop: asyncio polling, sprint detection
+    background.py       # PlaneSyncLoop: asyncio polling per project, sprint detection
     completion.py       # Sprint completion: DoD, retrospective, git tag, release notes
     release_notes.py    # Markdown release notes generator
     webhook_handler.py  # HMAC-SHA256 verificatie + event parsing
@@ -393,17 +393,9 @@ Naast de polling loop ondersteunt AutoForge ook real-time webhooks van Plane:
 
 ## Bekende Beperkingen & Geplande Fixes
 
-### Plane Sync is globaal (niet per project)
+### ~~Plane Sync is globaal (niet per project)~~ -- OPGELOST (Sprint 7.1)
 
-**Status:** Workaround actief, fix gepland in Sprint 7.1.
-
-De Plane sync configuratie (`plane_cycle_id`, `plane_sync_enabled`, `plane_project_id`) wordt momenteel **globaal** opgeslagen in `~/.autoforge/registry.db`. De achtergrond sync loop importeert work items uit één Plane cycle naar **alle** geregistreerde projecten.
-
-**Impact:** Bij meerdere projecten (bijv. `klaverjas_app` en `marqed-discovery`) lekken features van project A naar project B.
-
-**Workaround:** Disable Plane sync (`plane_sync_enabled=false`) wanneer meerdere projecten geregistreerd zijn. Gebruik handmatige import (`POST /api/plane/import-cycle`) per project.
-
-**Oplossing:** Sprint 7.1 voert per-project Plane sync in met `:project_name` suffix op registry keys. Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md).
+Opgelost in Sprint 7.1. Plane sync configuratie is nu per-project. Elk project heeft eigen `plane_project_id`, `plane_active_cycle_id`, `plane_sync_enabled`, en `plane_poll_interval`. Gedeelde settings (`plane_api_url`, `plane_api_key`, `plane_workspace_slug`, `plane_webhook_secret`) blijven globaal. Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md).
 
 ### Geen graceful agent shutdown
 

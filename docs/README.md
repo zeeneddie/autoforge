@@ -4,7 +4,7 @@
 
 - [**architecture.md**](architecture.md) - Systeemarchitectuur: MarQed + Plane + AutoForge pipeline, component overzicht, test history, analytics dashboard, webhooks, deployment
 - [**platform-overview.md**](platform-overview.md) - MarQed.ai platform: 5 componenten, platformdiagram, datastromen, brownpaper/greenpaper, PM Dashboard
-- [**roadmap.md**](roadmap.md) - Sprint planning v2 (7 sprints voltooid, Sprint 7.1/7.2 gepland: per-project sync fix, graceful shutdown)
+- [**roadmap.md**](roadmap.md) - Sprint planning v2 (7 sprints + 7.1 voltooid, Sprint 7.2 gepland: graceful shutdown)
 
 ## Operations & Setup
 

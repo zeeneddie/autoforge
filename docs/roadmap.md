@@ -208,17 +208,19 @@ Analytics view als derde view-modus naast Kanban en Dependency Graph. Test repor
 
 ---
 
-## Sprint 7.1: Per-Project Plane Sync -- PLANNED
+## Sprint 7.1: Per-Project Plane Sync -- DONE
 
-> Doel: Fix kritieke bug waarbij Plane sync globaal draait in plaats van per project. Voorkomt cross-project data lekkage.
+> Afgerond: 2026-02-12 | Commit: `0755248`
+
+Per-project Plane sync configuratie. Voorkomt cross-project data lekkage bij meerdere projecten.
 
 | # | Item | Status |
 |---|---|---|
-| 7.1.1 | Registry keys uitbreiden: `plane_*` settings met `:project_name` suffix + backward-compat fallback | planned |
-| 7.1.2 | `PlaneSyncLoop._poll()` itereert per project, leest per-project config | planned |
-| 7.1.3 | API endpoints: `GET/POST /api/plane/config?project_name=X` | planned |
-| 7.1.4 | UI: Plane config per geselecteerd project in SettingsModal | planned |
-| 7.1.5 | Migratie: globale `plane_*` keys → eerste geregistreerde project | planned |
+| 7.1.1 | Registry keys uitbreiden: `plane_*` settings met `:project_name` suffix + backward-compat fallback | done |
+| 7.1.2 | `PlaneSyncLoop._sync_iteration()` itereert per project, leest per-project config | done |
+| 7.1.3 | API endpoints: `GET/POST /api/plane/config?project_name=X` + alle sync endpoints | done |
+| 7.1.4 | UI: Plane config per geselecteerd project in SettingsModal | done |
+| 7.1.5 | Migratie: globale `plane_*` keys → eerste geregistreerde project bij startup | done |
 
 **Acceptatiecriteria:**
 1. `klaverjas_app` en `marqed-discovery` draaien tegelijk met elk hun eigen Plane cycle
@@ -227,7 +229,15 @@ Analytics view als derde view-modus naast Kanban en Dependency Graph. Test repor
 4. Legacy single-project setup werkt zonder configuratie-wijzigingen
 5. UI toont per-project Plane configuratie
 
-**Technische details:** Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md)
+**Technische details:**
+- `registry.py`: `get_plane_setting()`, `set_plane_setting()`, `migrate_global_plane_settings()`
+- Per-project keys: `plane_project_id`, `plane_active_cycle_id`, `plane_sync_enabled`, `plane_poll_interval`
+- Shared keys: `plane_api_url`, `plane_api_key`, `plane_workspace_slug`, `plane_webhook_secret`
+- Registry key pattern: `{key}:{project_name}` met fallback naar global
+- Sync loop: `_get_project_config(project_name)` + `_per_project_status` dict
+- Webhook handler: iterates projects, imports only matching cycles
+- 12 bestanden gewijzigd, 376 insertions, 265 deletions
+- Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md)
 
 ---
 

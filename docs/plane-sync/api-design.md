@@ -404,11 +404,25 @@ Importeer een MarQed markdown directory tree als Plane modules en work items.
 
 **Rate limiting:** ~68 API calls voor typische import (3 epics, 10 features, 20 stories, 30 tasks) = ~102s bij 1.5s interval.
 
-## Bekende Beperking: Globale Config
+## Per-Project Configuratie
 
-De config endpoints (`GET/POST /api/plane/config`) werken momenteel met **globale** settings in de registry. Bij meerdere projecten geldt de config voor alle projecten tegelijk.
+Sinds Sprint 7.1 ondersteunen alle config- en sync-endpoints een optionele `project_name` parameter voor per-project Plane configuratie.
 
-**Geplande uitbreiding (Sprint 7.1):** Config endpoints krijgen een optionele `?project_name=X` query parameter voor per-project configuratie. Zonder parameter: legacy gedrag (globale config). Zie [ADR-004](../decisions/ADR-004-per-project-plane-sync.md).
+**Per-project settings:** `plane_project_id`, `plane_active_cycle_id`, `plane_sync_enabled`, `plane_poll_interval`
+**Gedeelde settings:** `plane_api_url`, `plane_api_key`, `plane_workspace_slug`, `plane_webhook_secret`
+
+| Endpoint | Parameter | Methode |
+|---|---|---|
+| `GET /api/plane/config` | `?project_name=X` | Query param |
+| `POST /api/plane/config` | `project_name` in body | Body field |
+| `POST /api/plane/test-connection` | `?project_name=X` | Query param |
+| `GET /api/plane/cycles` | `?project_name=X` | Query param |
+| `GET /api/plane/sync-status` | `?project_name=X` | Query param |
+| `POST /api/plane/sync/toggle` | `?project_name=X` | Query param |
+
+Zonder `project_name` parameter: fallback naar globale config (backward compatible).
+
+Zie [ADR-004](../decisions/ADR-004-per-project-plane-sync.md).
 
 ## Authenticatie
 
