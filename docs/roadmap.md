@@ -78,7 +78,7 @@ Bidirectionele status sync: AutoForge feature status wordt automatisch naar Plan
 | 3.4 | Mid-sprint sync (nieuwe/gewijzigde/verwijderde items) | done |
 | 3.5 | Plane sync status in AutoForge UI | done |
 | 3.6 | Optionele webhook handler met HMAC-SHA256 verificatie | done (Sprint 5) |
-| 3.7 | Change document generatie (git diff + AI summary) | deferred (Sprint 4) |
+| 3.7 | Change document generatie (git diff + AI summary) | done (Sprint 4) |
 
 **Acceptatiecriteria:**
 1. Plane work items gaan automatisch naar "started" als AutoForge ze oppakt
@@ -125,8 +125,8 @@ Test history tracking, release notes generatie, en real-time Plane webhooks.
 | 5.2 | Regression test reporting: TestRun DB model, recording in orchestrator, test-report API | done |
 | 5.1 | Release notes generatie uit voltooide features (markdown, per sprint) | done |
 | 3.6 | Plane webhooks: HMAC-SHA256 verificatie, event dedup, issue/cycle routing | done |
-| 5.3 | Self-hosting: AutoForge eigen backlog in Plane | deferred |
-| 5.4 | MarQed -> Plane importer (markdown -> Plane entities) | deferred |
+| 5.3 | Self-hosting: AutoForge eigen backlog in Plane | done (Sprint 6) |
+| 5.4 | MarQed -> Plane importer (markdown -> Plane entities) | done (Sprint 6) |
 
 **Acceptatiecriteria:**
 1. Start agents met `testing_agent_ratio >= 1`, wacht op completion, `GET /api/plane/test-report` -> runs geregistreerd
