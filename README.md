@@ -471,13 +471,15 @@ Uitgebreide documentatie is beschikbaar in de [`docs/`](docs/) folder:
 ### Architectuur & Ontwerp
 - [**Platform Overzicht**](docs/platform-overview.md) -- MarQed.ai platform: 5 componenten, platformdiagram, datastromen, brownpaper/greenpaper, PM Dashboard
 - [**Systeemarchitectuur**](docs/architecture.md) -- Onboarding + Discovery + PM Dashboard + Plane + AutoForge pipeline, component overzicht, deployment
-- [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (7 sprints voltooid, 4 geplande sprints: Discovery Tool + PM Dashboard, intake & traceerbaarheid, feedback loop, review workflow)
+- [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (7 sprints voltooid, Sprint 7.1/7.2 gepland: per-project sync fix + graceful shutdown)
 - [**Operations Guide**](docs/operations-guide.md) -- Plane + AutoForge opstarten, sync configureren, agent starten, troubleshooting
+- [**GitHub Setup**](docs/github-setup.md) -- GitHub Organization setup (marqed-ai), repository structuur, fork management
 
 ### Architecture Decision Records (ADR)
 - [**ADR-001: Plane Integratie**](docs/decisions/ADR-001-plane-integration.md) -- Waarom Plane als PM frontend ipv zelf bouwen
 - [**ADR-002: Analyse Pipeline**](docs/decisions/ADR-002-analysis-pipeline.md) -- Waar analyse, review en executie plaatsvindt
 - [**ADR-003: Data Mapping**](docs/decisions/ADR-003-data-mapping.md) -- Entity/state/priority mapping tussen Onboarding, Plane en AutoForge
+- [**ADR-004: Per-Project Plane Sync**](docs/decisions/ADR-004-per-project-plane-sync.md) -- Per-project sync configuratie, voorkomt cross-project data lekkage
 
 ### Plane Sync Module
 - [**API Design**](docs/plane-sync/api-design.md) -- REST API endpoints: config, cycles, import, sync, webhooks, test-report, sprint completion

@@ -391,6 +391,30 @@ Naast de polling loop ondersteunt AutoForge ook real-time webhooks van Plane:
 - **Dedup:** 5-seconde cooldown per event key voorkomt dubbele verwerking
 - **Events:** `issue.update` en `cycle.update` triggeren `import_cycle()` voor de actieve cycle
 
+## Bekende Beperkingen & Geplande Fixes
+
+### Plane Sync is globaal (niet per project)
+
+**Status:** Workaround actief, fix gepland in Sprint 7.1.
+
+De Plane sync configuratie (`plane_cycle_id`, `plane_sync_enabled`, `plane_project_id`) wordt momenteel **globaal** opgeslagen in `~/.autoforge/registry.db`. De achtergrond sync loop importeert work items uit één Plane cycle naar **alle** geregistreerde projecten.
+
+**Impact:** Bij meerdere projecten (bijv. `klaverjas_app` en `marqed-discovery`) lekken features van project A naar project B.
+
+**Workaround:** Disable Plane sync (`plane_sync_enabled=false`) wanneer meerdere projecten geregistreerd zijn. Gebruik handmatige import (`POST /api/plane/import-cycle`) per project.
+
+**Oplossing:** Sprint 7.1 voert per-project Plane sync in met `:project_name` suffix op registry keys. Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md).
+
+### Geen graceful agent shutdown
+
+**Status:** Gepland in Sprint 7.2.
+
+De huidige "Stop" knop stuurt `SIGTERM` → `SIGKILL` naar de hele process tree. Lopende agents worden direct afgebroken, features blijven op `in_progress` staan met half-geschreven code.
+
+**Oplossing:** Sprint 7.2 implementeert een "Finish & Stop" knop die `SIGUSR1` stuurt. De orchestrator claimt geen nieuwe features meer maar laat lopende agents hun werk afmaken.
+
+---
+
 ## Deployment
 
 ### Minimaal (alleen AutoForge)

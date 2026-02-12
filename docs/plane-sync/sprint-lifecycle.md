@@ -217,3 +217,11 @@ Naast de 30-seconde polling loop ondersteunt AutoForge ook real-time webhooks:
 - **Regel:** Plane (mens) wint altijd
 - AutoForge detecteert via timestamp dat er een menselijke edit was
 - Menselijke wijziging wordt overgenomen, AutoForge's wijziging wordt overschreven
+
+### Cross-project data lekkage (globale sync)
+
+- **Status:** Workaround actief, fix gepland in Sprint 7.1
+- Plane sync configuratie is globaal — bij meerdere projecten importeert de sync loop work items naar alle projecten
+- **Workaround:** Disable sync bij meerdere projecten, gebruik handmatige import per project
+- **Oplossing:** Per-project sync met `:project_name` suffix op registry keys
+- Zie [ADR-004](../decisions/ADR-004-per-project-plane-sync.md)

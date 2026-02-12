@@ -221,18 +221,6 @@ async def create_feature(project_name: str, feature: FeatureCreate):
 async def create_features_bulk(project_name: str, bulk: FeatureBulkCreate):
     """
     Create multiple features at once.
-
-    Features are assigned sequential priorities starting from:
-    - starting_priority if specified (must be >= 1)
-    - max(existing priorities) + 1 if not specified
-
-    This is useful for:
-    - Expanding a project with new features via AI
-    - Importing features from external sources
-    - Batch operations
-
-    Returns:
-        {"created": N, "features": [...]}
     """
     project_name = validate_project_name(project_name)
     project_dir = _get_project_path(project_name)

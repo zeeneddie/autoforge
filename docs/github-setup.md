@@ -50,31 +50,23 @@ gh auth refresh -s admin:org,delete_repo
 
 | Repo | Beschrijving | Visibility |
 |------|-------------|------------|
-| `autoforge` | Core platform (FastAPI + React) | Private |
-| `autoforge-agent-claude` | Claude agent container image | Private |
-| `autoforge-agent-generic` | Generic Anthropic-compatible agent | Private |
-| `autoforge-test-runner` | Vitest + Playwright + Allure runner | Private |
-| `autoforge-docs` | Platform docs, architecture, runbooks | Private |
+| `mq-devEngine` | AutoForge core platform (FastAPI + React, autonoom coding) | Private |
+| `mq-discover` | Discovery Tool - AI-powered requirements gathering (brownpaper & greenpaper) | Private |
+| `mq-monitor` | PM Dashboard - hierarchical drill-down, metrics, intake portal | Private |
+| `mq-onboarding` | Onboarding - codebase analyse, kennis opbouw, IFPUG FP | Private |
+| `mq-planning` | Plane SDK abstraction layer - sync, webhooks, cycles | Private |
+| `mq-import` | MarQed tree format parser and Plane importer | Private |
+| `mq-auth` | Multi-tenant auth service - schema-per-tenant, JWT, RBAC | Private |
+| `mq-supervisor` | Meta-agent - process monitoring, stuck detection, quality gates | Private |
+| `mq-feedbackLoop` | Feedback loop, knowledge management, traceability | Private |
+| `mq-platform` | Platform docs, roadmap, deployment configs, design tokens | Private |
 
 ### Aanmaken eigen repos
 
 ```bash
-# Core repo: transfer of push vanuit bestaande repo
-gh repo create marqed-ai/autoforge --private --description "Autonomous coding agent platform"
-
-# Push bestaande code naar org repo
-cd /home/eddie/Projects/autoforge
-git remote add marqed https://github.com/marqed-ai/autoforge.git
-git push marqed master
-
-# Of: transfer bestaande repo (verplaatst alles inclusief issues, stars)
-gh api repos/zeeneddie/autoforge/transfer -X POST -f new_owner="marqed-ai"
-
-# Overige repos (leeg, vullen we later)
-gh repo create marqed-ai/autoforge-agent-claude --private --description "Claude agent container"
-gh repo create marqed-ai/autoforge-agent-generic --private --description "Generic Anthropic-compatible agent container"
-gh repo create marqed-ai/autoforge-test-runner --private --description "Test runner: Vitest + Playwright + Allure"
-gh repo create marqed-ai/autoforge-docs --private --description "Platform documentation and runbooks"
+# Alle repos zijn al aangemaakt onder marqed-ai org
+# Verifieer:
+gh repo list marqed-ai --json name,isPrivate --jq '.[] | select(.isFork == false) | "\(.name) (private: \(.isPrivate))"'
 ```
 
 ---
@@ -87,43 +79,20 @@ Elke fork krijgt:
 
 ### Fork commando's
 
+De volgende forks zijn aangemaakt (upstream naam behouden):
+
+| Fork | Upstream | Doel |
+|------|----------|------|
+| `plane` | `makeplane/plane` | Project management, self-hosted |
+| `litellm` | `BerriAI/litellm` | LLM proxy, multi-provider routing |
+| `assistant-ui` | `assistant-ui/assistant-ui` | React AI chat components (Discovery Tool) |
+
 ```bash
-# Plane (project management)
-gh repo fork makeplane/plane --org marqed-ai --clone=false
-gh repo rename fork--plane -R marqed-ai/plane
-gh repo edit marqed-ai/fork--plane --visibility private
-
-# BMAD Method (agile AI methodology)
-gh repo fork bmad-code-org/BMAD-METHOD --org marqed-ai --clone=false
-gh repo rename fork--bmad-method -R marqed-ai/BMAD-METHOD
-gh repo edit marqed-ai/fork--bmad-method --visibility private
-
-# Allure Docker Service (test reporting)
-gh repo fork fescobar/allure-docker-service --org marqed-ai --clone=false
-gh repo edit marqed-ai/allure-docker-service --visibility private
-
-# Playwright (browser testing)
-gh repo fork microsoft/playwright --org marqed-ai --clone=false
-gh repo edit marqed-ai/playwright --visibility private
-
-# LiteLLM (LLM proxy)
-gh repo fork BerriAI/litellm --org marqed-ai --clone=false
-gh repo edit marqed-ai/litellm --visibility private
-
-# Ollama (local LLM)
-gh repo fork ollama/ollama --org marqed-ai --clone=false
-gh repo edit marqed-ai/ollama --visibility private
-
-# Vitest (unit testing)
-gh repo fork vitest-dev/vitest --org marqed-ai --clone=false
-gh repo edit marqed-ai/vitest --visibility private
-
-# Allure JS adapters
-gh repo fork allure-framework/allure-js --org marqed-ai --clone=false
-gh repo edit marqed-ai/allure-js --visibility private
+# Verifieer forks
+gh repo list marqed-ai --json name,isFork --jq '.[] | select(.isFork == true) | .name'
 ```
 
-> **Let op:** `gh repo fork` behoudt de upstream naam. Hernaam naar `fork--<naam>` conventie is optioneel maar maakt het onderscheid tussen eigen repos en forks duidelijk.
+> **Let op:** De initieel geplande forks voor Playwright, Vitest, Ollama, Allure en BMAD zijn niet aangemaakt — deze worden als dependencies via package managers beheerd in plaats van als forks.
 
 ### Fork initialisatie script
 
@@ -216,10 +185,10 @@ gh api repos/marqed-ai/autoforge/commits --jq '.[0].commit.message'
 
 | Type | Pattern | Voorbeeld |
 |------|---------|-----------|
-| Eigen repo | `autoforge-<component>` | `autoforge-agent-claude` |
-| Fork | `fork--<upstream-naam>` | `fork--plane` |
+| Eigen repo | `mq-<component>` | `mq-discover`, `mq-devEngine` |
+| Fork | upstream naam behouden | `plane`, `litellm` |
 | Release tag | `v{semver}` | `v1.0.0` |
-| Fork release | `v{semver}-marqed.{patch}` | `v1.2.0-marqed.1` |
+| Sprint tag | `sprint/{cycle-name}` | `sprint/sprint-a-auth-teams` |
 
 ---
 

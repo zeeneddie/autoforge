@@ -404,6 +404,12 @@ Importeer een MarQed markdown directory tree als Plane modules en work items.
 
 **Rate limiting:** ~68 API calls voor typische import (3 epics, 10 features, 20 stories, 30 tasks) = ~102s bij 1.5s interval.
 
+## Bekende Beperking: Globale Config
+
+De config endpoints (`GET/POST /api/plane/config`) werken momenteel met **globale** settings in de registry. Bij meerdere projecten geldt de config voor alle projecten tegelijk.
+
+**Geplande uitbreiding (Sprint 7.1):** Config endpoints krijgen een optionele `?project_name=X` query parameter voor per-project configuratie. Zonder parameter: legacy gedrag (globale config). Zie [ADR-004](../decisions/ADR-004-per-project-plane-sync.md).
+
 ## Authenticatie
 
 Plane API endpoints in AutoForge zijn beschermd door dezelfde auth als de rest van de server (indien geconfigureerd). De Plane API key wordt alleen server-side gebruikt en nooit naar de frontend gestuurd (alleen gemaskeerde versie).

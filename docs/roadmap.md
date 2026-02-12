@@ -208,6 +208,62 @@ Analytics view als derde view-modus naast Kanban en Dependency Graph. Test repor
 
 ---
 
+## Sprint 7.1: Per-Project Plane Sync -- PLANNED
+
+> Doel: Fix kritieke bug waarbij Plane sync globaal draait in plaats van per project. Voorkomt cross-project data lekkage.
+
+| # | Item | Status |
+|---|---|---|
+| 7.1.1 | Registry keys uitbreiden: `plane_*` settings met `:project_name` suffix + backward-compat fallback | planned |
+| 7.1.2 | `PlaneSyncLoop._poll()` itereert per project, leest per-project config | planned |
+| 7.1.3 | API endpoints: `GET/POST /api/plane/config?project_name=X` | planned |
+| 7.1.4 | UI: Plane config per geselecteerd project in SettingsModal | planned |
+| 7.1.5 | Migratie: globale `plane_*` keys → eerste geregistreerde project | planned |
+
+**Acceptatiecriteria:**
+1. `klaverjas_app` en `marqed-discovery` draaien tegelijk met elk hun eigen Plane cycle
+2. Start sync → features verschijnen alleen in het juiste project
+3. Disable sync voor project A → project B sync draait door ongestoord
+4. Legacy single-project setup werkt zonder configuratie-wijzigingen
+5. UI toont per-project Plane configuratie
+
+**Technische details:** Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md)
+
+---
+
+## Sprint 7.2: Graceful Agent Shutdown (Soft Stop) -- PLANNED
+
+> Doel: Agents netjes laten afronden in plaats van hard killen. Voorkomt half-geschreven code en abandoned features.
+
+**Huidige situatie:** De "Stop" knop stuurt `SIGTERM` → `SIGKILL` naar de hele process tree. Lopende coding/testing agents worden direct afgebroken, features blijven op `in_progress` staan met half-geschreven code.
+
+**Gewenst:** Een "Finish & Stop" knop die de orchestrator signaleert om geen nieuwe features te claimen, lopende agents hun werk laat afmaken, en dan netjes afsluit.
+
+| # | Item | Status | Inschatting |
+|---|---|---|---|
+| 7.2.1 | Orchestrator: `SIGUSR1` handler die `_shutdown_requested=True` zet maar `is_running=True` houdt, zodat de main loop draait tot alle agents klaar zijn | planned | ~1 uur |
+| 7.2.2 | Orchestrator main loop: bij `_shutdown_requested` geen nieuwe features claimen, maar wel running agents monitoren. Exit als `running_coding_agents == 0` en `running_testing_agents == 0` | planned | ~1 uur |
+| 7.2.3 | Process manager: `soft_stop()` methode die `SIGUSR1` stuurt i.p.v. process tree kill | planned | ~30 min |
+| 7.2.4 | API endpoint: `POST /api/projects/{name}/agent/soft-stop` + status response met `shutting_down: true` | planned | ~30 min |
+| 7.2.5 | UI: "Finish & Stop" knop naast bestaande "Stop" knop, status indicator "Finishing..." tijdens afronding | planned | ~1 uur |
+
+**Totale inschatting:** ~4 uur
+
+**Acceptatiecriteria:**
+1. Klik "Finish & Stop" → agents claimen geen nieuwe features meer
+2. Lopende agents maken hun huidige feature af (pass of fail)
+3. Zodra alle agents klaar zijn → orchestrator stopt, status wordt "stopped"
+4. UI toont "Finishing... (2 agents actief)" tijdens afronding
+5. "Stop" (hard) werkt nog steeds als noodknop voor vastlopers
+6. Features eindigen op `passes` of `pending` — nooit op `in_progress` na soft stop
+
+**Bestaande code die benut wordt:**
+- `_shutdown_requested` flag bestaat al in `parallel_orchestrator.py:222`
+- Main loop checkt al `while self.is_running and not self._shutdown_requested` op regel 1527
+- Signaal handler op regel 1766 zet de flag al — maar zet nu ook `is_running=False` (dat moet eruit voor soft stop)
+
+---
+
 ## Sprint 8a: Discovery Tool Foundation -- PLANNED
 
 > Doel: Project opzet en kern-backend voor de Discovery Tool. Database, Plane integratie, Claude API, en het gefaseerde prompt systeem.

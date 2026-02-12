@@ -214,6 +214,14 @@ curl -X PATCH http://localhost:8888/api/settings \
 - **Via UI:** Toggle de sync schakelaar in de Settings modal (Plane sectie)
 - **Via API:** `POST http://localhost:8888/api/plane/sync/toggle`
 
+> **WAARSCHUWING: Globale sync bij meerdere projecten**
+>
+> De Plane sync configuratie is momenteel **globaal** — niet per project. Als je meerdere projecten hebt geregistreerd (bijv. `klaverjas_app` en `marqed-discovery`), importeert de sync loop work items uit de geconfigureerde Plane cycle naar **alle** projecten. Dit veroorzaakt cross-project data lekkage.
+>
+> **Workaround:** Disable sync (`plane_sync_enabled=false`) wanneer meerdere projecten geregistreerd zijn. Gebruik handmatige import via `POST /api/plane/import-cycle` per project.
+>
+> **Fix:** Per-project sync configuratie is gepland in Sprint 7.1. Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md).
+
 ---
 
 ## Sync werking
