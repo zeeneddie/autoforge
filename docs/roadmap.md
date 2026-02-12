@@ -241,36 +241,34 @@ Per-project Plane sync configuratie. Voorkomt cross-project data lekkage bij mee
 
 ---
 
-## Sprint 7.2: Graceful Agent Shutdown (Soft Stop) -- PLANNED
+## Sprint 7.2: Graceful Agent Shutdown (Soft Stop) -- DONE
 
-> Doel: Agents netjes laten afronden in plaats van hard killen. Voorkomt half-geschreven code en abandoned features.
+> Afgerond: 2026-02-12 | Commit: `e969c9f`
 
-**Huidige situatie:** De "Stop" knop stuurt `SIGTERM` → `SIGKILL` naar de hele process tree. Lopende coding/testing agents worden direct afgebroken, features blijven op `in_progress` staan met half-geschreven code.
+Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld te worden. Voorkomt half-geschreven code en abandoned features.
 
-**Gewenst:** Een "Finish & Stop" knop die de orchestrator signaleert om geen nieuwe features te claimen, lopende agents hun werk laat afmaken, en dan netjes afsluit.
-
-| # | Item | Status | Inschatting |
-|---|---|---|---|
-| 7.2.1 | Orchestrator: `SIGUSR1` handler die `_shutdown_requested=True` zet maar `is_running=True` houdt, zodat de main loop draait tot alle agents klaar zijn | planned | ~1 uur |
-| 7.2.2 | Orchestrator main loop: bij `_shutdown_requested` geen nieuwe features claimen, maar wel running agents monitoren. Exit als `running_coding_agents == 0` en `running_testing_agents == 0` | planned | ~1 uur |
-| 7.2.3 | Process manager: `soft_stop()` methode die `SIGUSR1` stuurt i.p.v. process tree kill | planned | ~30 min |
-| 7.2.4 | API endpoint: `POST /api/projects/{name}/agent/soft-stop` + status response met `shutting_down: true` | planned | ~30 min |
-| 7.2.5 | UI: "Finish & Stop" knop naast bestaande "Stop" knop, status indicator "Finishing..." tijdens afronding | planned | ~1 uur |
-
-**Totale inschatting:** ~4 uur
+| # | Item | Status |
+|---|---|---|
+| 7.2.1 | Orchestrator: `SIGUSR1` handler die `_shutdown_requested=True` zet maar `is_running=True` houdt | done |
+| 7.2.2 | Orchestrator main loop: bestaande logica claimt geen nieuwe features bij `_shutdown_requested`, wacht tot alle agents klaar zijn | done |
+| 7.2.3 | Process manager: `soft_stop()` methode die `SIGUSR1` stuurt + `finishing` status, healthcheck behandelt exit code 0 als `stopped` | done |
+| 7.2.4 | API endpoint: `POST /api/projects/{name}/agent/soft-stop` + `finishing` status in AgentStatus schema | done |
+| 7.2.5 | UI: twee-knop layout (soft stop + hard stop) bij running, "Finishing..." badge met spinner bij finishing state | done |
 
 **Acceptatiecriteria:**
-1. Klik "Finish & Stop" → agents claimen geen nieuwe features meer
+1. Klik soft stop (CircleStop) → agents claimen geen nieuwe features meer
 2. Lopende agents maken hun huidige feature af (pass of fail)
 3. Zodra alle agents klaar zijn → orchestrator stopt, status wordt "stopped"
-4. UI toont "Finishing... (2 agents actief)" tijdens afronding
-5. "Stop" (hard) werkt nog steeds als noodknop voor vastlopers
+4. UI toont "Finishing..." badge met spinner tijdens afronding
+5. Hard stop (Square) werkt nog steeds als noodknop vanuit elke state
 6. Features eindigen op `passes` of `pending` — nooit op `in_progress` na soft stop
 
-**Bestaande code die benut wordt:**
-- `_shutdown_requested` flag bestaat al in `parallel_orchestrator.py:222`
-- Main loop checkt al `while self.is_running and not self._shutdown_requested` op regel 1527
-- Signaal handler op regel 1766 zet de flag al — maar zet nu ook `is_running=False` (dat moet eruit voor soft stop)
+**Technische details:**
+- Status flow: `stopped → running → finishing → stopped` (graceful) of `running → stopped` (hard stop)
+- SIGUSR1 handler zet alleen `_shutdown_requested=True`, NIET `is_running=False` — main loop draait door
+- `process_manager.py`: `soft_stop()` stuurt `signal.SIGUSR1`, `healthcheck()` + `_stream_output()` behandelen exit code 0 als `stopped` (niet `crashed`)
+- Frontend: `useSoftStopAgent()` hook, `softStopAgent()` API functie, `CircleStop` icoon
+- 8 bestanden gewijzigd, 116 insertions, 23 deletions
 
 ---
 

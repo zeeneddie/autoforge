@@ -404,6 +404,29 @@ Importeer een MarQed markdown directory tree als Plane modules en work items.
 
 **Rate limiting:** ~68 API calls voor typische import (3 epics, 10 features, 20 stories, 30 tasks) = ~102s bij 1.5s interval.
 
+### Agent Soft Stop
+
+#### `POST /api/projects/{project_name}/agent/soft-stop`
+
+Graceful agent shutdown: agents ronden lopend werk af, claimen geen nieuwe features.
+
+**Response:**
+```json
+{
+  "success": true,
+  "status": "finishing",
+  "message": "Soft stop initiated, agents finishing current work"
+}
+```
+
+**Status flow:** `running` → `finishing` → `stopped` (automatisch na afronding).
+
+De orchestrator ontvangt `SIGUSR1`, zet `_shutdown_requested=True` maar houdt `is_running=True`. Lopende agents worden niet onderbroken. Na afronding stopt het process met exit code 0.
+
+Hard stop (`POST /api/projects/{name}/agent/stop`) blijft beschikbaar als noodknop vanuit elke state, inclusief `finishing`.
+
+---
+
 ## Per-Project Configuratie
 
 Sinds Sprint 7.1 ondersteunen alle config- en sync-endpoints een optionele `project_name` parameter voor per-project Plane configuratie.

@@ -397,13 +397,14 @@ Naast de polling loop ondersteunt AutoForge ook real-time webhooks van Plane:
 
 Opgelost in Sprint 7.1. Plane sync configuratie is nu per-project. Elk project heeft eigen `plane_project_id`, `plane_active_cycle_id`, `plane_sync_enabled`, en `plane_poll_interval`. Gedeelde settings (`plane_api_url`, `plane_api_key`, `plane_workspace_slug`, `plane_webhook_secret`) blijven globaal. Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md).
 
-### Geen graceful agent shutdown
+### ~~Geen graceful agent shutdown~~ -- OPGELOST (Sprint 7.2)
 
-**Status:** Gepland in Sprint 7.2.
+Opgelost in Sprint 7.2. De UI biedt nu twee stop-opties:
 
-De huidige "Stop" knop stuurt `SIGTERM` → `SIGKILL` naar de hele process tree. Lopende agents worden direct afgebroken, features blijven op `in_progress` staan met half-geschreven code.
+- **Soft stop** (CircleStop knop): stuurt `SIGUSR1` naar de orchestrator. Status wordt `finishing`. De orchestrator claimt geen nieuwe features meer maar laat lopende agents hun werk afmaken. Na afronding stopt het process netjes (exit code 0 → status `stopped`).
+- **Hard stop** (Square knop): stuurt `SIGTERM` → `SIGKILL` naar de hele process tree. Ongewijzigd gedrag, beschikbaar als noodknop vanuit elke state.
 
-**Oplossing:** Sprint 7.2 implementeert een "Finish & Stop" knop die `SIGUSR1` stuurt. De orchestrator claimt geen nieuwe features meer maar laat lopende agents hun werk afmaken.
+Status flow: `stopped → running → finishing → stopped` (graceful) of `running → stopped` (hard stop).
 
 ---
 

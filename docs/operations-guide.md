@@ -276,6 +276,28 @@ curl -X POST http://localhost:8888/api/projects/<project_name>/agent/start \
   -d '{"model": "claude-sonnet-4-5-20250929"}'
 ```
 
+### Agent stoppen
+
+Er zijn twee manieren om een agent te stoppen:
+
+**Soft stop (graceful):** Agents ronden lopend werk af, claimen geen nieuwe features, en stoppen daarna automatisch. Geen half-geschreven code.
+
+```bash
+# Via UI: klik de CircleStop knop (outline)
+# Via API:
+curl -X POST http://localhost:8888/api/projects/<project_name>/agent/soft-stop
+```
+
+De status gaat naar `finishing`. De UI toont een "Finishing..." badge met spinner. Hard stop blijft beschikbaar als noodknop.
+
+**Hard stop (direct):** Doodt de hele process tree onmiddellijk. Lopende agents worden afgebroken.
+
+```bash
+# Via UI: klik de rode Square knop
+# Via API:
+curl -X POST http://localhost:8888/api/projects/<project_name>/agent/stop
+```
+
 ### Verificatie
 
 - Het kanban board toont features die van **Todo** → **In Progress** → **Passing** gaan

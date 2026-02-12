@@ -471,7 +471,7 @@ Uitgebreide documentatie is beschikbaar in de [`docs/`](docs/) folder:
 ### Architectuur & Ontwerp
 - [**Platform Overzicht**](docs/platform-overview.md) -- MarQed.ai platform: 5 componenten, platformdiagram, datastromen, brownpaper/greenpaper, PM Dashboard
 - [**Systeemarchitectuur**](docs/architecture.md) -- Onboarding + Discovery + PM Dashboard + Plane + AutoForge pipeline, component overzicht, deployment
-- [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (7 sprints voltooid, Sprint 7.1/7.2 gepland: per-project sync fix + graceful shutdown)
+- [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (7 sprints + 7.1/7.2 voltooid: per-project sync + graceful shutdown)
 - [**Operations Guide**](docs/operations-guide.md) -- Plane + AutoForge opstarten, sync configureren, agent starten, troubleshooting
 - [**GitHub Setup**](docs/github-setup.md) -- GitHub Organization setup (marqed-ai), repository structuur, fork management
 

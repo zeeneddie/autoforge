@@ -198,7 +198,18 @@ curl -s -X POST http://localhost:8888/api/projects/PROJECT_NAME/agent/start \
 curl -s http://localhost:8888/api/projects/PROJECT_NAME/agent/status | python3 -m json.tool
 ```
 
-### Stoppen
+### Stoppen (graceful)
+
+Agents ronden lopend werk af, stoppen daarna automatisch:
+
+```bash
+curl -s -X POST http://localhost:8888/api/projects/PROJECT_NAME/agent/soft-stop | python3 -m json.tool
+# Status gaat naar "finishing", daarna automatisch "stopped"
+```
+
+### Stoppen (hard / noodknop)
+
+Doodt de hele process tree direct:
 
 ```bash
 curl -s -X POST http://localhost:8888/api/projects/PROJECT_NAME/agent/stop | python3 -m json.tool
@@ -257,7 +268,7 @@ echo "UI:       $(curl -s -o /dev/null -w '%{http_code}' http://localhost:5175/)
 echo "=== Stopping Agents ==="
 for project in klaverjas_app marqed-discovery; do
     STATUS=$(curl -s http://localhost:8888/api/projects/$project/agent/status 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','unknown'))" 2>/dev/null)
-    if [ "$STATUS" = "running" ]; then
+    if [ "$STATUS" = "running" ] || [ "$STATUS" = "finishing" ]; then
         curl -s -X POST http://localhost:8888/api/projects/$project/agent/stop
         echo "  $project: stopped"
     else
