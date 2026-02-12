@@ -1,0 +1,1041 @@
+<project_specification>
+  <project_name>MarQed Discovery Tool</project_name>
+
+  <overview>
+    The MarQed Discovery Tool is an AI-powered requirements gathering and project management
+    application that combines two core capabilities into a single standalone web application.
+    The first capability is a Discovery Tool that guides product managers and stakeholders through
+    structured requirements gathering using conversational AI. It supports two modes: brownpaper
+    mode (for existing codebases, loading Onboarding analysis output and interviewing about
+    desired changes) and greenpaper mode (for new builds, starting from a blank slate with
+    vision interviews). The AI decomposes high-level ideas into a strict hierarchy of
+    Epics, Features, Stories, and Tasks, each with acceptance criteria, confidence scores,
+    and function point estimates. All output is pushed to Plane (the single source of truth
+    for work item management) via the Plane Python SDK.
+
+    The second capability is a PM Dashboard that provides a hierarchical overview with
+    four-level drill-down navigation (Application, Epic, Feature, Story), aggregated metrics
+    per level (children count, function points, test results, phase status), and breadcrumb
+    navigation. The Discovery Tool and PM Dashboard share a FastAPI backend with PostgreSQL
+    for session and entity storage, Claude API integration for AI-powered conversations with
+    streaming and structured outputs, and Server-Sent Events for live hierarchy updates.
+    The frontend uses React 18 with TypeScript, assistant-ui for chat components, shadcn/ui
+    for the design system, and Tailwind CSS for styling. The application is designed for
+    non-technical product managers who need to gather, refine, and organize requirements
+    without touching a command line or writing code.
+  </overview>
+
+  <technology_stack>
+    <frontend>
+      <framework>React 18 with TypeScript and Vite 5</framework>
+      <chat_components>assistant-ui (MIT, production-grade AI chat interface)</chat_components>
+      <ui_library>shadcn/ui (Radix UI primitives with Tailwind styling)</ui_library>
+      <styling>Tailwind CSS v4</styling>
+      <state_management>React hooks, React Context, TanStack Query v5</state_management>
+      <icons>Lucide React</icons>
+      <routing>React Router v6</routing>
+      <port>3000</port>
+    </frontend>
+    <backend>
+      <runtime>Python 3.12 with FastAPI and uvicorn</runtime>
+      <database>PostgreSQL 15 in Docker with SQLAlchemy 2.0 and Alembic migrations</database>
+      <ai>Anthropic Python SDK (Claude API with streaming and structured outputs)</ai>
+      <pm_integration>Plane Python SDK v0.2.0 for bidirectional sync</pm_integration>
+      <realtime>Server-Sent Events (SSE) via sse-starlette</realtime>
+      <validation>Pydantic v2 for request/response models</validation>
+      <port>8000</port>
+    </backend>
+    <infrastructure>
+      <containerization>Docker and Docker Compose for PostgreSQL</containerization>
+      <database_migrations>Alembic with auto-generation support</database_migrations>
+      <environment>python-dotenv for environment variable management</environment>
+    </infrastructure>
+    <communication>
+      <api>RESTful JSON endpoints with OpenAPI documentation</api>
+      <streaming>Server-Sent Events for chat responses and hierarchy updates</streaming>
+    </communication>
+    <testing>
+      <backend>pytest with pytest-asyncio and httpx for async endpoint testing</backend>
+      <frontend>Vitest with React Testing Library</frontend>
+    </testing>
+  </technology_stack>
+
+  <prerequisites>
+    <environment_setup>
+      - Python 3.12+ installed
+      - Node.js 20+ with npm
+      - Docker and Docker Compose for PostgreSQL
+      - Anthropic API key (ANTHROPIC_API_KEY environment variable)
+      - Plane instance with API key (optional, for Plane integration features)
+    </environment_setup>
+  </prerequisites>
+
+  <core_features>
+    <!--
+      Features are organized into 15 categories covering the full Sprint 8a scope.
+      Each feature is specific, testable, and written as a capability.
+    -->
+
+    <infrastructure>
+      1. Project scaffolding: React 18 + Vite 5 + TypeScript frontend with proper
+         tsconfig, vite.config, and index.html. FastAPI backend with uvicorn entry
+         point, CORS middleware, and modular router structure.
+      2. Docker Compose configuration: PostgreSQL 15 service with persistent volume,
+         health check, and environment variables for database credentials. Single
+         command startup via docker-compose up.
+      3. Environment configuration: .env file with ANTHROPIC_API_KEY, DATABASE_URL,
+         PLANE_API_URL, PLANE_API_KEY, PLANE_WORKSPACE_SLUG, and PLANE_PROJECT_ID.
+         python-dotenv loads variables at startup. .env.example with placeholder values.
+      4. CORS middleware: FastAPI CORSMiddleware configured to allow the frontend origin
+         (http://localhost:3000) during development. Configurable allowed origins via
+         environment variable CORS_ORIGINS.
+      5. Health check endpoint: GET /api/health returns JSON with status, database
+         connection status, timestamp, and version. Used by Docker health checks and
+         frontend connection verification.
+      6. Application entry point: main.py with FastAPI app instance, lifespan handler
+         for database connection pool startup/shutdown, router includes, and uvicorn
+         runner with configurable host and port.
+      7. Frontend dev server: Vite dev server with proxy configuration routing /api/*
+         requests to the FastAPI backend at localhost:8000. Hot module replacement
+         enabled for rapid development.
+      8. Init script: init.sh that starts Docker PostgreSQL, runs Alembic migrations,
+         starts the FastAPI backend, and starts the Vite frontend dev server. Single
+         command to bring up the entire development environment.
+    </infrastructure>
+
+    <database>
+      9. SQLAlchemy 2.0 models: Declarative base with mapped_column syntax for all
+         five tables (sessions, discovery_entities, acceptance_criteria,
+         conversation_messages, onboarding_context). UUID primary keys, proper
+         relationships, and cascade delete rules.
+      10. Alembic migrations: Initial migration creating all tables with proper indexes.
+          Alembic configured with async PostgreSQL driver (asyncpg). Migration auto-
+          generation enabled via alembic revision --autogenerate.
+      11. Database connection pooling: AsyncEngine with connection pool settings
+          (pool_size=5, max_overflow=10, pool_timeout=30). Session factory using
+          async_sessionmaker. Dependency injection via FastAPI Depends for request-
+          scoped sessions.
+      12. Database session middleware: Each API request gets its own database session
+          via dependency injection. Sessions are committed on success and rolled back
+          on exception. Connection health verified on startup.
+      13. UUID generation: All primary keys use UUID v4 generated by the database
+          (server_default using gen_random_uuid()). Python models use uuid.UUID type
+          for type safety.
+    </database>
+
+    <plane_integration>
+      14. Plane SDK setup: Install and configure plane-sdk Python package. Initialize
+          PlaneClient with API URL, API key, workspace slug from environment variables.
+          Singleton client instance available via dependency injection.
+      15. Plane authentication: Verify Plane API credentials on startup or first use.
+          GET /api/plane/test-connection endpoint that validates credentials and returns
+          workspace info. Clear error messages for invalid credentials.
+      16. Read Plane modules: GET /api/plane/modules endpoint that fetches all modules
+          from the configured Plane project. Returns module ID, name, description, and
+          work item count. Used to display existing epics in brownpaper mode.
+      17. Read Plane work items: GET /api/plane/work-items endpoint with optional
+          module_id filter. Returns work items with ID, name, description, state,
+          priority, parent ID, and sub-work-item count. Pagination support.
+      18. Read Plane cycles: GET /api/plane/cycles endpoint that fetches all cycles
+          from the configured project. Returns cycle ID, name, start/end dates, and
+          work item count. Used for cycle assignment during export.
+      19. Write work items to Plane: POST /api/plane/push endpoint that creates
+          modules (from epics), work items (from features), and sub-work items (from
+          stories/tasks) in Plane. Supports optional cycle assignment. Returns created
+          item IDs for reference tracking.
+    </plane_integration>
+
+    <ai_chat_backend>
+      20. Claude SDK setup: Initialize Anthropic client with API key from environment.
+          Configure default model (claude-sonnet-4-5-20250514), max tokens (4096),
+          and temperature (0.7) with environment variable overrides.
+      21. Streaming chat endpoint: POST /api/sessions/{session_id}/message accepts
+          user message and returns SSE stream. Each SSE event contains a chunk of the
+          Claude response. Stream includes token count metadata on completion.
+      22. Token tracking: Track input and output tokens per message and per session.
+          Store token counts in conversation_messages table. Expose cumulative session
+          token usage via GET /api/sessions/{session_id}/token-usage endpoint.
+      23. Conversation history management: Build Claude API messages array from stored
+          conversation_messages for the session. Include system prompt with current
+          phase context. Trim history to fit within context window (200k tokens) using
+          sliding window with phase transition markers preserved.
+      24. System prompt construction: Build system prompts dynamically based on current
+          session phase, mode (brownpaper/greenpaper), and available context (onboarding
+          data, existing Plane backlog). System prompt includes output format instructions
+          for the current phase.
+      25. Claude API error handling: Catch and handle rate limit errors (429) with
+          exponential backoff. Handle context window exceeded errors by trimming history.
+          Handle network errors with retry logic (3 attempts). Return user-friendly
+          error messages via SSE error events.
+    </ai_chat_backend>
+
+    <phased_prompt_system>
+      26. Phase 1 - Context Gathering: System prompt instructs Claude to ask about
+          project vision, target users, business goals, and constraints. In brownpaper
+          mode, presents Onboarding findings for confirmation. In greenpaper mode,
+          conducts open-ended vision interview. Phase completes when Claude determines
+          sufficient context is gathered.
+      27. Phase 2 - Scope Definition: Claude identifies functional areas and proposes
+          epic-level groupings based on gathered context. User confirms, adjusts, or
+          adds epics. Output: list of epics with names and descriptions.
+      28. Phase 3 - Feature Decomposition: For each confirmed epic, Claude proposes
+          features with descriptions and acceptance criteria. Applies the micro-feature
+          principle: each feature should be buildable and testable within 2 hours.
+          Output: features nested under epics.
+      29. Phase 4 - Story Refinement: For each feature, Claude generates user stories
+          with acceptance criteria in Given/When/Then format. Each story includes
+          estimated function points and confidence score. Output: stories nested under
+          features.
+      30. Phase 5 - Validation: Claude reviews the complete hierarchy for completeness,
+          consistency, and micro-feature compliance. Flags items with low confidence
+          scores. Suggests missing stories or acceptance criteria. User can approve,
+          modify, or request additional refinement.
+      31. Phase 6 - Export Preparation: Claude generates the final structured output
+          with the complete hierarchy. Produces a summary with total counts (epics,
+          features, stories), total function points, and confidence distribution.
+          Prepares data for push to Plane.
+      32. Phase transition logic: Backend tracks current phase per session. Phase
+          advances when Claude signals completion via structured output marker or when
+          user explicitly advances. Phase can be revisited by navigating backwards.
+          Phase indicator visible in UI header.
+    </phased_prompt_system>
+
+    <brownpaper_mode>
+      33. Load Onboarding output: When creating a brownpaper session, user provides
+          path to Onboarding output directory. Backend reads markdown files recursively
+          and stores structured content in onboarding_context table. Parses epic, feature,
+          story, and task entities from the Onboarding directory structure.
+      34. Confirm Onboarding findings: Phase 1 in brownpaper mode presents parsed
+          Onboarding findings to the user via Claude. Claude summarizes each epic and
+          its features, asks the user to confirm accuracy. User can mark items as
+          confirmed, modified, or rejected.
+      35. Interview about changes: After confirming existing findings, Claude interviews
+          the user about desired changes, new features, and priorities. Combines
+          confirmed Onboarding data with new requirements into a unified hierarchy.
+      36. Load existing Plane backlog: Optionally load existing modules and work items
+          from Plane as additional context. Presents existing backlog alongside
+          Onboarding findings for a complete picture of current state.
+    </brownpaper_mode>
+
+    <greenpaper_mode>
+      37. Blank session start: Greenpaper mode starts with an empty hierarchy and no
+          pre-loaded context. Phase 1 system prompt conducts a comprehensive vision
+          interview about the project idea, target audience, key differentiators, and
+          technical constraints.
+      38. Vision interview: Claude asks structured questions about the project: What
+          problem does it solve? Who are the users? What are the must-have features?
+          What technology preferences exist? Questions adapt based on previous answers.
+      39. Generate initial hierarchy: After sufficient context gathering, Claude
+          generates an initial hierarchy proposal with epics, features, and stories.
+          Uses structured output to produce a well-formed hierarchy that appears in
+          the tree view in real-time via SSE.
+    </greenpaper_mode>
+
+    <chat_interface>
+      40. assistant-ui setup: Install and configure @assistant-ui/react package.
+          Set up AssistantRuntimeProvider with custom runtime that connects to the
+          FastAPI streaming endpoint. Configure message adapters for the API format.
+      41. Message display: Render conversation messages with proper styling for user
+          messages (right-aligned, blue background) and assistant messages (left-aligned,
+          gray background). Support markdown rendering in assistant messages with
+          headers, lists, bold, italic, and code blocks.
+      42. Streaming message display: Assistant messages stream in token by token with
+          a typing indicator. Smooth auto-scroll to bottom during streaming. User can
+          scroll up during streaming without being pulled back down.
+      43. User input handling: Text input area at the bottom of the chat panel with
+          send button. Supports Enter to send (Shift+Enter for newline). Input is
+          disabled while assistant is responding. Character count indicator for
+          long messages.
+      44. Phase context display: Above the chat area, display the current phase name,
+          phase number (1 of 6), and a brief description of what this phase covers.
+          Visual progress indicator showing all 6 phases with current phase highlighted.
+      45. Message history loading: When resuming a session, load and display all
+          previous messages from the API. Messages render with correct styling and
+          formatting. Loading state shown while fetching history.
+    </chat_interface>
+
+    <hierarchy_tree>
+      46. Tree view component: Collapsible tree displaying the discovery hierarchy
+          (Epic > Feature > Story > Task). Each node shows entity name, type icon,
+          confidence badge (green/yellow/red), and function point estimate. Expand/
+          collapse with chevron icons.
+      47. Live hierarchy updates via SSE: Backend emits SSE events on the hierarchy
+          endpoint (GET /api/sessions/{session_id}/hierarchy/stream) when entities are
+          created or updated during conversation. Frontend subscribes and updates the
+          tree in real-time without page refresh.
+      48. Entity detail panel: Clicking a tree node opens a detail panel showing
+          the entity name, description, acceptance criteria, confidence score, function
+          points, priority, and status. Panel slides in from the right or expands
+          inline.
+      49. Drag-and-drop reorder: Users can drag tree nodes to reorder siblings within
+          the same parent. Reorder updates sort_order in the database via
+          PATCH /api/sessions/{session_id}/entities/reorder endpoint.
+      50. Expand/collapse all: Buttons to expand all nodes or collapse all nodes in
+          the tree. Keyboard shortcut Ctrl+E to expand all, Ctrl+Shift+E to collapse
+          all.
+      51. Entity count badges: Parent nodes show count badges indicating number of
+          children (e.g., "3 features" on an epic node, "5 stories" on a feature node).
+          Counts update in real-time as entities are added during conversation.
+      52. Confidence color coding: Entities with confidence >= 0.8 show green badge,
+          0.5-0.79 show yellow/amber badge, below 0.5 show red badge. Low-confidence
+          items are visually prominent to draw review attention.
+    </hierarchy_tree>
+
+    <split_screen_layout>
+      53. Resizable split panels: Main content area split into left panel (chat) and
+          right panel (hierarchy tree) with a draggable divider. Default split is
+          50/50. Minimum panel width of 300px prevents collapse below usable size.
+      54. Responsive layout: On screens below 768px width, panels stack vertically
+          with chat on top and tree below. Tab toggle to switch between chat and tree
+          views on mobile. On desktop, side-by-side layout with resizable divider.
+      55. Header bar: Fixed header with session name (editable inline), mode badge
+          (brownpaper/greenpaper), phase indicator (Phase 1 of 6), and action buttons
+          (Save, Export to Plane, Settings). Session name auto-saves on blur.
+      56. Keyboard shortcuts: Ctrl+1 to focus chat panel, Ctrl+2 to focus tree panel,
+          Ctrl+S to save session, Ctrl+E to export to Plane, Escape to close detail
+          panels. Keyboard shortcut reference accessible via Ctrl+/ or ? key.
+    </split_screen_layout>
+
+    <structured_output>
+      57. Claude structured output schema: Define JSON schema for Claude structured
+          outputs with strict:true enforcement. Schema defines DiscoveryEntity with
+          fields: entity_type (enum: epic/feature/story/task), name, description,
+          acceptance_criteria (array), confidence (0.0-1.0), fp_estimate (integer),
+          priority (enum: critical/high/medium/low), children (recursive array).
+      58. Entity type validation: Validate that the hierarchy follows the correct
+          nesting rules: Epics contain Features, Features contain Stories, Stories
+          contain Tasks. Reject malformed hierarchies with clear error messages.
+      59. Acceptance criteria parsing: Parse acceptance criteria from Claude output.
+          Support multiple formats: numbered lists, checkbox lists, and Given/When/Then
+          blocks. Store each criterion as a separate row in acceptance_criteria table.
+      60. Confidence score validation: Validate confidence scores are between 0.0 and
+          1.0. Claude assigns confidence based on information completeness: items
+          derived from explicit user statements get high confidence, items inferred by
+          the AI get lower confidence. Scores stored as FLOAT in discovery_entities.
+      61. Function point estimation: Claude estimates IFPUG function points for each
+          entity. Epics and features show sum of children. Stories show individual
+          estimates. Total function points displayed in session summary. Estimates
+          stored as INTEGER in discovery_entities.
+      62. Structured output error recovery: If Claude returns malformed JSON, retry
+          the request once with a correction prompt. If the retry also fails, present
+          the raw text response to the user and log the error for debugging. Never
+          lose user conversation context due to parse errors.
+    </structured_output>
+
+    <session_management>
+      63. Create new session: POST /api/sessions endpoint accepting session name, mode
+          (brownpaper/greenpaper), and optional plane_project_id and onboarding_path.
+          Returns session ID and initial phase. UI shows a new session dialog with
+          mode selection radio buttons and name input.
+      64. Resume existing session: GET /api/sessions/{session_id} returns session
+          metadata, current phase, and entity counts. UI loads previous conversation
+          history and current hierarchy tree state. User picks up where they left off.
+      65. Session list: GET /api/sessions endpoint returns all sessions ordered by
+          updated_at descending. Each entry shows name, mode, status, phase, entity
+          count, last updated timestamp. UI shows session list as landing page with
+          search filter and New Session button.
+      66. Auto-save session: Session state (current phase, entities, conversation) is
+          persisted to PostgreSQL after each message exchange. No explicit save action
+          needed for conversation data. Entity edits (name, description, reorder) save
+          immediately on change.
+      67. Delete session: DELETE /api/sessions/{session_id} soft-deletes the session
+          (sets status to 'deleted'). Deleted sessions are excluded from the list view
+          but data is retained for 30 days. Confirmation dialog before deletion.
+      68. Session status tracking: Sessions have status enum: active, paused, completed,
+          exported, deleted. Status transitions: active -> paused (user leaves),
+          paused -> active (user resumes), active -> completed (phase 6 done),
+          completed -> exported (pushed to Plane).
+    </session_management>
+
+    <error_handling>
+      69. API error responses: All API errors return consistent JSON format with
+          status_code, error_type, message, and optional detail fields. FastAPI
+          exception handlers for ValidationError (422), NotFoundError (404),
+          and generic exceptions (500).
+      70. Claude API error handling: Display user-friendly messages for Claude errors.
+          Rate limit (429): "AI is busy, retrying in a moment..." with automatic retry.
+          Context too long: "Conversation is very long, summarizing..." with automatic
+          trimming. Network error: "Connection lost, retrying..." with retry indicator.
+      71. SSE reconnection: Frontend automatically reconnects to SSE streams after
+          connection loss. Exponential backoff starting at 1 second, max 30 seconds.
+          Visual indicator when connection is lost and reconnecting. Missed events
+          replayed from server-side event buffer.
+      72. User feedback for errors: Toast notifications for non-critical errors (e.g.,
+          "Could not save entity name, retrying..."). Modal dialogs for critical errors
+          (e.g., "Database connection lost"). Error boundary component catches React
+          rendering errors and shows recovery UI.
+      73. Input validation: Frontend validates user inputs before sending to API.
+          Session name: 1-200 characters, no empty strings. Entity names: 1-500
+          characters. Chat messages: 1-10000 characters. Plane credentials: URL format
+          validation, API key format check.
+      74. Request timeout handling: API requests timeout after 30 seconds (configurable).
+          Claude API calls timeout after 120 seconds (streaming keeps connection alive).
+          Frontend shows timeout message and offers retry button. Backend logs timeouts
+          for monitoring.
+    </error_handling>
+
+    <configuration>
+      75. Environment variable loading: python-dotenv loads .env file on startup.
+          All configuration read from environment with sensible defaults. Required
+          variables (ANTHROPIC_API_KEY, DATABASE_URL) validated on startup with
+          clear error messages if missing.
+      76. Plane configuration UI: Settings page with inputs for Plane API URL, API
+          key, workspace slug, and project ID. Test connection button validates
+          credentials. Configuration stored in .env or via API endpoint
+          PUT /api/config/plane.
+      77. Claude configuration UI: Settings page section for Claude model selection,
+          max tokens, and temperature. Dropdown for model with options:
+          claude-sonnet-4-5-20250514, claude-opus-4-20250514. Configuration applied
+          per session or globally.
+      78. Application configuration endpoint: GET /api/config returns non-sensitive
+          configuration (Plane connection status, Claude model, feature flags).
+          PUT /api/config updates configuration. Sensitive values (API keys) are
+          write-only and never returned in GET responses.
+    </configuration>
+
+    <testing_infrastructure>
+      79. Pytest backend setup: pytest.ini or pyproject.toml with test configuration.
+          conftest.py with async database fixtures (test database, session factory,
+          test client). Test database uses separate PostgreSQL database or SQLite
+          for speed.
+      80. Vitest frontend setup: vitest.config.ts with React plugin, jsdom environment,
+          and path aliases matching vite.config. Setup file for React Testing Library
+          custom renders with providers (QueryClientProvider, RouterProvider).
+      81. API test fixtures: Factory functions for creating test sessions, entities,
+          messages, and onboarding context. Fixtures clean up after each test.
+          Reusable authenticated client fixture for protected endpoints.
+      82. Mock Claude responses: Test fixtures that mock the Anthropic SDK client.
+          Predefined response fixtures for each conversation phase. Streaming mock
+          that yields tokens one at a time for SSE testing.
+      83. Test database seeding: Seed script that creates sample sessions with
+          realistic conversation history and entity hierarchies. Used for development
+          and demo purposes. Separate from test fixtures.
+    </testing_infrastructure>
+  </core_features>
+
+  <database_schema>
+    <tables>
+      <sessions>
+        - id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+        - name: VARCHAR(200) NOT NULL
+        - mode: VARCHAR(20) NOT NULL CHECK (mode IN ('brownpaper', 'greenpaper'))
+        - status: VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed', 'exported', 'deleted'))
+        - current_phase: INTEGER NOT NULL DEFAULT 1 CHECK (current_phase BETWEEN 1 AND 6)
+        - plane_project_id: VARCHAR(100) NULLABLE (Plane project UUID for integration)
+        - onboarding_path: TEXT NULLABLE (filesystem path to Onboarding output directory)
+        - total_input_tokens: INTEGER NOT NULL DEFAULT 0
+        - total_output_tokens: INTEGER NOT NULL DEFAULT 0
+        - entity_count: INTEGER NOT NULL DEFAULT 0 (denormalized count for list view performance)
+        - created_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        - updated_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        INDEXES:
+        - idx_sessions_status ON (status) WHERE status != 'deleted'
+        - idx_sessions_updated_at ON (updated_at DESC)
+      </sessions>
+
+      <discovery_entities>
+        - id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+        - session_id: UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE
+        - parent_id: UUID NULLABLE REFERENCES discovery_entities(id) ON DELETE CASCADE
+        - entity_type: VARCHAR(20) NOT NULL CHECK (entity_type IN ('epic', 'feature', 'story', 'task'))
+        - identifier: VARCHAR(50) NOT NULL (human-readable ID, e.g., EPIC-001, FEAT-003, STORY-012)
+        - name: VARCHAR(500) NOT NULL
+        - description: TEXT NULLABLE
+        - priority: VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (priority IN ('critical', 'high', 'medium', 'low'))
+        - status: VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'confirmed', 'modified', 'rejected', 'exported'))
+        - confidence: FLOAT NOT NULL DEFAULT 0.5 CHECK (confidence BETWEEN 0.0 AND 1.0)
+        - fp_estimate: INTEGER NOT NULL DEFAULT 0 (IFPUG function point estimate)
+        - sort_order: INTEGER NOT NULL DEFAULT 0 (ordering among siblings)
+        - plane_work_item_id: VARCHAR(100) NULLABLE (Plane ID after export)
+        - created_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        - updated_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        INDEXES:
+        - idx_entities_session ON (session_id)
+        - idx_entities_parent ON (parent_id)
+        - idx_entities_session_type ON (session_id, entity_type)
+        - idx_entities_sort ON (session_id, parent_id, sort_order)
+        CONSTRAINT:
+        - UNIQUE (session_id, identifier)
+      </discovery_entities>
+
+      <acceptance_criteria>
+        - id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+        - entity_id: UUID NOT NULL REFERENCES discovery_entities(id) ON DELETE CASCADE
+        - criterion_text: TEXT NOT NULL
+        - criterion_format: VARCHAR(20) NOT NULL DEFAULT 'plain' CHECK (criterion_format IN ('plain', 'given_when_then', 'checkbox'))
+        - is_met: BOOLEAN NOT NULL DEFAULT FALSE
+        - sort_order: INTEGER NOT NULL DEFAULT 0
+        - created_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        INDEXES:
+        - idx_criteria_entity ON (entity_id)
+        - idx_criteria_sort ON (entity_id, sort_order)
+      </acceptance_criteria>
+
+      <conversation_messages>
+        - id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+        - session_id: UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE
+        - role: VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system'))
+        - content: TEXT NOT NULL
+        - phase: INTEGER NOT NULL CHECK (phase BETWEEN 1 AND 6)
+        - input_tokens: INTEGER NOT NULL DEFAULT 0
+        - output_tokens: INTEGER NOT NULL DEFAULT 0
+        - model: VARCHAR(100) NULLABLE (Claude model used for this message)
+        - structured_output: JSONB NULLABLE (parsed structured output from Claude, if any)
+        - created_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        INDEXES:
+        - idx_messages_session ON (session_id)
+        - idx_messages_session_phase ON (session_id, phase)
+        - idx_messages_created ON (session_id, created_at)
+      </conversation_messages>
+
+      <onboarding_context>
+        - id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+        - session_id: UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE
+        - context_type: VARCHAR(30) NOT NULL CHECK (context_type IN ('epic', 'feature', 'story', 'task', 'summary', 'gap_analysis', 'ifpug_report'))
+        - title: VARCHAR(500) NULLABLE (extracted title from markdown heading)
+        - content: TEXT NOT NULL (raw markdown content from Onboarding output file)
+        - source_path: TEXT NOT NULL (relative path to the source markdown file)
+        - fp_value: INTEGER NULLABLE (IFPUG function points extracted from Onboarding)
+        - parent_context_id: UUID NULLABLE REFERENCES onboarding_context(id) ON DELETE SET NULL
+        - created_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        INDEXES:
+        - idx_context_session ON (session_id)
+        - idx_context_type ON (session_id, context_type)
+        - idx_context_parent ON (parent_context_id)
+      </onboarding_context>
+    </tables>
+  </database_schema>
+
+  <api_endpoints_summary>
+    <health>
+      - GET /api/health
+        Returns: { status: "ok", database: "connected", timestamp: "...", version: "0.1.0" }
+        Purpose: Health check for monitoring, Docker, and frontend connection verification
+    </health>
+
+    <sessions>
+      - GET /api/sessions
+        Query params: status (optional filter), search (optional name search), limit, offset
+        Returns: List of sessions with id, name, mode, status, current_phase, entity_count, created_at, updated_at
+        Purpose: Session list for landing page
+
+      - POST /api/sessions
+        Body: { name, mode, plane_project_id?, onboarding_path? }
+        Returns: Created session with id, initial phase (1), status (active)
+        Purpose: Create new discovery session
+
+      - GET /api/sessions/{session_id}
+        Returns: Full session detail including metadata, phase info, entity counts by type, token usage
+        Purpose: Load session for resuming work
+
+      - PATCH /api/sessions/{session_id}
+        Body: { name?, status?, current_phase? }
+        Returns: Updated session
+        Purpose: Update session name, advance/revert phase, change status
+
+      - DELETE /api/sessions/{session_id}
+        Returns: { status: "deleted" }
+        Purpose: Soft-delete session (sets status to deleted)
+    </sessions>
+
+    <conversation>
+      - POST /api/sessions/{session_id}/message
+        Body: { content: "user message text" }
+        Returns: SSE stream with events:
+          - type: "token" data: { text: "..." } (streaming response tokens)
+          - type: "entity" data: { action: "create"|"update", entity: {...} } (hierarchy changes)
+          - type: "phase" data: { phase: 3, message: "Moving to Feature Decomposition" } (phase transition)
+          - type: "done" data: { input_tokens: 150, output_tokens: 500 } (completion metadata)
+          - type: "error" data: { message: "...", retry: true|false } (error events)
+        Purpose: Send user message and receive streaming AI response with live entity updates
+
+      - GET /api/sessions/{session_id}/messages
+        Query params: phase (optional filter), limit, offset
+        Returns: List of conversation messages with id, role, content, phase, token counts, created_at
+        Purpose: Load conversation history when resuming a session
+
+      - GET /api/sessions/{session_id}/token-usage
+        Returns: { total_input_tokens, total_output_tokens, messages_count, by_phase: [...] }
+        Purpose: Token usage monitoring and cost tracking
+    </conversation>
+
+    <entities>
+      - GET /api/sessions/{session_id}/entities
+        Query params: entity_type (optional filter), parent_id (optional), flat (boolean, default false)
+        Returns: Hierarchical tree of entities (nested) or flat list. Each entity includes
+                 id, parent_id, entity_type, identifier, name, description, priority, status,
+                 confidence, fp_estimate, sort_order, acceptance_criteria (array), children_count
+        Purpose: Load entity hierarchy for tree view
+
+      - POST /api/sessions/{session_id}/entities
+        Body: { parent_id?, entity_type, name, description?, priority?, confidence?, fp_estimate? }
+        Returns: Created entity with generated identifier
+        Purpose: Manually add an entity to the hierarchy
+
+      - PATCH /api/sessions/{session_id}/entities/{entity_id}
+        Body: { name?, description?, priority?, status?, confidence?, fp_estimate? }
+        Returns: Updated entity
+        Purpose: Edit entity details from tree view or detail panel
+
+      - DELETE /api/sessions/{session_id}/entities/{entity_id}
+        Returns: { deleted_count: N } (entity and all descendants)
+        Purpose: Remove entity and its children from hierarchy
+
+      - PATCH /api/sessions/{session_id}/entities/reorder
+        Body: { entity_id, new_parent_id?, new_sort_order }
+        Returns: Updated sort orders for affected siblings
+        Purpose: Drag-and-drop reorder in tree view
+
+      - GET /api/sessions/{session_id}/entities/export
+        Query params: format (json|markdown)
+        Returns: Complete hierarchy in requested format
+        Purpose: Export hierarchy for review or archival
+
+      - GET /api/sessions/{session_id}/hierarchy/stream
+        Returns: SSE stream with entity create/update/delete events
+        Purpose: Live hierarchy updates during conversation (tree view subscribes to this)
+
+      - GET /api/sessions/{session_id}/entities/summary
+        Returns: { total_entities, by_type: {epic: N, feature: N, ...}, total_fp, avg_confidence,
+                   low_confidence_count, phase_distribution }
+        Purpose: Summary statistics for session header and export preparation
+    </entities>
+
+    <plane>
+      - GET /api/plane/test-connection
+        Returns: { connected: true, workspace: "...", project: "..." } or error
+        Purpose: Validate Plane credentials before use
+
+      - GET /api/plane/modules
+        Query params: project_id (optional, uses default)
+        Returns: List of Plane modules with id, name, description, work_item_count
+        Purpose: Load existing epics for brownpaper mode context
+
+      - GET /api/plane/work-items
+        Query params: module_id (optional), state (optional), limit, offset
+        Returns: Paginated list of Plane work items with details
+        Purpose: Load existing work items for brownpaper mode context
+
+      - GET /api/plane/cycles
+        Query params: project_id (optional)
+        Returns: List of Plane cycles with id, name, start_date, end_date, work_item_count
+        Purpose: Cycle selection for export assignment
+
+      - POST /api/plane/push
+        Body: { session_id, cycle_id? (optional cycle assignment), dry_run? (boolean, default false) }
+        Returns: { created: { modules: N, work_items: N, sub_work_items: N }, errors: [...], dry_run: bool }
+        Purpose: Push session hierarchy to Plane. Dry run mode validates without creating items
+    </plane>
+
+    <config>
+      - GET /api/config
+        Returns: { plane: { connected: bool, workspace: "..." }, claude: { model: "...", max_tokens: N },
+                   features: { brownpaper_enabled: bool, greenpaper_enabled: bool } }
+        Purpose: Read non-sensitive application configuration
+
+      - PUT /api/config
+        Body: { plane?: { api_url?, api_key?, workspace_slug?, project_id? },
+                claude?: { model?, max_tokens?, temperature? } }
+        Returns: Updated configuration (API keys masked)
+        Purpose: Update application configuration
+    </config>
+  </api_endpoints_summary>
+
+  <ui_layout>
+    <main_structure>
+      The application uses a split-screen layout optimized for the discovery workflow:
+      - Fixed header bar (56px height) with session info, phase indicator, and action buttons
+      - Left panel: Conversational chat interface (assistant-ui components)
+      - Right panel: Live hierarchy tree view with entity details
+      - Resizable divider between panels (draggable, default 50/50 split)
+      - On mobile (below 768px): stacked layout with tab toggle between chat and tree
+    </main_structure>
+
+    <header>
+      - Left: Session name (inline editable), mode badge (brownpaper blue / greenpaper green)
+      - Center: Phase indicator showing "Phase N of 6: Phase Name" with clickable progress dots
+      - Right: Action buttons - Save (auto-save indicator), Export to Plane (primary button),
+        Settings (gear icon), Session List (list icon)
+    </header>
+
+    <chat_panel>
+      - Phase context card at top: current phase name, description, progress bar
+      - Scrollable message area: user messages right-aligned, assistant messages left-aligned
+      - Markdown rendering in assistant messages (headers, lists, bold, italic, code)
+      - Streaming indicator during AI response (animated dots)
+      - Input area at bottom: multiline textarea, send button, character count
+      - Token usage indicator in footer (subtle, shows cumulative tokens used)
+    </chat_panel>
+
+    <tree_panel>
+      - Toolbar: Expand All / Collapse All buttons, entity count summary, search/filter
+      - Scrollable tree view: indented nodes with expand/collapse chevrons
+      - Entity nodes show: type icon, name, confidence badge (colored dot), FP estimate
+      - Selected node highlighted with blue background
+      - Entity detail panel: slides in when a node is clicked, shows full details
+      - Drag handles on nodes for reorder (visible on hover)
+    </tree_panel>
+
+    <session_list_page>
+      - Landing page showing all sessions as cards or table rows
+      - Each session shows: name, mode badge, status badge, phase, entity count, last updated
+      - Search bar to filter sessions by name
+      - New Session button (prominent, primary color)
+      - Click session to resume, hover for quick actions (delete, duplicate)
+    </session_list_page>
+
+    <modals_overlays>
+      - New Session dialog: mode selection (brownpaper/greenpaper radio), name input,
+        Plane project dropdown (optional), Onboarding path input (brownpaper only)
+      - Settings modal: Plane connection, Claude configuration, keyboard shortcuts reference
+      - Export confirmation: preview of what will be pushed to Plane, cycle selection dropdown,
+        dry run checkbox, push button
+      - Delete confirmation: "Are you sure?" with session name, entity count warning
+      - Error modal: critical error display with retry/dismiss options
+    </modals_overlays>
+  </ui_layout>
+
+  <design_system>
+    <color_palette>
+      - Primary: #3B82F6 (blue-500, main actions and interactive elements)
+      - Primary hover: #2563EB (blue-600)
+      - Secondary: #64748B (slate-500, secondary text and borders)
+      - Accent: #8B5CF6 (violet-500, confidence scores and highlights)
+      - Background: #FFFFFF (light), #0F172A (dark, slate-900)
+      - Surface: #F8FAFC (light, slate-50), #1E293B (dark, slate-800)
+      - Card: #FFFFFF (light), #334155 (dark, slate-700)
+      - Text primary: #0F172A (light, slate-900), #F8FAFC (dark, slate-50)
+      - Text secondary: #64748B (light, slate-500), #94A3B8 (dark, slate-400)
+      - Border: #E2E8F0 (light, slate-200), #334155 (dark, slate-700)
+      - Error: #EF4444 (red-500)
+      - Success: #22C55E (green-500)
+      - Warning: #F59E0B (amber-500)
+      - Info: #3B82F6 (blue-500)
+      - Confidence high: #22C55E (green-500, confidence >= 0.8)
+      - Confidence medium: #F59E0B (amber-500, confidence 0.5-0.79)
+      - Confidence low: #EF4444 (red-500, confidence below 0.5)
+      - Brownpaper badge: #3B82F6 (blue-500)
+      - Greenpaper badge: #22C55E (green-500)
+      - Epic color: #8B5CF6 (violet-500)
+      - Feature color: #3B82F6 (blue-500)
+      - Story color: #22C55E (green-500)
+      - Task color: #F59E0B (amber-500)
+    </color_palette>
+
+    <typography>
+      - Font family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif
+      - Heading 1: 24px/32px, font-bold (session name, page titles)
+      - Heading 2: 20px/28px, font-semibold (panel headers, section titles)
+      - Heading 3: 16px/24px, font-semibold (entity names in tree, card titles)
+      - Body: 14px/20px, font-normal (message text, descriptions, form labels)
+      - Small: 12px/16px, font-normal (timestamps, badges, helper text)
+      - Code: JetBrains Mono, Consolas, Monaco, monospace (code blocks in chat)
+    </typography>
+
+    <components>
+      <buttons>
+        - Primary: bg-blue-500 text-white rounded-lg px-4 py-2, hover:bg-blue-600, shadow-sm
+        - Secondary: border border-slate-300 text-slate-700 rounded-lg px-4 py-2, hover:bg-slate-50
+        - Ghost: text-slate-600 rounded-lg px-3 py-2, hover:bg-slate-100
+        - Destructive: bg-red-500 text-white rounded-lg px-4 py-2, hover:bg-red-600
+        - Icon: p-2 rounded-lg, hover:bg-slate-100, focus:ring-2 ring-blue-500
+        - All buttons: focus-visible:ring-2 ring-blue-500 ring-offset-2, disabled:opacity-50
+      </buttons>
+
+      <inputs>
+        - Text input: border border-slate-300 rounded-lg px-3 py-2, focus:ring-2 ring-blue-500 focus:border-blue-500
+        - Textarea: same as text input, min-height 80px, resize-y
+        - Select: same border/focus as text input, with chevron-down icon
+        - Checkbox: w-4 h-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500
+        - Radio: w-4 h-4 rounded-full border-slate-300 text-blue-500 focus:ring-blue-500
+        - Error state: border-red-500, ring-red-500, with error message text-red-500 below
+      </inputs>
+
+      <cards>
+        - Session card: bg-white border border-slate-200 rounded-xl p-4, hover:shadow-md transition
+        - Entity card: bg-white border border-slate-200 rounded-lg p-3
+        - Metric card: bg-slate-50 border border-slate-200 rounded-lg p-4
+        - All cards: dark mode bg-slate-800 border-slate-700
+      </cards>
+
+      <badges>
+        - Mode badge: rounded-full px-2 py-0.5 text-xs font-medium
+        - Status badge: rounded-full px-2 py-0.5 text-xs font-medium
+        - Phase badge: rounded-md px-2 py-1 text-sm font-medium bg-blue-100 text-blue-700
+        - Confidence dot: w-2 h-2 rounded-full inline-block (colored by confidence level)
+        - Entity type badge: rounded px-1.5 py-0.5 text-xs font-mono uppercase (colored by type)
+      </badges>
+
+      <tree_nodes>
+        - Node container: flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer
+        - Hover: bg-slate-50 (light), bg-slate-800 (dark)
+        - Selected: bg-blue-50 border-l-2 border-blue-500 (light), bg-blue-900/20 (dark)
+        - Indent: pl-6 per nesting level
+        - Expand chevron: w-4 h-4 text-slate-400, rotate-90 when expanded, transition-transform
+        - Drag handle: hidden by default, visible on hover, cursor-grab
+      </tree_nodes>
+    </components>
+
+    <animations>
+      - Transitions: 150ms ease-in-out for hover states, 200ms for panel resizing
+      - Fade in: opacity 0 to 1 over 200ms for new messages and entities
+      - Slide in: translate-x from right for entity detail panel (300ms ease-out)
+      - Expand/collapse: max-height transition for tree node children (200ms)
+      - Streaming dots: three dots with staggered opacity animation (1s loop)
+      - Progress bar: width transition 500ms ease-in-out for phase progress
+      - Toast: slide in from top-right, auto-dismiss after 5 seconds with fade out
+      - Skeleton loading: pulse animation for content loading placeholders
+    </animations>
+
+    <dark_mode>
+      - Toggle via system preference (prefers-color-scheme) and manual override
+      - Dark mode class applied to html element
+      - All color tokens have light/dark variants defined in Tailwind config
+      - Smooth transition between modes (150ms background/color transition)
+    </dark_mode>
+  </design_system>
+
+  <key_interactions>
+    <user_flow_1>
+      <title>Create New Greenpaper Session</title>
+      1. User lands on the session list page (GET /api/sessions)
+      2. Clicks "New Session" button, modal opens
+      3. Selects "Greenpaper" mode (new build), enters session name
+      4. Optionally selects a Plane project from dropdown
+      5. Clicks "Start Discovery", session is created (POST /api/sessions)
+      6. Redirected to split-screen view: empty chat left, empty tree right
+      7. Phase 1 indicator shows "Context Gathering"
+      8. AI sends initial greeting: "Tell me about the project you want to build..."
+      9. User types their vision, AI asks follow-up questions
+      10. After sufficient context, AI signals phase transition to Phase 2
+    </user_flow_1>
+
+    <user_flow_2>
+      <title>Conversation Phase Progression</title>
+      1. User is in Phase 2 (Scope Definition), chat shows epic proposals
+      2. AI proposes 3-5 epics based on gathered context
+      3. Epics appear in tree view in real-time via SSE as AI generates them
+      4. User confirms some epics, asks to split one, removes another
+      5. AI adjusts and phase transitions to Phase 3 (Feature Decomposition)
+      6. Phase indicator updates, new system context loaded
+      7. AI decomposes first epic into features with acceptance criteria
+      8. Features appear nested under epic in tree view
+      9. User clicks a feature in tree to see details, suggests changes
+      10. Process continues through phases 4-6 with increasing detail
+    </user_flow_2>
+
+    <user_flow_3>
+      <title>Entity Editing in Tree View</title>
+      1. User sees a story in the tree with amber confidence badge (0.6)
+      2. Clicks the story node, detail panel slides in from right
+      3. Detail panel shows: name, description, 3 acceptance criteria, confidence 0.6, FP estimate 5
+      4. User edits the description to add more detail (PATCH entity)
+      5. User drags the story from one feature to another (PATCH reorder)
+      6. Tree view updates immediately, sort_order values recalculated
+      7. User adds a new acceptance criterion via the detail panel
+      8. Changes auto-saved, no explicit save button needed
+      9. User can also ask AI in chat: "Can you refine Story X?" referencing the entity
+      10. AI updates the entity, tree view reflects changes via SSE
+    </user_flow_3>
+
+    <user_flow_4>
+      <title>Push to Plane</title>
+      1. User completes Phase 6, session status is "completed"
+      2. Clicks "Export to Plane" button in header
+      3. Export confirmation modal shows: summary of what will be created
+         (e.g., 4 modules, 12 work items, 35 sub-work items)
+      4. User optionally selects a Plane cycle for assignment
+      5. User clicks "Dry Run" to validate without creating items
+      6. Dry run shows: "All items valid, ready to push"
+      7. User clicks "Push to Plane" primary button
+      8. Progress indicator shows items being created (POST /api/plane/push)
+      9. Completion message: "Created 4 modules, 12 work items, 35 sub-work items"
+      10. Session status updated to "exported", tree nodes show Plane IDs
+    </user_flow_4>
+
+    <user_flow_5>
+      <title>Resume Existing Session</title>
+      1. User returns to the application, sees session list
+      2. Session list shows: "My App Discovery" - greenpaper, Phase 3, 24 entities, updated 2h ago
+      3. User clicks the session card
+      4. Loading state: skeleton chat messages and tree loading
+      5. Conversation history loads (GET /api/sessions/{id}/messages)
+      6. Entity hierarchy loads (GET /api/sessions/{id}/entities)
+      7. Split-screen shows full conversation history on left, complete tree on right
+      8. Phase indicator shows Phase 3 (Feature Decomposition)
+      9. Chat is ready for new messages, tree is interactive
+      10. User continues the conversation where they left off
+    </user_flow_5>
+  </key_interactions>
+
+  <implementation_steps>
+    <step number="1">
+      <title>Project Scaffolding and Database</title>
+      <tasks>
+        - Initialize React + Vite + TypeScript frontend with Tailwind CSS and shadcn/ui
+        - Set up FastAPI backend with uvicorn, CORS middleware, and router structure
+        - Create Docker Compose file with PostgreSQL 15 service
+        - Configure SQLAlchemy 2.0 with asyncpg driver and async session factory
+        - Create Alembic migration configuration and initial migration with all 5 tables
+        - Implement health check endpoint with database connection verification
+        - Create .env.example with all required environment variables
+        - Write init.sh script for one-command development environment startup
+        - Set up Vite proxy for /api/* requests to FastAPI backend
+      </tasks>
+    </step>
+
+    <step number="2">
+      <title>Plane Integration and Claude API Setup</title>
+      <tasks>
+        - Install and configure plane-sdk Python package
+        - Implement Plane client wrapper with credential validation
+        - Create Plane API endpoints: test-connection, modules, work-items, cycles
+        - Install and configure anthropic Python SDK
+        - Implement Claude streaming chat endpoint with SSE response
+        - Create conversation history management with token tracking
+        - Build system prompt construction for each of the 6 phases
+        - Implement Claude API error handling with retry logic
+        - Create configuration endpoints for Plane and Claude settings
+      </tasks>
+    </step>
+
+    <step number="3">
+      <title>Phased Prompt System and Session Management</title>
+      <tasks>
+        - Implement phase transition logic with structured output markers
+        - Create phase-specific system prompts for all 6 phases
+        - Implement brownpaper mode: Onboarding output loading and parsing
+        - Implement greenpaper mode: blank start with vision interview prompts
+        - Build Claude structured output schema with strict:true enforcement
+        - Create entity extraction from Claude structured output
+        - Implement session CRUD endpoints (create, read, update, delete, list)
+        - Add auto-save for conversation and entity state
+        - Build session status tracking and phase management
+      </tasks>
+    </step>
+
+    <step number="4">
+      <title>Chat Interface and Hierarchy Tree View</title>
+      <tasks>
+        - Install and configure assistant-ui React package
+        - Build chat interface with streaming message display
+        - Implement user input handling with markdown rendering
+        - Create phase indicator component with progress visualization
+        - Build hierarchy tree view component with expand/collapse
+        - Implement live tree updates via SSE subscription
+        - Create entity detail panel with edit capabilities
+        - Implement drag-and-drop reorder for tree nodes
+        - Build confidence color coding and entity type badges
+        - Add entity count badges on parent nodes
+      </tasks>
+    </step>
+
+    <step number="5">
+      <title>Split-Screen Layout, Export, and Polish</title>
+      <tasks>
+        - Build resizable split-panel layout with draggable divider
+        - Implement responsive layout with mobile tab toggle
+        - Create header bar with session info and action buttons
+        - Build session list page as the landing view
+        - Implement Push to Plane workflow with dry run validation
+        - Create export confirmation modal with cycle selection
+        - Add keyboard shortcuts for panel focus and common actions
+        - Implement error handling UI (toasts, modals, error boundaries)
+        - Set up dark mode support with system preference detection
+        - Configure pytest backend tests and vitest frontend tests
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <criterion number="1">
+      Health check endpoint returns database connected status and the application starts
+      without errors using the init.sh script (Docker PostgreSQL, FastAPI backend, Vite frontend).
+    </criterion>
+
+    <criterion number="2">
+      Database schema is created via Alembic migration with all 5 tables (sessions,
+      discovery_entities, acceptance_criteria, conversation_messages, onboarding_context)
+      and all indexes. Data persists across application restarts.
+    </criterion>
+
+    <criterion number="3">
+      Plane SDK integration works: test-connection validates credentials, modules endpoint
+      returns existing Plane modules, work-items endpoint returns items with pagination,
+      cycles endpoint returns available cycles.
+    </criterion>
+
+    <criterion number="4">
+      Claude API streaming works: sending a message to POST /api/sessions/{id}/message
+      returns an SSE stream with token-by-token response, and the complete response is
+      stored in conversation_messages with accurate token counts.
+    </criterion>
+
+    <criterion number="5">
+      Phased prompt system correctly advances through 6 phases. Each phase uses the
+      appropriate system prompt. Phase transitions are tracked per session and persist
+      across browser refreshes.
+    </criterion>
+
+    <criterion number="6">
+      Brownpaper mode loads Onboarding output from a specified directory path, parses
+      markdown files into structured entities in onboarding_context, and presents
+      findings to the user via Claude for confirmation.
+    </criterion>
+
+    <criterion number="7">
+      Greenpaper mode starts with a blank session and Claude conducts a structured
+      vision interview, generating an initial hierarchy of at least 2 epics, 5 features,
+      and 10 stories after sufficient user input.
+    </criterion>
+
+    <criterion number="8">
+      Chat interface displays user and assistant messages with proper styling, supports
+      markdown rendering, streams assistant responses with typing indicator, and loads
+      conversation history when resuming a session.
+    </criterion>
+
+    <criterion number="9">
+      Hierarchy tree view displays the entity hierarchy with proper nesting (Epic >
+      Feature > Story > Task), expand/collapse functionality, confidence color coding
+      (green/amber/red), and entity count badges on parent nodes.
+    </criterion>
+
+    <criterion number="10">
+      Live SSE updates work: when Claude generates new entities during conversation,
+      they appear in the tree view in real-time without page refresh. Entity updates
+      (name, description, confidence) also reflect in real-time.
+    </criterion>
+
+    <criterion number="11">
+      Split-screen layout has resizable panels with draggable divider, minimum panel
+      widths of 300px, and responsive stacking on mobile (below 768px) with tab toggle
+      between chat and tree views.
+    </criterion>
+
+    <criterion number="12">
+      Claude structured output with strict:true returns valid DiscoveryEntity hierarchies.
+      Malformed responses trigger retry with correction prompt. Entity type nesting rules
+      are enforced (epics contain features, features contain stories, stories contain tasks).
+    </criterion>
+
+    <criterion number="13">
+      Session management works: create new sessions with mode selection, resume existing
+      sessions with full conversation and hierarchy state restored, delete sessions with
+      soft-delete, and list sessions with search and sort by updated_at.
+    </criterion>
+
+    <criterion number="14">
+      Push to Plane creates modules (from epics), work items (from features), and
+      sub-work items (from stories) in the configured Plane project. Dry run mode
+      validates without creating items. Optional cycle assignment works correctly.
+    </criterion>
+
+    <criterion number="15">
+      Error handling covers all failure modes: Claude API errors show user-friendly
+      messages with retry, SSE reconnects automatically after disconnection, input
+      validation prevents invalid data submission, and API errors return consistent
+      JSON error format.
+    </criterion>
+  </success_criteria>
+</project_specification>

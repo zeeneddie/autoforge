@@ -559,3 +559,157 @@ Connectors per platform zouden een **adapter-patroon** volgen:
 ```
 
 De twee flows (initieel en doorlopend) gebruiken dezelfde onderliggende infrastructuur: Plane als SSOT, AutoForge als executie-engine, PM Dashboard als monitoring. Het verschil zit in de **ingang** (Discovery Tool vs. intake formulier) en de **routing** (altijd via Discovery vs. direct naar Plane).
+
+---
+
+## Strategische Architectuurkeuzes
+
+### Multi-tenancy: schema-per-tenant
+
+MarQed.ai bedient meerdere klanten, elk met meerdere applicaties. Data-isolatie is een harde eis: klanten mogen elkaars data niet zien.
+
+**Aanpak: single platform, multi-tenant met schema-per-tenant in PostgreSQL.**
+
+```
+Tenant "Acme Corp"                    Tenant "Beta BV"
+  schema: tenant_acme                   schema: tenant_beta
+  ├── sessions                          ├── sessions
+  ├── discovery_entities                ├── discovery_entities
+  ├── acceptance_criteria               ├── acceptance_criteria
+  ├── conversation_messages             ├── conversation_messages
+  └── onboarding_context                └── onboarding_context
+```
+
+| Aspect | Multi-tenant (1 platform) | Per-klant (N platforms) |
+|--------|--------------------------|------------------------|
+| Data-isolatie | Schema-per-tenant | Volledige isolatie |
+| Infra kosten | Laag (1 deployment) | Hoog (N deployments) |
+| Updates uitrollen | 1x deployen | N keer deployen |
+| Schaalbaarheid | Horizontaal schalen | Lineair duurder |
+| Compliance | Complexer maar haalbaar | Eenvoudiger |
+
+Voordelen schema-per-tenant:
+- Volledige data-isolatie (geen per-ongeluk cross-tenant queries)
+- Eenvoudig te backuppen/restoren per klant
+- Een deployment, een codebase
+- Kan later naar dedicated DB per klant als een enterprise klant dat eist
+
+**Rechtenmodel per applicatie:**
+
+```
+Klant (tenant)
+  └── Applicatie
+       ├── Team (leden + rollen)
+       └── Rechten per niveau:
+            ├── Epic:    wie mag aanmaken / wijzigen / verwijderen
+            ├── Feature: wie mag aanmaken / wijzigen / verwijderen
+            └── Story:   wie mag aanmaken / wijzigen / verwijderen
+```
+
+Drie rollen per applicatie:
+- **Viewer**: read-only (CRUD fase 1)
+- **Editor**: intake + wijzigen (CRUD fase 2)
+- **Admin**: volledige CRUD + team beheer (CRUD fase 3)
+
+### Per-applicatie AI Team Profielen
+
+Elke applicatie heeft een eigen tech stack en daarom een eigen team van AI-experts. Dit breidt het AutoForge per-agent-type model concept uit naar een **team-profiel per applicatie**:
+
+```
+Applicatie "Webshop" (React + Python + PostgreSQL):
+  Team profiel:
+    - Coding agent:    claude-opus-4-6 (complex logic)
+    - Testing agent:   claude-sonnet-4-5 (fast test generation)
+    - Initializer:     claude-opus-4-6 (accurate decomposition)
+    - Code reviewer:   claude-opus-4-6 (quality gate)
+    - Prompt context:  "React 18, Python 3.12, PostgreSQL 15, REST API"
+
+Applicatie "Mobile App" (React Native + Firebase):
+  Team profiel:
+    - Coding agent:    claude-opus-4-6
+    - Testing agent:   claude-sonnet-4-5
+    - Prompt context:  "React Native 0.73, Firebase, Expo"
+```
+
+Team-profielen zijn templates die je kunt hergebruiken en rouleren tussen applicaties. De prompt context wordt meegegeven aan alle agents zodat ze gespecialiseerd zijn in de juiste tech stack.
+
+### War Room: real-time monitoring op 3-4 monitoren
+
+Voor het kantoor/operatiecentrum: de hele pipeline live volgen op meerdere schermen.
+
+```
+Monitor 1: INTAKE          Monitor 2: PLANNING         Monitor 3: EXECUTIE        Monitor 4: KWALITEIT
++-------------------+    +-------------------+     +-------------------+     +-------------------+
+| Nieuwe items      |    | Plane Backlog     |     | AutoForge Status  |     | Test Results      |
+| FP Budget meter   |    | Sprint Board      |     | Actieve agents    |     | Pass/Fail rates   |
+| Wachtrij          |    | Prioriteiten      |     | Live code output  |     | Review queue      |
+| Intake trend      |    | Sprint progress   |     | Build logs        |     | Kwaliteitsmetrics |
++-------------------+    +-------------------+     +-------------------+     +-------------------+
+```
+
+**Design principes:**
+- **Dashboard-first design** met consistent design system (shadcn/ui)
+- **Dark theme** voor monitors/TV's (betere leesbaarheid op afstand)
+- **Card-based grid layout**, grote getallen, status-kleuren (groen/oranje/rood)
+- **Grote typography** (leesbaar op 3m afstand), monospace voor code/logs
+- **Real-time updates** via WebSocket of SSE zonder page refresh
+- **Kiosk mode**: fullscreen, auto-rotate tussen views, geen navigatie nodig
+
+### Supervisor Agent
+
+Een meta-agent die boven de individuele agents staat en het hele proces bewaakt:
+
+```
+                    SUPERVISOR AGENT
+                    (process orchestrator)
+                           |
+          +----------------+----------------+
+          |                |                |
+     Discovery Tool    Plane Sync      AutoForge
+     (quality check    (prioriteit     (agent health,
+      op requirements)  optimalisatie)  stuck detection)
+```
+
+**Verantwoordelijkheden:**
+
+1. **Monitort:** Ziet alle lopende processen, detecteert bottlenecks en failures
+2. **Ingrijpt:** Als een coding agent vastloopt, stelt de supervisor een andere aanpak voor
+3. **Optimaliseert:** Analyseert historische data en stelt procesverbeteringen voor
+4. **Rapporteert:** Geeft management-niveau inzichten ("Sprint 8a loopt 20% achter op schema")
+5. **Kwaliteit bewaakt:** Review van AI-output voordat het naar de klant gaat
+
+**Fasering:**
+- Fase 1 (minimaal): alerting bij failures + stuck detection
+- Fase 2: proactieve suggesties, automatische herplanning
+- Fase 3: kwaliteitsgate, automatische escalatie, management rapportage
+
+### Dev/Prod Deployment: twee omgevingen
+
+```
+DEV (huidige machine)                    PROD (p920 / marqed003)
++-------------------------------+       +-------------------------------+
+| AutoForge (source, ./venv/)   |       | AutoForge (npm global)        |
+| Plane (Docker, localhost:8080)|       | Plane (Docker, :8080)         |
+| MarQed Discovery (source)     |       | MarQed Discovery (gebouwd)    |
+| Claude Code (dev tools)       |       | Claude CLI (agents)           |
+| SQLite (~/.autoforge/)        |       | SQLite (~/.autoforge/)        |
++-------------------------------+       +-------------------------------+
+         ontwikkelen                          valideren + draaien
+```
+
+**Deployment stappen p920:**
+
+1. `npm install -g autoforge-ai` (CLI + backend + UI)
+2. `autoforge config` (stel .env in: Claude API key, Plane URL)
+3. Plane Docker Compose opzetten op p920
+4. MarQed import tree importeren in Plane
+5. AutoForge agents starten op marqed-discovery project
+6. Validatie: volledige pipeline draait vanaf scratch
+
+**Vereisten:**
+- `AUTOFORGE_ALLOW_REMOTE=1` in .env op p920
+- Firewall: poort 8888 (AutoForge) + 8080 (Plane) open binnen intern netwerk
+- SSH toegang voor deployment en monitoring
+- Git repo voor marqed-discovery project
+
+De p920 deployment valideert dat het platform reproduceerbaar is: als alles op een verse machine draait, is het platform klaar voor klant-deployments.

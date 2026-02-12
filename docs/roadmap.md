@@ -208,66 +208,114 @@ Analytics view als derde view-modus naast Kanban en Dependency Graph. Test repor
 
 ---
 
-## Sprint 8: Discovery Tool + PM Dashboard (Standalone Project) -- PLANNED
+## Sprint 8a: Discovery Tool Foundation -- PLANNED
 
-> Doel: Standalone requirements gathering tool met brownpaper/greenpaper modi, plus hiërarchisch PM Dashboard. Bidirectioneel met Plane.
-
-De Discovery Tool en het PM Dashboard zijn **aparte projecten** (niet in AutoForge) die samen de PM-facing kant van het MarQed.ai platform vormen:
-
-- **Discovery Tool** leidt PMs door requirements gathering in twee modi: **brownpaper** (bestaande codebase, bevestig Onboarding-bevindingen + interview) en **greenpaper** (nieuwbouw, blanco + interview).
-- **PM Dashboard** biedt een hiërarchisch overzicht met 4-niveau drill-down (Applicatie -> Epic -> Feature -> Story), metriek per niveau, en configureerbare CRUD-rechten.
-
-**Architectuurbeslissing:** geen Eververse fork (te zware Supabase-ontkoppeling, geen hiërarchie, solo maintainer). In plaats daarvan: lichtgewicht standalone tool met bewezen bouwstenen.
+> Doel: Project opzet en kern-backend voor de Discovery Tool. Database, Plane integratie, Claude API, en het gefaseerde prompt systeem.
 
 | # | Item | Status |
 |---|---|---|
-| 8.1 | Project setup: nieuw repo, React + assistant-ui + shadcn/ui frontend, FastAPI backend, PostgreSQL in Docker | planned |
-| 8.2 | Plane SDK integratie: bestaande backlog inladen (modules, work items, sub-work items) | planned |
-| 8.3 | AI chat backend: Claude API via FastAPI, BMAD-stijl gefaseerde prompts, brownpaper (bevestig Onboarding + interview) en greenpaper (blanco + interview) modi | planned |
-| 8.4 | UI: split-screen -- links conversational chat (assistant-ui), rechts live hiërarchie-boom | planned |
-| 8.5 | UI: wizard voortgangsindicator (fasen 1-6) + gestructureerde vraag/antwoord cards | planned |
-| 8.6 | Gestructureerd output schema (Claude structured outputs, `strict: true`) voor Epic → Feature → Story → Task | planned |
-| 8.7 | Micro feature validatie: AI decomposeert tot items van max 2 uur bouwen + testen | planned |
-| 8.8 | Confidence scoring: AI markeert onzekere items visueel (oranje/rood) voor review-aandacht | planned |
-| 8.9 | Push naar Plane: modules, work items, sub-work items, cycle assignment via Plane Python SDK | planned |
-| 8.10 | Multi-sessie support: sessies opslaan in PostgreSQL, hervatten over meerdere dagen | planned |
-| 8.11 | Aggregatie API: data ophalen uit Plane (modules, work items, sub-items, cycles), AutoForge (test results), Onboarding (IFPUG functiepunten) | planned |
-| 8.12 | Dashboard UI: 4-niveau drill-down (Applicatie → Epic → Feature → Story) met breadcrumb navigatie | planned |
-| 8.13 | Metriek per niveau: aantal children, FP (IFPUG), tests per categorie (unit/integration/e2e), fase-status | planned |
-| 8.14 | Configureerbare CRUD-modus: read-only (fase 1), add+view (fase 2), full CRUD (fase 3) — per klant instelbaar | planned |
-
-**Tech stack:**
-
-| Laag | Keuze | Reden |
-|------|-------|-------|
-| Frontend | React + assistant-ui + shadcn/ui | Bewezen chat components, onze design patterns, MIT |
-| Backend | FastAPI (Python) | Claude SDK, Plane SDK, consistentie |
-| Database | PostgreSQL in Docker | Sessie opslag, discovery state, alles lokaal |
-| AI | Claude API | BMAD-stijl prompts als gefaseerde workflow |
-| PM koppeling | Plane Python SDK (v0.2.0) | Bidirectioneel lezen/schrijven |
-| Kennis | Onboarding MD files (mount/read) | Codebase context voor AI |
+| 8a.1 | Project setup: React + assistant-ui + shadcn/ui frontend, FastAPI backend, PostgreSQL in Docker | planned |
+| 8a.2 | Database schema: sessions, entities, AC, messages, onboarding_context tabellen + Alembic migrations | planned |
+| 8a.3 | Plane SDK integratie: lees modules, work items, sub-work items, cycles uit geconfigureerd project | planned |
+| 8a.4 | Claude API backend: SDK setup, streaming endpoint, token tracking | planned |
+| 8a.5 | Phased prompt system: context gathering, scope, decomposition, refinement, validation, export | planned |
+| 8a.6 | Structured output schema: Claude `strict: true` voor Epic/Feature/Story generatie | planned |
 
 **Acceptatiecriteria:**
-1. Open Discovery UI, beantwoord 5-10 vragen over een nieuw project
-2. AI genereert hiërarchie: minimaal 2 epics, 5 features, 15 stories met acceptance criteria
-3. Elke story is max 2 uur te bouwen + testen (micro feature principe)
-4. Hiërarchie-boom groeit live mee in rechter paneel tijdens het gesprek
-5. Bestaande Plane backlog inladen en verfijnen werkt
-6. Onzekere items zijn visueel gemarkeerd (confidence scoring)
-7. "Push naar Plane" maakt modules, work items, sub-work items aan in correcte structuur
-8. Sessie afsluiten en volgende dag hervatten werkt zonder dataverlies
-9. Niet-technische gebruiker kan het proces doorlopen zonder CLI-kennis
-10. Dashboard: PM kan van Applicatie-niveau doorklikken naar Epic → Feature → Story
-11. Dashboard: elk niveau toont aantal children, IFPUG functiepunten, tests per categorie, en fase-status
-12. Dashboard: breadcrumb navigatie werkt correct op alle niveaus
-13. Dashboard: CRUD-modus is configureerbaar per klant (standaard read-only)
-14. Aggregatie API: combineert data uit Plane, AutoForge test results, en Onboarding IFPUG bron
-
-**Later (als workflows complexer worden):** evalueer migratie van assistant-ui naar CopilotKit voor generative UI en CoAgents support.
+1. `npm run dev` serves frontend, `uvicorn` serves backend, PostgreSQL runs in Docker
+2. Alembic migrations create all 5 tables
+3. Plane SDK reads modules, work items, and cycles from configured project
+4. Claude API streaming endpoint delivers tokens via SSE
+5. Phase 1 prompt gathers project context through conversational questions
+6. Phases 2-6 prompts produce increasingly refined entity hierarchy
+7. Brownpaper mode loads Onboarding output as initial context
+8. Greenpaper mode starts blank with open-ended questions
+9. Structured output returns validated Epic/Feature/Story JSON
+10. Token usage tracked per message and per session
 
 ---
 
-## Sprint 9: Intake & Traceerbaarheid -- PLANNED
+## Sprint 8b: Discovery Tool Completion -- PLANNED
+
+> Doel: UI-laag, validatie, confidence scoring, Plane write-back, en multi-sessie support.
+
+| # | Item | Status |
+|---|---|---|
+| 8b.1 | Chat interface: assistant-ui setup, message streaming display, user input handling | planned |
+| 8b.2 | Hierarchy tree view: tree component, live SSE updates, expand/collapse | planned |
+| 8b.3 | Split-screen layout: resizable panels, responsive, keyboard shortcuts | planned |
+| 8b.4 | Wizard progress indicator: phases 1-6 visualization, current phase highlight | planned |
+| 8b.5 | Micro feature validation: AI decomposition check -- max 2hr per story | planned |
+| 8b.6 | Confidence scoring: uncertain items highlighted orange/red | planned |
+| 8b.7 | Push to Plane: write modules, work items, sub-work items, cycle assignment | planned |
+| 8b.8 | Multi-session support: PostgreSQL persistence, resume sessions | planned |
+
+**Acceptatiecriteria:**
+1. Chat messages stream in real-time via assistant-ui components
+2. Hierarchy tree grows live as AI generates entities
+3. Split-screen with resizable drag handle, responsive mobile fallback
+4. Phase indicator shows current phase with progress visualization
+5. AI flags stories estimated >2 hours for further decomposition
+6. Low-confidence entities shown with visual indicator (orange/red badges)
+7. "Push to Plane" creates modules, work items, sub-items in correct hierarchy
+8. Sessions persist across browser refreshes and server restarts
+9. Non-technical PM can complete full requirements workflow without CLI
+10. Keyboard shortcuts: Enter send, Shift+Enter newline, Cmd+S manual save
+
+---
+
+## Sprint 8c: PM Dashboard -- PLANNED
+
+> Doel: Hiërarchisch PM Dashboard met 4-niveau drill-down, aggregatie uit meerdere bronnen, en configureerbare CRUD-rechten.
+
+| # | Item | Status |
+|---|---|---|
+| 8c.1 | Aggregation API: data from Plane hierarchy + AutoForge test results + Onboarding IFPUG FP | planned |
+| 8c.2 | Dashboard UI: 4-level drill-down (Application > Epic > Feature > Story) | planned |
+| 8c.3 | Breadcrumb navigation across all hierarchy levels | planned |
+| 8c.4 | Metrics per level: children count, FP sum, tests per category, phase status | planned |
+| 8c.5 | Configurable CRUD mode: read-only fase 1, add+view fase 2, full CRUD fase 3 | planned |
+
+**Acceptatiecriteria:**
+1. Aggregation API combines data from Plane, AutoForge, and Onboarding sources
+2. Dashboard shows Application level with summary of all epics, features, stories
+3. Click epic drills down to show features with their metrics
+4. Click feature drills down to show stories with individual metrics
+5. Breadcrumb navigation works correctly at all 4 levels
+6. Each level displays: children count, FP (IFPUG), tests per category, phase status
+7. CRUD mode configurable per tenant (default: read-only)
+8. Phase 2 CRUD allows adding new items via inline forms
+9. Phase 3 CRUD enables full edit and delete operations
+10. Dashboard loads within 2 seconds for projects with 100+ entities
+
+---
+
+## Sprint 9: Platform Architecture -- PLANNED
+
+> Doel: Multi-tenancy foundations, team profiles, and deployment infrastructure.
+
+| # | Item | Status |
+|---|---|---|
+| 9.1 | Multi-tenancy database: schema-per-tenant PostgreSQL, tenant context middleware | planned |
+| 9.2 | Tenant management API: create/list/configure tenants, admin endpoints | planned |
+| 9.3 | Per-application team profiles: AI model selection per app, prompt context per stack | planned |
+| 9.4 | Authentication & authorization: tenant-scoped login, role-based access (viewer/editor/admin) | planned |
+| 9.5 | Deployment automation: npm package, Docker Compose for Plane, setup CLI | planned |
+| 9.6 | p920 production validation: fresh install test, reproducibility check | planned |
+
+**Acceptatiecriteria:**
+1. Each tenant gets isolated PostgreSQL schema, no cross-tenant data access
+2. Tenant admin can create/configure tenants and assign users
+3. Team profiles specify AI models and prompt context per application
+4. Role-based access: viewer (read-only), editor (intake + modify), admin (full CRUD + team management)
+5. `npm install -g autoforge-ai` + `autoforge config` sets up a working instance
+6. Plane Docker Compose starts with correct configuration
+7. p920 production server runs complete pipeline from scratch
+8. Dev and prod environments are fully independent
+
+---
+
+## Sprint 10: Intake & Traceerbaarheid -- PLANNED
 
 > Doel: PM kan requirements, changes en bugs invoeren via het PM Dashboard, met volledige traceerbaarheid en automatische routing.
 
@@ -277,16 +325,16 @@ Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specif
 
 | # | Item | Status |
 |---|---|---|
-| 9.1 | Intake formulier UI: type selectie (requirement / change / bug), titel, omschrijving, prioriteit, automatische koppeling aan parent item. Na formulier: AI FP-inschatting met budget-indicator (maandbudget, verbruikt, beschikbaar) en PM review stap (aanpassen, bevestigen, annuleren) | planned |
-| 9.2 | Intake API: Plane work items aanmaken met type labels (`intake:bug`, `intake:change`, `intake:requirement`), parent relatie, bron metadata (`source:pm-dashboard`, PM naam, timestamp) | planned |
-| 9.3 | Intake routing: requirements → Discovery Tool (brownpaper) voor decompositie; changes en bugs → direct naar Plane cycle | planned |
-| 9.4 | Audit trail: volledige event history per intake item als Plane work item comments (INTAKE → PLAN → BUILD → TEST → REVIEW → DONE) | planned |
-| 9.5 | Intake overzicht panel: lijst van alle intake items met status, type, prioriteit, FP, gekoppeld item, en laatste actie -- naast de bestaande hiërarchie-view. Inclusief FP-verbruik tracking per periode. | planned |
-| 9.6 | Prioriteit-escalatie: critical bugs gaan voor in de huidige cycle; low-prio requirements naar backlog | planned |
-| 9.7 | Intake metriek: aantal open/actief/afgerond per type, gemiddelde doorlooptijd per type, in sprint metrics | planned |
-| 9.8 | Helpdesk connector architectuur: API spec + adapter-patroon voor externe ITSM-integratie (design document, implementatie later) | planned |
-| 9.9 | FP-estimatie engine: AI-inschatting op basis van beschrijving-analyse (NLP), historische data (gemiddelde FP vergelijkbare items), en Onboarding IFPUG data (FP van parent-item). Confidence scoring bij beperkte bronnen. Admin-override: MarQed-admins kunnen FP-inschattingen challengen en handmatig corrigeren. | planned |
-| 9.10 | FP-budget dashboard: maandbudget meter (verbruikt/ingepland/beschikbaar), overschrijdingsbeveiliging (waarschuwing, blokkade, intake uitgeschakeld bij 0 FP). Integreert met FP-abonnementsmodel. | planned |
+| 10.1 | Intake formulier UI: type selectie (requirement / change / bug), titel, omschrijving, prioriteit, automatische koppeling aan parent item. Na formulier: AI FP-inschatting met budget-indicator (maandbudget, verbruikt, beschikbaar) en PM review stap (aanpassen, bevestigen, annuleren) | planned |
+| 10.2 | Intake API: Plane work items aanmaken met type labels (`intake:bug`, `intake:change`, `intake:requirement`), parent relatie, bron metadata (`source:pm-dashboard`, PM naam, timestamp) | planned |
+| 10.3 | Intake routing: requirements → Discovery Tool (brownpaper) voor decompositie; changes en bugs → direct naar Plane cycle | planned |
+| 10.4 | Audit trail: volledige event history per intake item als Plane work item comments (INTAKE → PLAN → BUILD → TEST → REVIEW → DONE) | planned |
+| 10.5 | Intake overzicht panel: lijst van alle intake items met status, type, prioriteit, FP, gekoppeld item, en laatste actie -- naast de bestaande hiërarchie-view. Inclusief FP-verbruik tracking per periode. | planned |
+| 10.6 | Prioriteit-escalatie: critical bugs gaan voor in de huidige cycle; low-prio requirements naar backlog | planned |
+| 10.7 | Intake metriek: aantal open/actief/afgerond per type, gemiddelde doorlooptijd per type, in sprint metrics | planned |
+| 10.8 | Helpdesk connector architectuur: API spec + adapter-patroon voor externe ITSM-integratie (design document, implementatie later) | planned |
+| 10.9 | FP-estimatie engine: AI-inschatting op basis van beschrijving-analyse (NLP), historische data (gemiddelde FP vergelijkbare items), en Onboarding IFPUG data (FP van parent-item). Confidence scoring bij beperkte bronnen. Admin-override: MarQed-admins kunnen FP-inschattingen challengen en handmatig corrigeren. | planned |
+| 10.10 | FP-budget dashboard: maandbudget meter (verbruikt/ingepland/beschikbaar), overschrijdingsbeveiliging (waarschuwing, blokkade, intake uitgeschakeld bij 0 FP). Integreert met FP-abonnementsmodel. | planned |
 
 **Acceptatiecriteria:**
 1. PM navigeert naar Feature "Data Export" in Dashboard, klikt [+], kiest "Bug", vult formulier in → Plane work item aangemaakt met label `intake:bug` en parent relatie
@@ -304,7 +352,7 @@ Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specif
 13. Admin-override: MarQed-admins kunnen elke FP-inschatting challengen, corrigeren en de gecorrigeerde waarde als definitief markeren
 
 **Technische details:**
-- CRUD fase 2 (toevoegen + bekijken) is prerequisite -- implementatie uit Sprint 8.14
+- CRUD fase 2 (toevoegen + bekijken) is prerequisite -- implementatie uit Sprint 8c.5
 - Plane labels voor type-classificatie: `intake:bug`, `intake:change`, `intake:requirement`, `source:pm-dashboard`
 - Routing beslissing op client-side: requirement → redirect naar Discovery Tool met pre-filled context; change/bug → direct Plane API call
 - Audit trail events geschreven als Plane work item comments met gestructureerd formaat (timestamp, fase, actor, actie)
@@ -316,7 +364,7 @@ Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specif
 
 ---
 
-## Sprint 10: Feedback Loop & Knowledge Management -- PLANNED
+## Sprint 11: Feedback Loop & Knowledge Management -- PLANNED
 
 > Doel: Sluit de feedback loop (AutoForge → PM → Discovery) en bepaal waar Onboarding-kennis het beste opgeslagen en benut wordt.
 
@@ -324,14 +372,14 @@ De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien na
 
 | # | Item | Status |
 |---|---|---|
-| 10.1 | Feedback loop: AutoForge test resultaten + change docs als Plane work item comments | planned |
-| 10.2 | Feedback loop: Discovery Tool kan afgewezen Plane items + feedback inladen als context voor verfijning | planned |
-| 10.3 | Feedback loop: notificatie naar PM bij feature completion (Plane notificatie of email/Slack) | planned |
-| 10.4 | **Analyse**: inventariseer alle kennis-artefacten die Onboarding oplevert (MD files, rapporten, metrics, IFPUG FP) | planned |
-| 10.5 | **Analyse**: bepaal optimale opslaglocatie(s) -- project-level `.knowledge/` folder, Plane wiki, of Discovery DB | planned |
-| 10.6 | **Analyse**: bepaal hoe Discovery Tool en PM Dashboard Onboarding-kennis consumeren (context injection, RAG, of directe file reads) | planned |
-| 10.7 | Implementatie: kennis-pipeline Onboarding → opslag → Discovery Tool + PM Dashboard context | planned |
-| 10.8 | Finetuning: evalueer of feedback loop en kennis-integratie werkt in de praktijk, pas aan waar nodig | planned |
+| 11.1 | Feedback loop: AutoForge test resultaten + change docs als Plane work item comments | planned |
+| 11.2 | Feedback loop: Discovery Tool kan afgewezen Plane items + feedback inladen als context voor verfijning | planned |
+| 11.3 | Feedback loop: notificatie naar PM bij feature completion (Plane notificatie of email/Slack) | planned |
+| 11.4 | **Analyse**: inventariseer alle kennis-artefacten die Onboarding oplevert (MD files, rapporten, metrics, IFPUG FP) | planned |
+| 11.5 | **Analyse**: bepaal optimale opslaglocatie(s) -- project-level `.knowledge/` folder, Plane wiki, of Discovery DB | planned |
+| 11.6 | **Analyse**: bepaal hoe Discovery Tool en PM Dashboard Onboarding-kennis consumeren (context injection, RAG, of directe file reads) | planned |
+| 11.7 | Implementatie: kennis-pipeline Onboarding → opslag → Discovery Tool + PM Dashboard context | planned |
+| 11.8 | Finetuning: evalueer of feedback loop en kennis-integratie werkt in de praktijk, pas aan waar nodig | planned |
 
 **Acceptatiecriteria:**
 1. Feature completion in AutoForge → automatisch comment op Plane work item met test resultaten
@@ -343,25 +391,43 @@ De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien na
 
 ---
 
-## Sprint 11: Twee-Sporen Review Workflow -- PLANNED
+## Sprint 12: Twee-Sporen Review Workflow -- PLANNED
 
 > Doel: Implementeer business review (PM) + technisch review (Git PR) voordat Discovery output naar Plane gaat.
 
 | # | Item | Status |
 |---|---|---|
-| 11.1 | **Analyse**: welke review stappen zijn noodzakelijk vs. nice-to-have? | planned |
-| 11.2 | **Analyse**: wie voert welke actie uit? (PM business review, tech lead Git PR review) | planned |
-| 11.3 | **Analyse**: wat is user-friendly voor niet-technische PM? (Discovery UI review vs. gedeelde link vs. export) | planned |
-| 11.4 | Business review: PM keurt hiërarchie goed in Discovery Tool UI (approve/reject per epic/feature) | planned |
-| 11.5 | Technisch review: Discovery output exporteren als markdown in Git branch + PR creatie | planned |
-| 11.6 | Na beide goedkeuringen: automatisch naar Plane pushen | planned |
-| 11.7 | Workflow documentatie: rolbeschrijvingen (wie doet wat wanneer) | planned |
+| 12.1 | **Analyse**: welke review stappen zijn noodzakelijk vs. nice-to-have? | planned |
+| 12.2 | **Analyse**: wie voert welke actie uit? (PM business review, tech lead Git PR review) | planned |
+| 12.3 | **Analyse**: wat is user-friendly voor niet-technische PM? (Discovery UI review vs. gedeelde link vs. export) | planned |
+| 12.4 | Business review: PM keurt hiërarchie goed in Discovery Tool UI (approve/reject per epic/feature) | planned |
+| 12.5 | Technisch review: Discovery output exporteren als markdown in Git branch + PR creatie | planned |
+| 12.6 | Na beide goedkeuringen: automatisch naar Plane pushen | planned |
+| 12.7 | Workflow documentatie: rolbeschrijvingen (wie doet wat wanneer) | planned |
 
 **Acceptatiecriteria:**
 1. PM kan in Discovery Tool de voorgestelde hiërarchie reviewen en goedkeuren/afwijzen
 2. Tech lead ontvangt Git PR met leesbare markdown samenvatting
 3. Items worden pas naar Plane gepusht na beide goedkeuringen
 4. Workflow is gedocumenteerd met duidelijke rolbeschrijvingen
+
+---
+
+## Sprint 13: War Room Dashboards -- PLANNED
+
+> Doel: Real-time monitoring dashboards geoptimaliseerd voor meerdere schermen en war room omgevingen.
+
+- Real-time monitoring across 4 monitors (Intake, Planning, Execution, Quality)
+- WebSocket/SSE live updates, kiosk mode, dark theme optimized for TV displays
+
+---
+
+## Sprint 14: Supervisor Agent -- PLANNED
+
+> Doel: Meta-agent die alle processen bewaakt, vastlopers detecteert, en management-level rapportages genereert.
+
+- Meta-agent monitoring all processes, stuck detection, process optimization
+- Management-level reporting, quality gate before delivery
 
 ---
 
