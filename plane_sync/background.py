@@ -40,6 +40,8 @@ class PlaneSyncLoop:
         self._webhook_count: int = 0
         # Per-project status tracking
         self._per_project_status: dict[str, dict] = {}
+        # Per-project last sync time for respecting individual poll intervals
+        self._last_sync_time: dict[str, float] = {}
 
     @property
     def running(self) -> bool:
@@ -149,13 +151,25 @@ class PlaneSyncLoop:
             status["sprint_stats"] = None
 
     async def _sync_iteration(self) -> None:
-        """Run one sync cycle per project: outbound then inbound."""
+        """Run one sync cycle per project: outbound then inbound.
+
+        Respects per-project poll intervals — skips projects whose interval
+        has not yet elapsed since their last sync.
+        """
+        import time
+
         projects = self._get_registered_projects()
+        now = time.monotonic()
 
         for project_name, project_info in projects.items():
             config = self._get_project_config(project_name)
 
             if not config["enabled"]:
+                continue
+
+            # Respect per-project poll interval
+            last_sync = self._last_sync_time.get(project_name, 0.0)
+            if now - last_sync < config["poll_interval"]:
                 continue
 
             client = self._build_client(config)
@@ -182,6 +196,7 @@ class PlaneSyncLoop:
                     )
                     total_items += inbound_result.imported + inbound_result.updated
 
+                self._last_sync_time[project_name] = now
                 status = self._per_project_status.setdefault(project_name, {})
                 status["items_synced"] = total_items
                 status["last_sync_at"] = datetime.now(timezone.utc).isoformat()
@@ -193,6 +208,7 @@ class PlaneSyncLoop:
                 )
 
             except Exception as e:
+                self._last_sync_time[project_name] = now  # avoid retry-storm
                 status = self._per_project_status.setdefault(project_name, {})
                 status["last_error"] = str(e)
                 logger.error("Plane sync error for %s: %s", project_name, e, exc_info=True)
@@ -200,34 +216,26 @@ class PlaneSyncLoop:
                 client.close()
 
     async def _run_loop(self) -> None:
-        """Main loop that runs sync iterations on an interval."""
+        """Main loop that runs sync iterations on a short tick.
+
+        Uses a 5-second tick; _sync_iteration() respects each project's
+        individual poll_interval via _last_sync_time tracking.
+        """
         logger.info("Plane sync loop started")
         self._running = True
+        tick_interval = 5  # seconds between loop ticks
 
         try:
             while not self._stop_event.is_set():
-                # Check if any project has sync enabled
-                projects = self._get_registered_projects()
-                any_enabled = False
-                min_interval = 30
+                try:
+                    await self._sync_iteration()
+                except Exception as e:
+                    logger.error("Plane sync iteration failed: %s", e, exc_info=True)
 
-                for project_name in projects:
-                    config = self._get_project_config(project_name)
-                    if config["enabled"]:
-                        any_enabled = True
-                        min_interval = min(min_interval, config["poll_interval"])
-
-                if any_enabled:
-                    try:
-                        await self._sync_iteration()
-                    except Exception as e:
-                        logger.error("Plane sync iteration failed: %s", e, exc_info=True)
-
-                # Wait for the shortest poll interval or until stopped
                 try:
                     await asyncio.wait_for(
                         self._stop_event.wait(),
-                        timeout=min_interval,
+                        timeout=tick_interval,
                     )
                     break
                 except asyncio.TimeoutError:

@@ -209,6 +209,7 @@ def complete_sprint(
     client: PlaneApiClient,
     project_dir: Path,
     cycle_id: str,
+    project_name: str | None = None,
 ) -> SprintCompletionResult:
     """Complete a sprint: verify DoD, post retrospective, create git tag.
 
@@ -323,7 +324,10 @@ def complete_sprint(
         if str(root) not in sys.path:
             sys.path.insert(0, str(root))
         from registry import set_setting
-        set_setting(f"plane_sprint_completed_{cycle_id}", "true")
+        key = f"plane_sprint_completed_{cycle_id}"
+        if project_name:
+            key = f"{key}:{project_name}"
+        set_setting(key, "true")
     except Exception as e:
         logger.warning("Failed to store completion flag: %s", e)
 

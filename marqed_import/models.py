@@ -10,6 +10,7 @@ class MarQedImportRequest(BaseModel):
 
     marqed_dir: str  # Path to the MarQed project root
     cycle_id: str | None = None  # Optional: add all items to this cycle
+    project_name: str | None = None  # AutoForge project for per-project Plane config
 
 
 class MarQedImportEntityResult(BaseModel):

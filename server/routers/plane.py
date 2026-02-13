@@ -338,7 +338,7 @@ async def complete_sprint_endpoint(request: CompleteSprintRequest):
     client = _build_client(request.project_name)
     try:
         from plane_sync.completion import complete_sprint
-        result = complete_sprint(client, project_dir, cycle_id)
+        result = complete_sprint(client, project_dir, cycle_id, request.project_name)
         return result
     except PlaneApiError as e:
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
@@ -598,8 +598,15 @@ async def receive_webhook(request: Request):
             if not project_dir.exists():
                 continue
 
+            # Filter by source Plane project — skip if event is for a different project
+            project_plane_id = get_plane_setting("plane_project_id", pn)
+            event_project_id = data.get("project") or data.get("project_id")
+
             should_import = False
             if event_type in ("issue", "work_item") and action == "update":
+                # Only import if the event belongs to this project's Plane project
+                if event_project_id and project_plane_id and event_project_id != project_plane_id:
+                    continue
                 should_import = True
             elif event_type == "cycle" and action == "update" and data.get("id") == cycle_id:
                 should_import = True
@@ -650,7 +657,7 @@ async def marqed_import_endpoint(request: MarQedImportRequest):
             detail=f"MarQed directory not found: {request.marqed_dir}",
         )
 
-    client = _build_client()
+    client = _build_client(request.project_name)
     try:
         from marqed_import.importer import import_to_plane
         result = import_to_plane(client, marqed_dir, request.cycle_id)

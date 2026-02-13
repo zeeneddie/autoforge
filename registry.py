@@ -594,6 +594,18 @@ def set_setting(key: str, value: str) -> None:
     logger.debug("Set setting '%s' = '%s'", key, value)
 
 
+def delete_setting(key: str) -> None:
+    """Delete a setting by key. No-op if key doesn't exist."""
+    try:
+        with _get_session() as session:
+            setting = session.query(Settings).filter(Settings.key == key).first()
+            if setting:
+                session.delete(setting)
+                logger.debug("Deleted setting '%s'", key)
+    except Exception as e:
+        logger.warning("Failed to delete setting '%s': %s", key, e)
+
+
 def get_all_settings() -> dict[str, str]:
     """
     Get all settings as a dictionary.
@@ -627,11 +639,14 @@ _PER_PROJECT_PLANE_KEYS = [
 
 
 def get_plane_setting(key: str, project_name: str | None = None, default=None):
-    """Read a Plane setting. Per-project keys tried first, then global fallback."""
+    """Read a Plane setting.
+
+    For per-project keys: returns the project-scoped value only (no global fallback).
+    For shared keys (api_url, api_key, workspace_slug, webhook_secret): returns global value.
+    """
     if project_name and key in _PER_PROJECT_PLANE_KEYS:
         val = get_setting(f"{key}:{project_name}")
-        if val is not None:
-            return val
+        return val if val is not None else default
     return get_setting(key, default)
 
 
@@ -644,7 +659,10 @@ def set_plane_setting(key: str, value: str, project_name: str | None = None):
 
 
 def migrate_global_plane_settings():
-    """One-time migration: copy global per-project keys to first registered project."""
+    """One-time migration: copy global per-project keys to first registered project.
+
+    After migration, deletes the global keys to prevent silent fallback contamination.
+    """
     projects = list_registered_projects()
     if not projects:
         return
@@ -656,5 +674,8 @@ def migrate_global_plane_settings():
         if global_val and not per_project_val:
             set_setting(f"{key}:{first_project}", global_val)
             migrated = True
+        # Clean up global key to prevent fallback contamination
+        if global_val:
+            delete_setting(key)
     if migrated:
         logger.info("Migrated global Plane settings to project '%s'", first_project)
