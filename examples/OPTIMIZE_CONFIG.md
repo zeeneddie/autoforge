@@ -179,7 +179,7 @@ To see what you can reduce:
 
 ```bash
 # Count commands by prefix
-grep "^  - name:" .autoforge/allowed_commands.yaml | \
+grep "^  - name:" .mq-devengine/allowed_commands.yaml | \
   sed 's/^  - name: //' | \
   cut -d' ' -f1 | \
   sort | uniq -c | sort -rn

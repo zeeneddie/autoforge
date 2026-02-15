@@ -1,20 +1,20 @@
-# AutoForge
+# MQ DevEngine
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/leonvanzyl)
 
-A long-running autonomous coding agent powered by the Claude Agent SDK. AutoForge is the **execution engine** in the **MarQed.ai platform**: Onboarding (analysis) → Discovery Tool (requirements) → Plane (planning) → AutoForge (execution) → PM Dashboard (monitoring).
+A long-running autonomous coding agent powered by the Claude Agent SDK. MQ DevEngine is the **execution engine** in the **MarQed.ai platform**: Onboarding (analysis) → Discovery Tool (requirements) → Plane (planning) → MQ DevEngine (execution) → PM Dashboard (monitoring).
 
 ## Pipeline
 
 ```
 MarQed.ai Platform
-Onboarding → Discovery Tool → Plane (SSOT) ←→ AutoForge
+Onboarding → Discovery Tool → Plane (SSOT) ←→ MQ DevEngine
                                     |
                                PM Dashboard
-                          [Plane + AutoForge + Onboarding]
+                          [Plane + MQ DevEngine + Onboarding]
 ```
 
-**Onboarding** provides codebase analysis, knowledge, and IFPUG function points. **Discovery Tool** gathers requirements in two modes: brownpaper (existing codebase) and greenpaper (new build). **PM Dashboard** gives PMs a hierarchical drill-down view aggregating data from Plane, AutoForge, and Onboarding. See [platform-overview.md](docs/platform-overview.md) for the full diagram.
+**Onboarding** provides codebase analysis, knowledge, and IFPUG function points. **Discovery Tool** gathers requirements in two modes: brownpaper (existing codebase) and greenpaper (new build). **PM Dashboard** gives PMs a hierarchical drill-down view aggregating data from Plane, MQ DevEngine, and Onboarding. See [platform-overview.md](docs/platform-overview.md) for the full diagram.
 
 ## Design Principles
 
@@ -23,8 +23,8 @@ Onboarding → Discovery Tool → Plane (SSOT) ←→ AutoForge
 3. **Micro features (max 2 hours)** -- Every feature must be small enough to build and test within 2 hours, so users can review and course-correct quickly.
 4. **Fail fast, cycle short** -- Short cycles, fast feedback. Rejections flow back into Discovery immediately. Never work on the wrong thing for long.
 5. **Feedback loop always closes** -- Test results and user feedback flow back to Discovery. Every outcome leads to a next action. No dead ends.
-6. **Separation of duties** -- Each tool has exactly one responsibility: Onboarding (analyze), Discovery (gather), PM Dashboard (monitor), Plane (plan), AutoForge (build).
-7. **Two audiences** -- PMs see Discovery Tool + PM Dashboard + Plane. Developers manage Onboarding + AutoForge. Developers share outcomes with PMs via Plane and the PM Dashboard.
+6. **Separation of duties** -- Each tool has exactly one responsibility: Onboarding (analyze), Discovery (gather), PM Dashboard (monitor), Plane (plan), MQ DevEngine (build).
+7. **Two audiences** -- PMs see Discovery Tool + PM Dashboard + Plane. Developers manage Onboarding + MQ DevEngine. Developers share outcomes with PMs via Plane and the PM Dashboard.
 8. **Confidence scoring** -- AI marks uncertain items visually so humans know where to focus review attention.
 9. **Two-track review** -- Business review (PM approves content) + Technical review (tech lead approves architecture via Git PR). Both required before Plane push.
 10. **Progressive disclosure** -- Start broad, go deeper where the human chooses. Sessions are resumable across days.
@@ -72,39 +72,39 @@ You need one of the following:
 ### Option 1: npm Install (Recommended)
 
 ```bash
-npm install -g autoforge-ai
-autoforge
+npm install -g mq-devengine-ai
+mq-devengine
 ```
 
-On first run, AutoForge automatically:
+On first run, MQ DevEngine automatically:
 1. Checks for Python 3.11+
-2. Creates a virtual environment at `~/.autoforge/venv/`
+2. Creates a virtual environment at `~/.mq-devengine/venv/`
 3. Installs Python dependencies
-4. Copies a default config file to `~/.autoforge/.env`
+4. Copies a default config file to `~/.mq-devengine/.env`
 5. Starts the server and opens your browser
 
 ### CLI Commands
 
 ```
-autoforge                       Start the server (default)
-autoforge config                Open ~/.autoforge/.env in $EDITOR
-autoforge config --path         Print config file path
-autoforge config --show         Show active configuration values
-autoforge --port PORT           Custom port (default: auto from 8888)
-autoforge --host HOST           Custom host (default: 127.0.0.1)
-autoforge --no-browser          Don't auto-open browser
-autoforge --repair              Delete and recreate virtual environment
-autoforge --version             Print version
-autoforge --help                Show help
+mq-devengine                    Start the server (default)
+mq-devengine config             Open ~/.mq-devengine/.env in $EDITOR
+mq-devengine config --path      Print config file path
+mq-devengine config --show      Show active configuration values
+mq-devengine --port PORT        Custom port (default: auto from 8888)
+mq-devengine --host HOST        Custom host (default: 127.0.0.1)
+mq-devengine --no-browser       Don't auto-open browser
+mq-devengine --repair           Delete and recreate virtual environment
+mq-devengine --version          Print version
+mq-devengine --help             Show help
 ```
 
 ### Option 2: From Source (Development)
 
-Clone the repository and use the start scripts directly. This is the recommended path if you want to contribute or modify AutoForge itself.
+Clone the repository and use the start scripts directly. This is the recommended path if you want to contribute or modify MQ DevEngine itself.
 
 ```bash
-git clone https://github.com/leonvanzyl/autoforge.git
-cd autoforge
+git clone https://github.com/leonvanzyl/mq-devEngine.git
+cd mq-devEngine
 ```
 
 **Web UI:**
@@ -188,7 +188,7 @@ Features are stored in SQLite via SQLAlchemy and managed through an MCP server t
 ## Project Structure
 
 ```
-autoforge/
+mq-devEngine/
 ├── bin/                         # npm CLI entry point
 ├── lib/                         # CLI bootstrap and setup logic
 ├── start.py                     # CLI menu and project management
@@ -323,14 +323,14 @@ The UI receives live updates via WebSocket (`/ws/projects/{project_name}`):
 
 ## Configuration
 
-AutoForge reads configuration from a `.env` file. The file location depends on how you installed AutoForge:
+MQ DevEngine reads configuration from a `.env` file. The file location depends on how you installed it:
 
 | Install method | Config file location | Edit command |
 |---|---|---|
-| npm (global) | `~/.autoforge/.env` | `autoforge config` |
+| npm (global) | `~/.mq-devengine/.env` | `mq-devengine config` |
 | From source | `.env` in the project root | Edit directly |
 
-A default config file is created automatically on first run. Use `autoforge config` to open it in your editor, or `autoforge config --show` to print the active values.
+A default config file is created automatically on first run. Use `mq-devengine config` to open it in your editor, or `mq-devengine config --show` to print the active values.
 
 ### N8N Webhook Integration
 
@@ -386,7 +386,7 @@ ANTHROPIC_DEFAULT_OPUS_MODEL=glm-4.7
 ANTHROPIC_DEFAULT_HAIKU_MODEL=glm-4.5-air
 ```
 
-This routes AutoForge's API requests through Zhipu's Claude-compatible API, allowing you to use GLM-4.7 and other models. **This only affects AutoForge** - your global Claude Code settings remain unchanged.
+This routes MQ DevEngine's API requests through Zhipu's Claude-compatible API, allowing you to use GLM-4.7 and other models. **This only affects MQ DevEngine** - your global Claude Code settings remain unchanged.
 
 Get an API key at: https://z.ai/subscribe
 
@@ -456,11 +456,11 @@ Install Python 3.11 or later from [python.org](https://www.python.org/downloads/
 **"Python venv module not available"**
 On Debian/Ubuntu, the venv module is packaged separately. Install it with `sudo apt install python3.XX-venv` (replace `XX` with your Python minor version, e.g., `python3.12-venv`).
 
-**"AutoForge is already running"**
+**"MQ DevEngine is already running"**
 A server instance is already active. Use the browser URL shown in the terminal, or stop the existing instance with Ctrl+C first.
 
 **Virtual environment issues after a Python upgrade**
-Run `autoforge --repair` to delete and recreate the virtual environment from scratch.
+Run `mq-devengine --repair` to delete and recreate the virtual environment from scratch.
 
 ---
 
@@ -470,15 +470,15 @@ Uitgebreide documentatie is beschikbaar in de [`docs/`](docs/) folder:
 
 ### Architectuur & Ontwerp
 - [**Platform Overzicht**](docs/platform-overview.md) -- MarQed.ai platform: 5 componenten, platformdiagram, datastromen, brownpaper/greenpaper, PM Dashboard
-- [**Systeemarchitectuur**](docs/architecture.md) -- Onboarding + Discovery + PM Dashboard + Plane + AutoForge pipeline, component overzicht, deployment
+- [**Systeemarchitectuur**](docs/architecture.md) -- Onboarding + Discovery + PM Dashboard + Plane + MQ DevEngine pipeline, component overzicht, deployment
 - [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (7 sprints + 7.1/7.2 voltooid: per-project sync + graceful shutdown)
-- [**Operations Guide**](docs/operations-guide.md) -- Plane + AutoForge opstarten, sync configureren, agent starten, troubleshooting
+- [**Operations Guide**](docs/operations-guide.md) -- Plane + MQ DevEngine opstarten, sync configureren, agent starten, troubleshooting
 - [**GitHub Setup**](docs/github-setup.md) -- GitHub Organization setup (marqed-ai), repository structuur, fork management
 
 ### Architecture Decision Records (ADR)
 - [**ADR-001: Plane Integratie**](docs/decisions/ADR-001-plane-integration.md) -- Waarom Plane als PM frontend ipv zelf bouwen
 - [**ADR-002: Analyse Pipeline**](docs/decisions/ADR-002-analysis-pipeline.md) -- Waar analyse, review en executie plaatsvindt
-- [**ADR-003: Data Mapping**](docs/decisions/ADR-003-data-mapping.md) -- Entity/state/priority mapping tussen Onboarding, Plane en AutoForge
+- [**ADR-003: Data Mapping**](docs/decisions/ADR-003-data-mapping.md) -- Entity/state/priority mapping tussen Onboarding, Plane en MQ DevEngine
 - [**ADR-004: Per-Project Plane Sync**](docs/decisions/ADR-004-per-project-plane-sync.md) -- Per-project sync configuratie, voorkomt cross-project data lekkage
 
 ### Plane Sync Module

@@ -1,4 +1,4 @@
-# ADR-003: Data Mapping tussen MarQed, Plane en AutoForge
+# ADR-003: Data Mapping tussen MarQed, Plane en MQ DevEngine
 
 **Status:** Geaccepteerd
 **Datum:** 2026-02-10
@@ -9,7 +9,7 @@
 Drie systemen moeten dezelfde werkitems representeren in hun eigen datamodel. We hebben een consistente mapping nodig die:
 
 - Geen data verliest bij conversie
-- Bidirectioneel werkt (Plane <-> AutoForge)
+- Bidirectioneel werkt (Plane <-> MQ DevEngine)
 - Echo prevention ondersteunt (eigen updates niet opnieuw importeren)
 
 ## Entity Mapping
@@ -25,9 +25,9 @@ Drie systemen moeten dezelfde werkitems representeren in hun eigen datamodel. We
 | `TASK-*.md` | **Sub-Work Item** of checklist | title, estimated hours |
 | Dependencies | **Relations** | blocked-by / blocks |
 
-### Plane -> AutoForge
+### Plane -> MQ DevEngine
 
-| Plane | AutoForge Feature | Toelichting |
+| Plane | MQ DevEngine Feature | Toelichting |
 |---|---|---|
 | **Cycle** | *(tracked als setting)* | `plane_active_cycle_id` in registry |
 | **Work Item** | **Feature** | Directe 1:1 mapping |
@@ -40,9 +40,9 @@ Drie systemen moeten dezelfde werkitems representeren in hun eigen datamodel. We
 | **Work Item ID** | Feature.plane_work_item_id | UUID, voor sync tracking |
 | **updated_at** | Feature.plane_updated_at | Voor echo prevention |
 
-### AutoForge -> Plane
+### MQ DevEngine -> Plane
 
-| AutoForge Feature | Plane Work Item | Wanneer |
+| MQ DevEngine Feature | Plane Work Item | Wanneer |
 |---|---|---|
 | in_progress=true | State -> "started" | Agent pakt feature op |
 | passes=true | State -> "completed" | Feature passing |
@@ -50,9 +50,9 @@ Drie systemen moeten dezelfde werkitems representeren in hun eigen datamodel. We
 
 ## Priority Mapping
 
-### Plane -> AutoForge (inbound)
+### Plane -> MQ DevEngine (inbound)
 
-| Plane Priority | AutoForge priority (int) |
+| Plane Priority | MQ DevEngine priority (int) |
 |---|---|
 | urgent | 1 |
 | high | 2 |
@@ -71,7 +71,7 @@ Drie systemen moeten dezelfde werkitems representeren in hun eigen datamodel. We
 
 ## State Mapping
 
-### Inbound (Plane -> AutoForge)
+### Inbound (Plane -> MQ DevEngine)
 
 | Plane State Group | Feature.passes | Feature.in_progress | Actie |
 |---|---|---|---|
@@ -81,7 +81,7 @@ Drie systemen moeten dezelfde werkitems representeren in hun eigen datamodel. We
 | completed | true | false | Markeren als passing |
 | cancelled | - | - | **Skip** (niet importeren) |
 
-### Outbound (AutoForge -> Plane)
+### Outbound (MQ DevEngine -> Plane)
 
 | Feature status | Plane State Group target | Trigger |
 |---|---|---|
@@ -91,7 +91,7 @@ Drie systemen moeten dezelfde werkitems representeren in hun eigen datamodel. We
 
 ### State Resolution
 
-Plane heeft per project meerdere states per state group. Bij outbound sync moet AutoForge de juiste state ID gebruiken:
+Plane heeft per project meerdere states per state group. Bij outbound sync moet MQ DevEngine de juiste state ID gebruiken:
 
 1. Bij import: sla de state mapping op (state group -> state ID)
 2. Bij outbound: zoek de eerste state in de target state group
@@ -102,7 +102,7 @@ Plane heeft per project meerdere states per state group. Bij outbound sync moet 
 ### Probleem
 
 Bidirectionele sync kan loops veroorzaken:
-1. AutoForge updatet Feature -> pusht naar Plane
+1. MQ DevEngine updatet Feature -> pusht naar Plane
 2. Plane's updated_at verandert
 3. Volgende poll detecteert "wijziging" -> importeert opnieuw
 4. Feature wordt onnodig overschreven
@@ -111,7 +111,7 @@ Bidirectionele sync kan loops veroorzaken:
 
 ```
 Na outbound push:
-  1. AutoForge pusht status naar Plane
+  1. MQ DevEngine pusht status naar Plane
   2. Plane API retourneert updated Work Item (met nieuwe updated_at)
   3. Sla Plane's updated_at op als Feature.plane_updated_at
 
@@ -126,10 +126,10 @@ Bij inbound poll:
 
 | Situatie | Detectie | Actie |
 |---|---|---|
-| AutoForge update + menselijke edit tegelijk | Timestamps verschillen | Plane wint (menselijke edit heeft prioriteit) |
-| Plane work item verwijderd | 404 bij outbound push | Feature behouden in AutoForge, log warning |
-| Nieuw work item in Plane (niet in AutoForge) | Geen plane_work_item_id match | Importeren als nieuwe Feature |
-| Feature verwijderd in AutoForge | plane_work_item_id niet meer in DB | Plane work item ongewijzigd laten |
+| MQ DevEngine update + menselijke edit tegelijk | Timestamps verschillen | Plane wint (menselijke edit heeft prioriteit) |
+| Plane work item verwijderd | 404 bij outbound push | Feature behouden in MQ DevEngine, log warning |
+| Nieuw work item in Plane (niet in MQ DevEngine) | Geen plane_work_item_id match | Importeren als nieuwe Feature |
+| Feature verwijderd in MQ DevEngine | plane_work_item_id niet meer in DB | Plane work item ongewijzigd laten |
 
 ## DB Schema Uitbreiding
 

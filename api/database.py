@@ -212,7 +212,7 @@ class ScheduleOverride(Base):
 
 def get_database_path(project_dir: Path) -> Path:
     """Return the path to the SQLite database for a project."""
-    from autoforge_paths import get_features_db_path
+    from devengine_paths import get_features_db_path
     return get_features_db_path(project_dir)
 
 
@@ -470,7 +470,7 @@ def create_database(project_dir: Path) -> tuple:
 
     db_url = get_database_url(project_dir)
 
-    # Ensure parent directory exists (for .autoforge/ layout)
+    # Ensure parent directory exists (for .mq-devengine/ layout)
     db_path = get_database_path(project_dir)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 

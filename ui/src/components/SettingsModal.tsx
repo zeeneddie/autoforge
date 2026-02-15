@@ -612,7 +612,7 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
                   className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Configure in Plane's webhook settings. URL: <code className="bg-muted px-1 rounded">{'{your-autoforge-url}'}/api/plane/webhooks</code>
+                  Configure in Plane's webhook settings. URL: <code className="bg-muted px-1 rounded">{'{your-devengine-url}'}/api/plane/webhooks</code>
                 </p>
               </div>
 
@@ -735,7 +735,7 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
                   <div className="space-y-0.5">
                     <Label className="text-sm font-medium">Background Sync</Label>
                     <p className="text-xs text-muted-foreground">
-                      Auto-sync status between AutoForge and Plane
+                      Auto-sync status between MQ DevEngine and Plane
                     </p>
                   </div>
                   <Switch

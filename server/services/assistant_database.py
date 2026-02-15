@@ -64,7 +64,7 @@ class ConversationMessage(Base):
 
 def get_db_path(project_dir: Path) -> Path:
     """Get the path to the assistant database for a project."""
-    from autoforge_paths import get_assistant_db_path
+    from devengine_paths import get_assistant_db_path
     return get_assistant_db_path(project_dir)
 
 

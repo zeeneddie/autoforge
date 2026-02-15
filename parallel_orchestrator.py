@@ -40,7 +40,7 @@ from server.utils.process_utils import kill_process_tree
 
 logger = logging.getLogger(__name__)
 
-# Root directory of autoforge (where this script and autonomous_agent_demo.py live)
+# Root directory of MQ DevEngine (where this script and autonomous_agent_demo.py live)
 AUTOFORGE_ROOT = Path(__file__).parent.resolve()
 
 # Debug log file path

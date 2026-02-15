@@ -2,7 +2,7 @@
 Temp Cleanup Module
 ===================
 
-Cleans up stale temporary files and directories created by AutoForge agents,
+Cleans up stale temporary files and directories created by MQ DevEngine agents,
 Playwright, Node.js, and other development tools.
 
 Called at Maestro (orchestrator) startup to prevent temp folder bloat.

@@ -2,15 +2,15 @@
 
 ## Overzicht
 
-AutoForge draait in combinatie met drie componenten:
+MQ DevEngine draait in combinatie met drie componenten:
 
 | Component | Rol | Standaard URL |
 |-----------|-----|---------------|
 | **Plane** | Project management, sprint cycles, work items | `http://localhost:8080` |
-| **AutoForge** | Autonoom coding platform, agent orchestratie | `http://localhost:8888` |
+| **MQ DevEngine** | Autonoom coding platform, agent orchestratie | `http://localhost:8888` |
 | **Claude CLI** | LLM backend voor de coding/testing/initializer agents | N/A (CLI tool) |
 
-De opstartvolgorde is: Plane → AutoForge → Sync configureren → Agent starten.
+De opstartvolgorde is: Plane → MQ DevEngine → Sync configureren → Agent starten.
 
 ---
 
@@ -45,12 +45,12 @@ docker start <container_id>
 
 ---
 
-## AutoForge opstarten
+## MQ DevEngine opstarten
 
 ### Vanuit source (development)
 
 ```bash
-cd /home/eddie/Projects/autoforge
+cd /home/eddie/Projects/mq-devEngine
 ./start_ui.sh
 ```
 
@@ -63,7 +63,7 @@ Of direct via uvicorn:
 ### Via npm (geinstalleerd)
 
 ```bash
-autoforge
+mq-devengine
 ```
 
 ### Verificatie
@@ -75,29 +75,29 @@ autoforge
 
 ## Environment configuratie (.env)
 
-Het `.env` bestand wordt door AutoForge gelezen bij het opstarten en configureert o.a. het LLM backend, Playwright browser settings, en optionele integraties.
+Het `.env` bestand wordt door MQ DevEngine gelezen bij het opstarten en configureert o.a. het LLM backend, Playwright browser settings, en optionele integraties.
 
 ### Bestandslocatie
 
-Het `.env` bestand leeft in de AutoForge data directory:
+Het `.env` bestand leeft in de MQ DevEngine data directory:
 
 ```
-~/.autoforge/.env
+~/.mq-devengine/.env
 ```
 
 In een **development omgeving** (werken vanuit source) moet dit bestand gesymlinkt worden naar de project root, zodat de server het kan vinden:
 
 ```bash
-ln -s ~/.autoforge/.env /pad/naar/autoforge/.env
+ln -s ~/.mq-devengine/.env /pad/naar/mq-devEngine/.env
 ```
 
-> **Zonder deze symlink leest de dev server geen environment variabelen.** Bij een npm-installatie (`autoforge` commando) wordt dit automatisch afgehandeld.
+> **Zonder deze symlink leest de dev server geen environment variabelen.** Bij een npm-installatie (`mq-devengine` commando) wordt dit automatisch afgehandeld.
 
 Een `.env.example` in de project root bevat alle beschikbare opties met uitleg.
 
 ### LLM backend kiezen
 
-Het `.env` bestand bepaalt welk LLM backend de agents gebruiken. Standaard gebruikt AutoForge de **Claude CLI** (geen extra `.env` configuratie nodig). Alternatieve backends worden geconfigureerd door de relevante sectie in `.env` te uncommenten:
+Het `.env` bestand bepaalt welk LLM backend de agents gebruiken. Standaard gebruikt MQ DevEngine de **Claude CLI** (geen extra `.env` configuratie nodig). Alternatieve backends worden geconfigureerd door de relevante sectie in `.env` te uncommenten:
 
 | Backend | Vereiste variabelen |
 |---------|-------------------|
@@ -110,11 +110,11 @@ Zorg dat slechts **een** backend tegelijk actief is — commentarieer de rest ui
 
 ### Bekende beperkingen niet-Claude modellen
 
-De volgende problemen gelden voor **alle niet-Claude modellen**, ongeacht of ze via OpenRouter, Ollama, of GLM (Zhipu) worden aangesproken. De oorzaak is steeds dezelfde: AutoForge is gebouwd op de Claude Agent SDK en het Anthropic tool use formaat. Niet-Claude modellen ondersteunen dit formaat niet of niet volledig, zelfs als ze via een Anthropic-compatibele API worden aangeboden.
+De volgende problemen gelden voor **alle niet-Claude modellen**, ongeacht of ze via OpenRouter, Ollama, of GLM (Zhipu) worden aangesproken. De oorzaak is steeds dezelfde: MQ DevEngine is gebouwd op de Claude Agent SDK en het Anthropic tool use formaat. Niet-Claude modellen ondersteunen dit formaat niet of niet volledig, zelfs als ze via een Anthropic-compatibele API worden aangeboden.
 
 #### MCP tool calls werken niet (of slecht)
 
-AutoForge agents communiceren met de features database via MCP server tools (bijv. `feature_claim_and_get`, `feature_mark_passing`). Deze tool calls gebruiken het Anthropic tool use formaat.
+MQ DevEngine agents communiceren met de features database via MCP server tools (bijv. `feature_claim_and_get`, `feature_mark_passing`). Deze tool calls gebruiken het Anthropic tool use formaat.
 
 - **GLM modellen** (glm-4.7 etc.) via Zhipu API of OpenRouter: Tool calls worden niet herkend of incorrect teruggegeven. De agent kan features niet claimen, geen status updates doen, en loopt vast.
 - **Codex/GPT modellen** via OpenRouter: Gebruiken OpenAI's function calling formaat, niet Anthropic's tool use formaat. OpenRouter vertaalt dit niet altijd correct, waardoor MCP tool responses malformed zijn.
@@ -123,7 +123,7 @@ AutoForge agents communiceren met de features database via MCP server tools (bij
 
 #### Extended context niet beschikbaar
 
-AutoForge gebruikt de `context-1m-2025-08-07` beta voor 1M token context windows. Dit wordt automatisch uitgeschakeld voor alle niet-Claude backends (code in `client.py`), wat betekent:
+MQ DevEngine gebruikt de `context-1m-2025-08-07` beta voor 1M token context windows. Dit wordt automatisch uitgeschakeld voor alle niet-Claude backends (code in `client.py`), wat betekent:
 
 - Kortere context windows (model-afhankelijk — Ollama modellen hebben vaak 8K-128K)
 - Bij langere sessies raakt de agent context kwijt
@@ -176,7 +176,7 @@ Dit vereist een Claude Pro of Max abonnement.
 ### Verificatie
 
 ```bash
-autoforge config --show
+mq-devengine config --show
 ```
 
 Controleer dat het juiste model geselecteerd is en dat de authenticatie werkt.
@@ -185,9 +185,9 @@ Controleer dat het juiste model geselecteerd is en dat de authenticatie werkt.
 
 ## Plane Sync configureren
 
-### Via de AutoForge UI
+### Via de MQ DevEngine UI
 
-Open Settings (tandwiel icoon) in de AutoForge UI en vul de Plane sectie in:
+Open Settings (tandwiel icoon) in de MQ DevEngine UI en vul de Plane sectie in:
 
 | Setting | Beschrijving | Voorbeeld |
 |---------|-------------|-----------|
@@ -201,7 +201,7 @@ De API key is te vinden in Plane onder: **Profile → Settings → API Tokens**.
 
 ### Via registry (CLI)
 
-Settings worden opgeslagen in `~/.autoforge/registry.db`. Ze kunnen ook direct via de API gezet worden:
+Settings worden opgeslagen in `~/.mq-devengine/registry.db`. Ze kunnen ook direct via de API gezet worden:
 
 ```bash
 curl -X PATCH http://localhost:8888/api/settings \
@@ -226,14 +226,14 @@ curl -X PATCH http://localhost:8888/api/settings \
 
 ## Sync werking
 
-### Inbound sync (Plane → AutoForge)
+### Inbound sync (Plane → MQ DevEngine)
 
 - Haalt work items op uit de geconfigureerde Plane cycle
-- Maakt nieuwe AutoForge features aan voor onbekende work items
+- Maakt nieuwe MQ DevEngine features aan voor onbekende work items
 - Matcht bestaande features op `plane_work_item_id`
 - Synchroniseert titel, beschrijving, prioriteit en acceptance criteria
 
-### Outbound sync (AutoForge → Plane)
+### Outbound sync (MQ DevEngine → Plane)
 
 - Pusht feature status naar het bijbehorende Plane work item:
   - Alle tests passen → state **Done**
@@ -254,7 +254,7 @@ De sync loop draait elke **30 seconden** (configureerbaar). Elke iteratie voert 
 
 ### Let op
 
-Features die al bestonden in AutoForge voor de sync werd geconfigureerd, worden **niet** automatisch gelinkt aan Plane work items. Deze moeten handmatig gekoppeld worden door de `plane_work_item_id` te zetten.
+Features die al bestonden in MQ DevEngine voor de sync werd geconfigureerd, worden **niet** automatisch gelinkt aan Plane work items. Deze moeten handmatig gekoppeld worden door de `plane_work_item_id` te zetten.
 
 ---
 

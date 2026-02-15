@@ -6,7 +6,7 @@
 
 ## Context
 
-AutoForge ondersteunt meerdere projecten tegelijk (bijv. `klaverjas_app` en `mq-discovery`). De Plane sync configuratie (cycle_id, project_id, workspace, sync_enabled) wordt momenteel **globaal** opgeslagen in de registry (`~/.autoforge/registry.db` via `set_setting()`/`get_setting()`).
+MQ DevEngine ondersteunt meerdere projecten tegelijk (bijv. `klaverjas_app` en `mq-discovery`). De Plane sync configuratie (cycle_id, project_id, workspace, sync_enabled) wordt momenteel **globaal** opgeslagen in de registry (`~/.mq-devengine/registry.db` via `set_setting()`/`get_setting()`).
 
 Dit veroorzaakt een kritiek probleem: de background sync loop importeert work items uit één Plane cycle naar **alle** projecten. In de praktijk lekte de klaverjas "Sprint A: Auth + Teams" cycle (34 features) herhaaldelijk in de `mq-discovery` features database.
 
@@ -30,7 +30,7 @@ background.py: PlaneSyncLoop
 
 ## Besluit
 
-Plane sync configuratie wordt **per AutoForge-project** opgeslagen.
+Plane sync configuratie wordt **per MQ DevEngine-project** opgeslagen.
 
 ### Nieuwe architectuur
 
@@ -70,7 +70,7 @@ background.py: PlaneSyncLoop
 | Alternatief | Reden afgewezen |
 |---|---|
 | Plane config in `features.db` per project | Mixen van concerns: features.db is voor feature data, niet configuratie |
-| Aparte config file per project (`.autoforge/plane.json`) | Inconsistent met bestaand registry pattern |
+| Aparte config file per project (`.mq-devengine/plane.json`) | Inconsistent met bestaand registry pattern |
 | Project-specifieke DB tabel in registry.db | Overkill — registry key suffix is eenvoudiger |
 
 ## Gevolgen

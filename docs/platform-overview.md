@@ -12,7 +12,7 @@ Het MarQed.ai platform bestaat uit vijf componenten:
 | **Discovery Tool** | Requirements gathering: brownpaper (bestaand) en greenpaper (nieuwbouw) | Product Manager, Stakeholder |
 | **PM Dashboard** | Hiërarchisch overzicht met drill-down, metriek, en intake portaal | Product Manager |
 | **Plane** | Planning, backlog, sprint management (SSOT) | Product Manager, Developer |
-| **AutoForge** | Autonome code-uitvoering, testing, delivery | Developer |
+| **MQ DevEngine** | Autonome code-uitvoering, testing, delivery | Developer |
 
 ## Platformdiagram
 
@@ -44,7 +44,7 @@ MarQed.ai Platform
 |          |                  import |    ^ status            |    |        |
 |          |                        v    | + feedback         |    |        |
 |          |       +---------------------+---+                |    |        |
-|          |       |       AUTOFORGE         |----------------+    |        |
+|          |       |       MQ DEVENGINE      |----------------+    |        |
 |          |       |     Coding + Testing    |  test results       |        |
 |          |       +-------------------------+                     |        |
 |          |                                                       |        |
@@ -60,7 +60,7 @@ Het PM Dashboard aggregeert data uit drie bronnen:
 
 ```
 +------------------+     +------------------+     +------------------+
-|     Plane        |     |    AutoForge     |     |   Onboarding     |
+|     Plane        |     |    MQ DevEngine     |     |   Onboarding     |
 |                  |     |                  |     |                  |
 | Modules (epics)  |     | TestRun records  |     | IFPUG functie-   |
 | Work Items       |     | pass/fail counts |     |   punten per     |
@@ -87,7 +87,7 @@ Het PM Dashboard aggregeert data uit drie bronnen:
 | Bron | Data | Richting |
 |------|------|----------|
 | **Plane** | Modules (epics), Work Items (features), Sub-Work Items (stories), States, Cycles, voortgang % | Plane --> Dashboard |
-| **AutoForge** | TestRun records, pass/fail counts, pass rate, agent_type, batch info | AutoForge --> Dashboard |
+| **MQ DevEngine** | TestRun records, pass/fail counts, pass rate, agent_type, batch info | MQ DevEngine --> Dashboard |
 | **Onboarding** | IFPUG functiepunten per entity, codebase kennis-artefacten | Onboarding --> Dashboard |
 
 ## Discovery Tool: twee modi
@@ -186,7 +186,7 @@ Mapping naar Plane states:
 |-------------|------|-------------|
 | `backlog` | Discovery | Item is geidentificeerd, requirements worden verzameld |
 | `unstarted` | Planning | Requirements zijn klaar, wacht op sprint toewijzing |
-| `started` | Building / Testing | In uitvoering door AutoForge |
+| `started` | Building / Testing | In uitvoering door MQ DevEngine |
 | `completed` | Done | Afgerond en goedgekeurd |
 | `cancelled` | Blocked | Geblokkeerd of geannuleerd |
 
@@ -224,9 +224,9 @@ Ongebruikte FP **vervallen** aan het eind van de maand -- geen rollover. Dit hou
 
 | Type | Omschrijving | Voorbeeld | Route na intake |
 |------|-------------|-----------|-----------------|
-| **Nieuw requirement** | Uitbreiding van bestaande functionaliteit of geheel nieuwe feature | "We willen ook 2FA op de login" | PM Dashboard → Discovery Tool (brownpaper) → Plane → AutoForge |
-| **Change request** | Wijziging op een bestaand item; scope is duidelijk | "Zoekfunctie moet ook op categorie filteren" | PM Dashboard → Plane (direct) → AutoForge |
-| **Bug report** | Defect in bestaande functionaliteit | "Export knop crasht bij >1000 rijen" | PM Dashboard → Plane (direct, hoge prio) → AutoForge |
+| **Nieuw requirement** | Uitbreiding van bestaande functionaliteit of geheel nieuwe feature | "We willen ook 2FA op de login" | PM Dashboard → Discovery Tool (brownpaper) → Plane → MQ DevEngine |
+| **Change request** | Wijziging op een bestaand item; scope is duidelijk | "Zoekfunctie moet ook op categorie filteren" | PM Dashboard → Plane (direct) → MQ DevEngine |
+| **Bug report** | Defect in bestaande functionaliteit | "Export knop crasht bij >1000 rijen" | PM Dashboard → Plane (direct, hoge prio) → MQ DevEngine |
 
 ### Intake flow
 
@@ -282,7 +282,7 @@ PM ziet in Dashboard:
         +------ Change / Bug? ----------> Plane cycle (direct)
         |                                    |
         v                                    v
-  AutoForge pakt op, bouwt/fixt, test
+  MQ DevEngine pakt op, bouwt/fixt, test
         |
         v
   PM Dashboard toont resultaat:
@@ -409,7 +409,7 @@ De PM ziet in één oogopslag:
 - **Hoeveel FP** het item kost
 - **Waar** het aan gekoppeld is (welk item in de hiërarchie)
 - **Wat de status** is (Discovery / Planning / Building / Testing / Review / Done)
-- **Welke acties** AutoForge heeft ondernomen (builds, test results)
+- **Welke acties** MQ DevEngine heeft ondernomen (builds, test results)
 - **Wie** het heeft aangemaakt en wanneer
 
 ### Traceerbaarheid: audit trail
@@ -428,11 +428,11 @@ Audit trail voor BUG-001: "Export crasht bij >1000 rijen"
 [2026-03-01 14:25] PLAN     Sync: Toegevoegd aan actieve Sprint Cycle 12
                             Reden: High priority bug, directe routing
 
-[2026-03-01 15:30] BUILD    AutoForge: Opgepakt door coding agent
+[2026-03-01 15:30] BUILD    MQ DevEngine: Opgepakt door coding agent
                             Branch: fix/export-crash-1000-rows
                             Model: claude-sonnet-4-5
 
-[2026-03-01 16:10] TEST     AutoForge: Fix geimplementeerd + getest
+[2026-03-01 16:10] TEST     MQ DevEngine: Fix geimplementeerd + getest
                             Test results: 3/3 passing
                             - test_export_1000_rows: PASS
                             - test_export_5000_rows: PASS
@@ -450,7 +450,7 @@ Audit trail voor BUG-001: "Export crasht bij >1000 rijen"
 Elk audit trail event bevat:
 - **Timestamp** (wanneer)
 - **Fase** (INTAKE / PLAN / BUILD / TEST / REVIEW / DONE)
-- **Actor** (wie: PM naam of "AutoForge" of "Sync")
+- **Actor** (wie: PM naam of "MQ DevEngine" of "Sync")
 - **Actie** (wat er is gebeurd)
 - **Details** (test results, branch naam, review comment)
 
@@ -471,7 +471,7 @@ Elk intake item wordt in Plane aangemaakt met gestructureerde metadata:
 
 | Intake type | Default prioriteit | Escalatie regel |
 |-------------|-------------------|-----------------|
-| Bug - Critical | Urgent | Gaat voor alles in huidige cycle, AutoForge pakt direct op |
+| Bug - Critical | Urgent | Gaat voor alles in huidige cycle, MQ DevEngine pakt direct op |
 | Bug - High | High | Toegevoegd aan huidige cycle, volgende in queue |
 | Bug - Medium/Low | Medium/Low | Toegevoegd aan backlog, PM plant in volgende cycle |
 | Change request | Zoals ingevoerd | Geen escalatie, PM bepaalt prioriteit |
@@ -523,9 +523,9 @@ Connectors per platform zouden een **adapter-patroon** volgen:
                 |
 4. Push naar Plane (SSOT)
                 |
-5. AutoForge importeert, bouwt, test, pusht status terug naar Plane
+5. MQ DevEngine importeert, bouwt, test, pusht status terug naar Plane
                 |
-6. PM monitort voortgang in PM Dashboard (data uit Plane + AutoForge + Onboarding)
+6. PM monitort voortgang in PM Dashboard (data uit Plane + MQ DevEngine + Onboarding)
                 |
 7. Feedback loop: goedgekeurd = Done, afgekeurd = terug naar Discovery
 ```
@@ -551,14 +551,14 @@ Connectors per platform zouden een **adapter-patroon** volgen:
   (human-in-the-loop #2)|
         |               |
         v               v
-11. AutoForge bouwt/fixt, test, pusht resultaat
+11. MQ DevEngine bouwt/fixt, test, pusht resultaat
                 |
 12. PM ziet resultaat in Dashboard intake-overzicht
                 |
 13. PM reviewt: goedgekeurd = Done, afgekeurd = feedback
 ```
 
-De twee flows (initieel en doorlopend) gebruiken dezelfde onderliggende infrastructuur: Plane als SSOT, AutoForge als executie-engine, PM Dashboard als monitoring. Het verschil zit in de **ingang** (Discovery Tool vs. intake formulier) en de **routing** (altijd via Discovery vs. direct naar Plane).
+De twee flows (initieel en doorlopend) gebruiken dezelfde onderliggende infrastructuur: Plane als SSOT, MQ DevEngine als executie-engine, PM Dashboard als monitoring. Het verschil zit in de **ingang** (Discovery Tool vs. intake formulier) en de **routing** (altijd via Discovery vs. direct naar Plane).
 
 ---
 
@@ -613,7 +613,7 @@ Drie rollen per applicatie:
 
 ### Per-applicatie AI Team Profielen
 
-Elke applicatie heeft een eigen tech stack en daarom een eigen team van AI-experts. Dit breidt het AutoForge per-agent-type model concept uit naar een **team-profiel per applicatie**:
+Elke applicatie heeft een eigen tech stack en daarom een eigen team van AI-experts. Dit breidt het MQ DevEngine per-agent-type model concept uit naar een **team-profiel per applicatie**:
 
 ```
 Applicatie "Webshop" (React + Python + PostgreSQL):
@@ -640,7 +640,7 @@ Voor het kantoor/operatiecentrum: de hele pipeline live volgen op meerdere scher
 ```
 Monitor 1: INTAKE          Monitor 2: PLANNING         Monitor 3: EXECUTIE        Monitor 4: KWALITEIT
 +-------------------+    +-------------------+     +-------------------+     +-------------------+
-| Nieuwe items      |    | Plane Backlog     |     | AutoForge Status  |     | Test Results      |
+| Nieuwe items      |    | Plane Backlog     |     | MQ DevEngine Status  |     | Test Results      |
 | FP Budget meter   |    | Sprint Board      |     | Actieve agents    |     | Pass/Fail rates   |
 | Wachtrij          |    | Prioriteiten      |     | Live code output  |     | Review queue      |
 | Intake trend      |    | Sprint progress   |     | Build logs        |     | Kwaliteitsmetrics |
@@ -665,7 +665,7 @@ Een meta-agent die boven de individuele agents staat en het hele proces bewaakt:
                            |
           +----------------+----------------+
           |                |                |
-     Discovery Tool    Plane Sync      AutoForge
+     Discovery Tool    Plane Sync      MQ DevEngine
      (quality check    (prioriteit     (agent health,
       op requirements)  optimalisatie)  stuck detection)
 ```
@@ -688,27 +688,27 @@ Een meta-agent die boven de individuele agents staat en het hele proces bewaakt:
 ```
 DEV (huidige machine)                    PROD (p920 / marqed003)
 +-------------------------------+       +-------------------------------+
-| AutoForge (source, ./venv/)   |       | AutoForge (npm global)        |
+| MQ DevEngine (source, ./venv/)   |       | MQ DevEngine (npm global)        |
 | Plane (Docker, localhost:8080)|       | Plane (Docker, :8080)         |
 | MarQed Discovery (source)     |       | MarQed Discovery (gebouwd)    |
 | Claude Code (dev tools)       |       | Claude CLI (agents)           |
-| SQLite (~/.autoforge/)        |       | SQLite (~/.autoforge/)        |
+| SQLite (~/.mq-devengine/)        |       | SQLite (~/.mq-devengine/)        |
 +-------------------------------+       +-------------------------------+
          ontwikkelen                          valideren + draaien
 ```
 
 **Deployment stappen p920:**
 
-1. `npm install -g autoforge-ai` (CLI + backend + UI)
-2. `autoforge config` (stel .env in: Claude API key, Plane URL)
+1. `npm install -g mq-devengine-ai` (CLI + backend + UI)
+2. `mq-devengine config` (stel .env in: Claude API key, Plane URL)
 3. Plane Docker Compose opzetten op p920
 4. MarQed import tree importeren in Plane
-5. AutoForge agents starten op mq-discovery project
+5. MQ DevEngine agents starten op mq-discovery project
 6. Validatie: volledige pipeline draait vanaf scratch
 
 **Vereisten:**
 - `AUTOFORGE_ALLOW_REMOTE=1` in .env op p920
-- Firewall: poort 8888 (AutoForge) + 8080 (Plane) open binnen intern netwerk
+- Firewall: poort 8888 (MQ DevEngine) + 8080 (Plane) open binnen intern netwerk
 - SSH toegang voor deployment en monitoring
 - Git repo voor mq-discovery project
 

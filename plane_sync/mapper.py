@@ -1,4 +1,4 @@
-"""Data mapper: converts Plane WorkItems to AutoForge Features and back."""
+"""Data mapper: converts Plane WorkItems to MQ DevEngine Features and back."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from .models import PlaneState, PlaneWorkItem
 
 logger = logging.getLogger(__name__)
 
-# Priority mapping: Plane string -> AutoForge integer
+# Priority mapping: Plane string -> MQ DevEngine integer
 PRIORITY_TO_INT: dict[str, int] = {
     "urgent": 1,
     "high": 2,
@@ -20,7 +20,7 @@ PRIORITY_TO_INT: dict[str, int] = {
     "none": 5,
 }
 
-# Reverse: AutoForge integer -> Plane string
+# Reverse: MQ DevEngine integer -> Plane string
 INT_TO_PRIORITY: dict[int, str] = {v: k for k, v in PRIORITY_TO_INT.items()}
 
 
@@ -172,7 +172,7 @@ def work_item_to_feature_dict(
     modules: dict[str, str] | None = None,
     parent_feature_ids: dict[str, int] | None = None,
 ) -> dict[str, Any]:
-    """Convert a Plane WorkItem to a dict suitable for creating an AutoForge Feature.
+    """Convert a Plane WorkItem to a dict suitable for creating an MQ DevEngine Feature.
 
     Args:
         item: The Plane work item.
@@ -227,7 +227,7 @@ def feature_status_to_plane_update(
     in_progress: bool,
     states: list[PlaneState],
 ) -> dict | None:
-    """Convert AutoForge feature status to a Plane work item update dict.
+    """Convert MQ DevEngine feature status to a Plane work item update dict.
 
     Returns None if no state change is needed.
     """

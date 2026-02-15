@@ -54,7 +54,7 @@ Test de verbinding met Plane API. Verifieert API key, workspace en project.
 {
   "status": "ok",
   "workspace": "my-workspace",
-  "project_name": "AutoForge Project",
+  "project_name": "MQ DevEngine Project",
   "plane_version": "0.23"
 }
 ```
@@ -329,20 +329,20 @@ X-Plane-Signature: <hmac-sha256-hex>
 
 #### `POST /api/plane/self-host-setup`
 
-Registreer AutoForge als project in eigen registry (idempotent).
+Registreer MQ DevEngine als project in eigen registry (idempotent).
 
 **Response:**
 ```json
 {
-  "project_name": "autoforge",
-  "project_path": "/home/user/Projects/autoforge",
+  "project_name": "mq-devengine",
+  "project_path": "/home/user/Projects/mq-devEngine",
   "already_registered": false
 }
 ```
 
 **Logica:**
-1. Detecteer AutoForge project root via marker files (`server/main.py`, `parallel_orchestrator.py`, `plane_sync/__init__.py`)
-2. Registreer in `~/.autoforge/registry.db` via `register_project()`
+1. Detecteer MQ DevEngine project root via marker files (`server/main.py`, `parallel_orchestrator.py`, `plane_sync/__init__.py`)
+2. Registreer in `~/.mq-devengine/registry.db` via `register_project()`
 3. Idempotent: tweede call returnt `already_registered: true`
 
 ### MarQed Import
@@ -449,7 +449,7 @@ Zie [ADR-004](../decisions/ADR-004-per-project-plane-sync.md).
 
 ## Authenticatie
 
-Plane API endpoints in AutoForge zijn beschermd door dezelfde auth als de rest van de server (indien geconfigureerd). De Plane API key wordt alleen server-side gebruikt en nooit naar de frontend gestuurd (alleen gemaskeerde versie).
+Plane API endpoints in MQ DevEngine zijn beschermd door dezelfde auth als de rest van de server (indien geconfigureerd). De Plane API key wordt alleen server-side gebruikt en nooit naar de frontend gestuurd (alleen gemaskeerde versie).
 
 ## Error Handling
 

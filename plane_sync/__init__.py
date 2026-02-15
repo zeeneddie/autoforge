@@ -1,4 +1,4 @@
-"""Plane sync module for bidirectional sync between Plane and AutoForge."""
+"""Plane sync module for bidirectional sync between Plane and MQ DevEngine."""
 
 from .background import PlaneSyncLoop, get_sync_loop
 from .completion import complete_sprint

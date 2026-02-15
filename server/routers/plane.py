@@ -229,7 +229,7 @@ async def list_cycles(project_name: Optional[str] = Query(None)):
 
 @router.post("/import-cycle", response_model=PlaneImportResult)
 async def import_cycle_endpoint(request: PlaneImportRequest):
-    """Import work items from a Plane cycle as AutoForge Features."""
+    """Import work items from a Plane cycle as MQ DevEngine Features."""
     project_dir = get_project_path(request.project_name)
     if not project_dir:
         raise HTTPException(
@@ -633,7 +633,7 @@ async def receive_webhook(request: Request):
 
 @router.post("/self-host-setup", response_model=SelfHostSetupResult)
 async def self_host_setup():
-    """Register AutoForge as a project in its own registry (idempotent)."""
+    """Register MQ DevEngine as a project in its own registry (idempotent)."""
     try:
         from plane_sync.self_host import setup_self_host
         result = setup_self_host()

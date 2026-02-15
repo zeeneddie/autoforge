@@ -50,7 +50,7 @@ gh auth refresh -s admin:org,delete_repo
 
 | Repo | Beschrijving | Visibility |
 |------|-------------|------------|
-| `mq-devEngine` | AutoForge core platform (FastAPI + React, autonoom coding) | Private |
+| `mq-devEngine` | MQ DevEngine core platform (FastAPI + React, autonoom coding) | Private |
 | `mq-discover` | Discovery Tool - AI-powered requirements gathering (brownpaper & greenpaper) | Private |
 | `mq-monitor` | PM Dashboard - hierarchical drill-down, metrics, intake portal | Private |
 | `mq-onboarding` | Onboarding - codebase analyse, kennis opbouw, IFPUG FP | Private |
@@ -75,7 +75,7 @@ gh repo list marqed-ai --json name,isPrivate --jq '.[] | select(.isFork == false
 
 Elke fork krijgt:
 - `UPSTREAM_VERSION` file met gepinde versie
-- `AUTOFORGE_CHANGES.md` met onze wijzigingen
+- `DEVENGINE_CHANGES.md` met onze wijzigingen
 
 ### Fork commando's
 
@@ -107,17 +107,17 @@ gh repo clone $FORK_REPO /tmp/fork-init
 cd /tmp/fork-init
 
 echo "$UPSTREAM_VERSION" > UPSTREAM_VERSION
-cat > AUTOFORGE_CHANGES.md << 'EOF'
-# AutoForge Changes
+cat > DEVENGINE_CHANGES.md << 'EOF'
+# MQ DevEngine Changes
 
-Changes made to this fork for MarQed.ai / AutoForge integration.
+Changes made to this fork for MarQed.ai / MQ DevEngine integration.
 
 ## Changes
 
 _None yet — upstream pinned at version in UPSTREAM_VERSION._
 EOF
 
-git add UPSTREAM_VERSION AUTOFORGE_CHANGES.md
+git add UPSTREAM_VERSION DEVENGINE_CHANGES.md
 git commit -m "chore: add upstream version tracking"
 git push
 cd -
@@ -175,8 +175,8 @@ gh repo list marqed-ai --json name,isPrivate --jq '.[] | "\(.name) (private: \(.
 # Verifieer forks hebben upstream
 gh api repos/marqed-ai/fork--plane --jq '.parent.full_name'
 
-# Check dat autoforge code aanwezig is
-gh api repos/marqed-ai/autoforge/commits --jq '.[0].commit.message'
+# Check dat mq-devEngine code aanwezig is
+gh api repos/marqed-ai/mq-devEngine/commits --jq '.[0].commit.message'
 ```
 
 ---

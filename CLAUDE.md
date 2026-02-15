@@ -20,13 +20,13 @@ This is an autonomous coding agent system with a React-based UI. It uses the Cla
 ### npm Global Install (Recommended)
 
 ```bash
-npm install -g autoforge-ai
-autoforge                    # Start server (first run sets up Python venv)
-autoforge config             # Edit ~/.autoforge/.env in $EDITOR
-autoforge config --show      # Print active configuration
-autoforge --port 9999        # Custom port
-autoforge --no-browser       # Don't auto-open browser
-autoforge --repair           # Delete and recreate ~/.autoforge/venv/
+npm install -g mq-devengine-ai
+mq-devengine                    # Start server (first run sets up Python venv)
+mq-devengine config             # Edit ~/.mq-devengine/.env in $EDITOR
+mq-devengine config --show      # Print active configuration
+mq-devengine --port 9999        # Custom port
+mq-devengine --no-browser       # Don't auto-open browser
+mq-devengine --repair           # Delete and recreate ~/.mq-devengine/venv/
 ```
 
 ### From Source (Development)
@@ -148,10 +148,10 @@ Configuration in `pyproject.toml`:
 
 ### npm CLI (bin/, lib/)
 
-The `autoforge` command is a Node.js wrapper that manages the Python environment and server lifecycle:
-- `bin/autoforge.js` - Entry point (shebang script)
-- `lib/cli.js` - Main CLI logic: Python 3.11+ detection (cross-platform), venv management at `~/.autoforge/venv/` with composite marker (requirements hash + Python version), `.env` config loading from `~/.autoforge/.env`, uvicorn server startup with PID file, and signal handling
-- `package.json` - npm package config (`autoforge-ai` on npm), `files` whitelist with `__pycache__` exclusions, `prepublishOnly` builds the UI
+The `mq-devengine` command is a Node.js wrapper that manages the Python environment and server lifecycle:
+- `bin/mq-devengine.js` - Entry point (shebang script)
+- `lib/cli.js` - Main CLI logic: Python 3.11+ detection (cross-platform), venv management at `~/.mq-devengine/venv/` with composite marker (requirements hash + Python version), `.env` config loading from `~/.mq-devengine/.env`, uvicorn server startup with PID file, and signal handling
+- `package.json` - npm package config (`mq-devengine-ai` on npm), `files` whitelist with `__pycache__` exclusions, `prepublishOnly` builds the UI
 - `requirements-prod.txt` - Runtime-only Python deps (excludes ruff, mypy, pytest)
 - `.npmignore` - Excludes dev files, tests, UI source from the published tarball
 
@@ -161,7 +161,7 @@ Publishing: `npm publish` (triggers `prepublishOnly` which builds UI, then publi
 
 - `start.py` - CLI launcher with project creation/selection menu
 - `autonomous_agent_demo.py` - Entry point for running the agent (supports `--yolo`, `--parallel`, `--batch-size`, `--batch-features`)
-- `autoforge_paths.py` - Central path resolution with dual-path backward compatibility and migration
+- `devengine_paths.py` - Central path resolution with dual-path backward compatibility and migration
 - `agent.py` - Agent session loop using Claude Agent SDK
 - `client.py` - ClaudeSDKClient configuration with security hooks, MCP servers, and Vertex AI support
 - `security.py` - Bash command allowlist validation (ALLOWED_COMMANDS whitelist)
@@ -179,7 +179,7 @@ Publishing: `npm publish` (triggers `prepublishOnly` which builds UI, then publi
 ### Project Registry
 
 Projects can be stored in any directory. The registry maps project names to paths using SQLite:
-- **All platforms**: `~/.autoforge/registry.db`
+- **All platforms**: `~/.mq-devengine/registry.db`
 
 The registry uses:
 - SQLite database with SQLAlchemy ORM
@@ -280,18 +280,18 @@ Keyboard shortcuts (press `?` for help):
 
 ### Project Structure for Generated Apps
 
-Projects can be stored in any directory (registered in `~/.autoforge/registry.db`). Each project contains:
-- `.autoforge/prompts/app_spec.txt` - Application specification (XML format)
-- `.autoforge/prompts/initializer_prompt.md` - First session prompt
-- `.autoforge/prompts/coding_prompt.md` - Continuation session prompt
-- `.autoforge/features.db` - SQLite database with feature test cases
-- `.autoforge/.agent.lock` - Lock file to prevent multiple agent instances
-- `.autoforge/allowed_commands.yaml` - Project-specific bash command allowlist (optional)
-- `.autoforge/.gitignore` - Ignores runtime files
+Projects can be stored in any directory (registered in `~/.mq-devengine/registry.db`). Each project contains:
+- `.mq-devengine/prompts/app_spec.txt` - Application specification (XML format)
+- `.mq-devengine/prompts/initializer_prompt.md` - First session prompt
+- `.mq-devengine/prompts/coding_prompt.md` - Continuation session prompt
+- `.mq-devengine/features.db` - SQLite database with feature test cases
+- `.mq-devengine/.agent.lock` - Lock file to prevent multiple agent instances
+- `.mq-devengine/allowed_commands.yaml` - Project-specific bash command allowlist (optional)
+- `.mq-devengine/.gitignore` - Ignores runtime files
 - `CLAUDE.md` - Stays at project root (SDK convention)
 - `app_spec.txt` - Root copy for agent template compatibility
 
-Legacy projects with files at root level (e.g., `features.db`, `prompts/`) are auto-migrated to `.autoforge/` on next agent start. Dual-path resolution ensures old and new layouts work transparently.
+Legacy projects with files at root level (e.g., `features.db`, `prompts/`) are auto-migrated to `.mq-devengine/` on next agent start. Dual-path resolution ensures old and new layouts work transparently.
 
 ### Security Model
 
@@ -337,14 +337,14 @@ The agent's bash command access is controlled through a hierarchical configurati
 
 **Command Hierarchy (highest to lowest priority):**
 1. **Hardcoded Blocklist** (`security.py`) - NEVER allowed (dd, sudo, shutdown, etc.)
-2. **Org Blocklist** (`~/.autoforge/config.yaml`) - Cannot be overridden by projects
-3. **Org Allowlist** (`~/.autoforge/config.yaml`) - Available to all projects
+2. **Org Blocklist** (`~/.mq-devengine/config.yaml`) - Cannot be overridden by projects
+3. **Org Allowlist** (`~/.mq-devengine/config.yaml`) - Available to all projects
 4. **Global Allowlist** (`security.py`) - Default commands (npm, git, curl, etc.)
-5. **Project Allowlist** (`.autoforge/allowed_commands.yaml`) - Project-specific commands
+5. **Project Allowlist** (`.mq-devengine/allowed_commands.yaml`) - Project-specific commands
 
 **Project Configuration:**
 
-Each project can define custom allowed commands in `.autoforge/allowed_commands.yaml`:
+Each project can define custom allowed commands in `.mq-devengine/allowed_commands.yaml`:
 
 ```yaml
 version: 1
@@ -364,7 +364,7 @@ commands:
 
 **Organization Configuration:**
 
-System administrators can set org-wide policies in `~/.autoforge/config.yaml`:
+System administrators can set org-wide policies in `~/.mq-devengine/config.yaml`:
 
 ```yaml
 version: 1
@@ -431,7 +431,7 @@ Run coding agents using local models via Ollama v0.14.0+:
    ANTHROPIC_DEFAULT_OPUS_MODEL=qwen3-coder
    ANTHROPIC_DEFAULT_HAIKU_MODEL=qwen3-coder
    ```
-5. Run AutoForge normally - it will use your local Ollama models
+5. Run MQ DevEngine normally - it will use your local Ollama models
 
 **Recommended coding models:**
 - `qwen3-coder` - Good balance of speed and capability
@@ -453,7 +453,7 @@ Run coding agents using local models via Ollama v0.14.0+:
 **Slash commands** (`.claude/commands/`):
 - `/create-spec` - Interactive spec creation for new projects
 - `/expand-project` - Expand existing project with new features
-- `/gsd-to-autoforge-spec` - Convert GSD codebase mapping to app_spec.txt
+- `/gsd-to-devengine-spec` - Convert GSD codebase mapping to app_spec.txt
 - `/check-code` - Run lint and type-check for code quality
 - `/checkpoint` - Create comprehensive checkpoint commit
 - `/review-pr` - Review pull requests
@@ -465,7 +465,7 @@ Run coding agents using local models via Ollama v0.14.0+:
 
 **Skills** (`.claude/skills/`):
 - `frontend-design` - Distinctive, production-grade UI design
-- `gsd-to-autoforge-spec` - Convert GSD codebase mapping to AutoForge app_spec format
+- `gsd-to-devengine-spec` - Convert GSD codebase mapping to MQ DevEngine app_spec format
 
 **Other:**
 - `.claude/templates/` - Prompt templates copied to new projects
@@ -475,12 +475,12 @@ Run coding agents using local models via Ollama v0.14.0+:
 
 ### Prompt Loading Fallback Chain
 
-1. Project-specific: `{project_dir}/.autoforge/prompts/{name}.md` (or legacy `{project_dir}/prompts/{name}.md`)
+1. Project-specific: `{project_dir}/.mq-devengine/prompts/{name}.md` (or legacy `{project_dir}/prompts/{name}.md`)
 2. Base template: `.claude/templates/{name}.template.md`
 
 ### Agent Session Flow
 
-1. Check if `.autoforge/features.db` has features (determines initializer vs coding agent)
+1. Check if `.mq-devengine/features.db` has features (determines initializer vs coding agent)
 2. Create ClaudeSDKClient with security settings
 3. Send prompt and stream response
 4. Auto-continue with 3-second delay between sessions

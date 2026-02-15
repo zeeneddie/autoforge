@@ -108,7 +108,7 @@ class PlanePaginatedResponse(BaseModel):
         extra = "allow"
 
 
-# --- AutoForge API Models (for the /api/plane/ router) ---
+# --- MQ DevEngine API Models (for the /api/plane/ router) ---
 
 
 class PlaneConfig(BaseModel):

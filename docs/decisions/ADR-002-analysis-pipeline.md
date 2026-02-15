@@ -6,7 +6,7 @@
 
 ## Context
 
-Bij het opnemen van bestaande applicaties in het AutoForge ecosysteem moeten we bepalen waar elke stap in de pipeline plaatsvindt:
+Bij het opnemen van bestaande applicaties in het MQ DevEngine ecosysteem moeten we bepalen waar elke stap in de pipeline plaatsvindt:
 
 1. **Analyse** - Codebase scannen, requirements decomponeren naar epics/features/stories
 2. **Review** - Mens valideert en past aan
@@ -23,10 +23,10 @@ Elke stap heeft een duidelijke eigenaar:
 | **Analyse** | MarQed | Gebouwd voor codebase analyse, 11 AI agents, gestructureerde markdown output |
 | **Review** | Git PR | Markdown is diffable, inline review comments, approval workflow, audit trail |
 | **Planning** | Plane | Gebouwd voor PM, drag & drop, cycles, burndown charts |
-| **Executie** | AutoForge | Gebouwd voor autonome code-uitvoering, parallel agents |
-| **Documentatie** | AutoForge -> MarQed + Plane | AutoForge heeft de git diffs, pusht change docs naar beide systemen |
+| **Executie** | MQ DevEngine | Gebouwd voor autonome code-uitvoering, parallel agents |
+| **Documentatie** | MQ DevEngine -> MarQed + Plane | MQ DevEngine heeft de git diffs, pusht change docs naar beide systemen |
 
-## Waarom MarQed voor Analyse (niet AutoForge of Plane)
+## Waarom MarQed voor Analyse (niet MQ DevEngine of Plane)
 
 ### MarQed is analyse-first
 
@@ -36,11 +36,11 @@ Elke stap heeft een duidelijke eigenaar:
 - Stability analysis
 - Function Point estimation (IFPUG/NESMA)
 
-### AutoForge is execution-first
+### MQ DevEngine is execution-first
 
-- AutoForge's agents (initializer, coding, testing) zijn gebouwd voor uitvoering
+- MQ DevEngine's agents (initializer, coding, testing) zijn gebouwd voor uitvoering
 - De initializer agent creëert features uit een app_spec, maar doet geen diepe codebase-analyse
-- Analyse toevoegen aan AutoForge zou scope creep zijn
+- Analyse toevoegen aan MQ DevEngine zou scope creep zijn
 
 ### Plane heeft geen analyse-capability
 
@@ -109,7 +109,7 @@ project/
 
 ## Change Document (Post-Executie)
 
-Na elke voltooide feature genereert AutoForge een change document:
+Na elke voltooide feature genereert MQ DevEngine een change document:
 
 ```markdown
 # Change Document: FEATURE-001 - JWT Migration
@@ -149,12 +149,12 @@ Dit document wordt:
 |-----------|---------------|
 | MarQed | Analyse is bestaande functionaliteit |
 | md-to-plane importer | Nieuw: parsed markdown, creëert Plane entities via API |
-| Plane Sync Service | Sprint 2: inbound sync (Plane -> AutoForge) |
+| Plane Sync Service | Sprint 2: inbound sync (Plane -> MQ DevEngine) |
 | Change doc generator | Sprint 3: na feature completion, git diff + AI summary |
 
 ### Workflow-impact
 
-- Ontwikkelaar moet 3 tools kennen: MarQed (analyse), Plane (planning), AutoForge (monitoring)
+- Ontwikkelaar moet 3 tools kennen: MarQed (analyse), Plane (planning), MQ DevEngine (monitoring)
 - Git is de centrale bron van waarheid voor analyse-output
 - Plane is de centrale bron van waarheid voor planning
-- AutoForge Feature DB is de executie-bron
+- MQ DevEngine Feature DB is de executie-bron

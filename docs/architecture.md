@@ -10,7 +10,7 @@ Het **MarQed.ai platform** bestaat uit vijf componenten die samen een volledige 
 | **Discovery Tool** | Requirements gathering: brownpaper (bestaand) en greenpaper (nieuwbouw) | React/assistant-ui, FastAPI, PostgreSQL | Product Manager, Stakeholder |
 | **PM Dashboard** | Hiërarchisch overzicht met drill-down en metriek | React, Aggregatie API | Product Manager |
 | **Plane** | Planning, backlog, sprint management (SSOT) | Self-hosted, PostgreSQL, REST API | Product Manager, Developer |
-| **AutoForge** | Autonome code-uitvoering, testing, delivery | Python/FastAPI, Claude Agent SDK | Developer |
+| **MQ DevEngine** | Autonome code-uitvoering, testing, delivery | Python/FastAPI, Claude Agent SDK | Developer |
 
 Zie [platform-overview.md](platform-overview.md) voor het volledige platformdiagram met alle datastromen.
 
@@ -42,7 +42,7 @@ MarQed.ai Platform
 |          |                  import |    ^ status            |    |        |
 |          |                        v    | + feedback         |    |        |
 |          |       +---------------------+---+                |    |        |
-|          |       |       AUTOFORGE         |----------------+    |        |
+|          |       |      MQ DEVENGINE        |----------------+    |        |
 |          |       |     Coding + Testing    |  test results       |        |
 |          |       +-------------------------+                     |        |
 |          |                                                       |        |
@@ -60,7 +60,7 @@ De AI doet het zware werk (analyseren, genereren, bouwen, testen). De mens maakt
 
 ### 2. Plane is Single Source of Truth
 
-Plane is de enige bron van waarheid voor alle work items. De Discovery Tool is ephemeer (sessie resulteert in Plane items). Onboarding is referentiemateriaal. AutoForge leest uit en schrijft terug naar Plane. Geen dubbele administratie.
+Plane is de enige bron van waarheid voor alle work items. De Discovery Tool is ephemeer (sessie resulteert in Plane items). Onboarding is referentiemateriaal. MQ DevEngine leest uit en schrijft terug naar Plane. Geen dubbele administratie.
 
 ### 3. Micro features: maximaal 2 uur bouwen + testen
 
@@ -72,7 +72,7 @@ Elke feature moet klein genoeg zijn om binnen 2 uur gebouwd en getest te worden.
 
 ### 4. Snel en vaak falen, kort cyclisch werken
 
-Korte cycles, snelle feedback. Als iets niet klopt, wordt het binnen uren ontdekt — niet na dagen. De Discovery Tool decomposeert werk tot micro features. AutoForge bouwt ze snel. De PM beoordeelt snel. Afwijzingen gaan direct terug de Discovery in.
+Korte cycles, snelle feedback. Als iets niet klopt, wordt het binnen uren ontdekt — niet na dagen. De Discovery Tool decomposeert werk tot micro features. MQ DevEngine bouwt ze snel. De PM beoordeelt snel. Afwijzingen gaan direct terug de Discovery in.
 
 ### 5. Feedback loop sluit altijd
 
@@ -91,7 +91,7 @@ Elk tool heeft precies één verantwoordelijkheid:
 - **Discovery Tool**: requirements ophalen en verfijnen (brownpaper + greenpaper)
 - **PM Dashboard**: voortgang monitoren met drill-down
 - **Plane**: werk plannen en voortgang beheren
-- **AutoForge**: code schrijven en testen
+- **MQ DevEngine**: code schrijven en testen
 
 Geen tool doet het werk van een ander tool.
 
@@ -100,9 +100,9 @@ Geen tool doet het werk van een ander tool.
 | Rol | Ziet | Doet |
 |-----|------|------|
 | **Product Manager / Stakeholder** | Discovery Tool, PM Dashboard, Plane (kanban + voortgang) | Requirements sturen, voortgang monitoren, prioriteren, reviewen, goedkeuren |
-| **Developer / Tech Lead** | Onboarding, Plane, AutoForge, Git | Codebase onboarden, sprints starten, executie monitoren, resultaten delen |
+| **Developer / Tech Lead** | Onboarding, Plane, MQ DevEngine, Git | Codebase onboarden, sprints starten, executie monitoren, resultaten delen |
 
-De PM hoeft nooit in AutoForge of Onboarding te werken. De developer deelt uitkomsten met de PM via Plane en het PM Dashboard.
+De PM hoeft nooit in MQ DevEngine of Onboarding te werken. De developer deelt uitkomsten met de PM via Plane en het PM Dashboard.
 
 ### 8. Confidence scoring
 
@@ -198,12 +198,12 @@ Discovery output
 
 Het PM Dashboard is een **zelfstandig component** naast de andere tools met twee functies:
 
-1. **Monitoring:** Aggregeert data uit Plane (hiërarchie, states), AutoForge (test results), en Onboarding (IFPUG functiepunten) tot een 4-niveau drill-down overzicht.
+1. **Monitoring:** Aggregeert data uit Plane (hiërarchie, states), MQ DevEngine (test results), en Onboarding (IFPUG functiepunten) tot een 4-niveau drill-down overzicht.
 
 2. **Intake portaal** (vanaf CRUD fase 2): De PM kan direct vanuit de hiërarchie nieuwe requirements, change requests en bug reports aanmaken. Items worden automatisch gerouteerd:
    - **Nieuw requirement** → Discovery Tool (brownpaper) voor decompositie → Plane
-   - **Change request** → Direct naar Plane cycle → AutoForge
-   - **Bug report** → Direct naar Plane cycle (hoge prio) → AutoForge
+   - **Change request** → Direct naar Plane cycle → MQ DevEngine
+   - **Bug report** → Direct naar Plane cycle (hoge prio) → MQ DevEngine
 
 Elk intake item heeft een volledige audit trail (wie, wanneer, welke fase, welke acties, test results) en is traceerbaar via Plane labels en parent-relaties.
 
@@ -218,9 +218,9 @@ Mens organiseert werk in Plane:
 - Deadlines zetten
 - Modules toewijzen
 
-### Stap 5: Sprint Executie (AutoForge)
+### Stap 5: Sprint Executie (MQ DevEngine)
 
-Plane Sync Service importeert de actieve cycle naar AutoForge:
+Plane Sync Service importeert de actieve cycle naar MQ DevEngine:
 
 ```
 Plane Cycle (actief)
@@ -228,7 +228,7 @@ Plane Cycle (actief)
     Sync Service pollt elke 30s
          |
          v
-  AutoForge Feature DB
+  MQ DevEngine Feature DB
     - Work Items -> Features
     - Priority/State/Category mapping
     - Dependencies behouden
@@ -246,7 +246,7 @@ Plane Cycle (actief)
 Feature completion
          |
          v
-  AutoForge genereert:
+  MQ DevEngine genereert:
     - Test resultaten
     - Change document (git diff + AC check)
          |
@@ -262,7 +262,7 @@ Feature completion
                    (item + feedback als context)
                            |
                            v
-                   Verfijnde requirements -> Plane -> AutoForge
+                   Verfijnde requirements -> Plane -> MQ DevEngine
 ```
 
 ### Stap 7: Doorlopende Intake (na initiële oplevering)
@@ -277,7 +277,7 @@ PM ziet item in Dashboard
          |
          +--- Requirement --> Discovery Tool (brownpaper) --> Plane
          |
-         +--- Change/Bug --> Direct Plane cycle --> AutoForge
+         +--- Change/Bug --> Direct Plane cycle --> MQ DevEngine
          |
          v
   Resultaat zichtbaar in Dashboard intake-overzicht
@@ -286,14 +286,14 @@ PM ziet item in Dashboard
 
 Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specificatie.
 
-## AutoForge Interne Architectuur
+## MQ DevEngine Interne Architectuur
 
 ### Backend
 
 - **Framework:** Python/FastAPI met uvicorn
-- **Database:** SQLite per project (`{project}/.autoforge/features.db`)
-- **Settings:** SQLite registry (`~/.autoforge/registry.db`)
-- **CLI:** Node.js entry point (`bin/autoforge.js` -> `lib/cli.js`)
+- **Database:** SQLite per project (`{project}/.mq-devengine/features.db`)
+- **Settings:** SQLite registry (`~/.mq-devengine/registry.db`)
+- **CLI:** Node.js entry point (`bin/mq-devengine.js` -> `lib/cli.js`)
 
 ### Agent Pipeline
 
@@ -319,24 +319,24 @@ Server API -> process_manager.py -> autonomous_agent_demo.py (CLI)
 ### Plane Sync Service
 
 ```
-autoforge/
+mq-devEngine/
   plane_sync/
     __init__.py
     client.py           # PlaneApiClient (HTTP, auth, rate limiting, write ops)
-    models.py           # Pydantic modellen voor Plane API + AutoForge endpoints
+    models.py           # Pydantic modellen voor Plane API + MQ DevEngine endpoints
     mapper.py           # Work Item <-> Feature conversie, AC parsing
     sync_service.py     # import_cycle + outbound_sync (bidirectional)
     background.py       # PlaneSyncLoop: asyncio polling per project, sprint detection
     completion.py       # Sprint completion: DoD, retrospective, git tag, release notes
     release_notes.py    # Markdown release notes generator
     webhook_handler.py  # HMAC-SHA256 verificatie + event parsing
-    self_host.py        # Self-hosting: register AutoForge in eigen registry
+    self_host.py        # Self-hosting: register MQ DevEngine in eigen registry
 ```
 
 ### Onboarding Import Module
 
 ```
-autoforge/
+mq-devEngine/
   marqed_import/
     __init__.py         # Package exports
     parser.py           # parse_marqed_tree(): directory tree -> MarQedEntity tree
@@ -384,7 +384,7 @@ ui/src/components/
 
 ### Webhooks
 
-Naast de polling loop ondersteunt AutoForge ook real-time webhooks van Plane:
+Naast de polling loop ondersteunt MQ DevEngine ook real-time webhooks van Plane:
 
 - **Endpoint:** `POST /api/plane/webhooks` (exempt van localhost middleware)
 - **Authenticatie:** HMAC-SHA256 verificatie met configureerbaar secret
@@ -410,9 +410,9 @@ Status flow: `stopped → running → finishing → stopped` (graceful) of `runn
 
 ## Deployment
 
-### Minimaal (alleen AutoForge)
+### Minimaal (alleen MQ DevEngine)
 
-- AutoForge server + UI
+- MQ DevEngine server + UI
 - Claude Code CLI (of Anthropic API key)
 - Optioneel: OpenRouter voor multi-model support
 
@@ -422,7 +422,7 @@ Status flow: `stopped → running → finishing → stopped` (graceful) of `runn
 |---------|-----------|------|
 | Onboarding | Python 3.12+, Docker, ChromaDB | 8000 |
 | Plane | Docker Compose (PostgreSQL, Redis, MinIO) | 8080 |
-| AutoForge | Python 3.11+, Node.js 20+ | 5175 |
+| MQ DevEngine | Python 3.11+, Node.js 20+ | 5175 |
 | Discovery Tool | React, FastAPI, PostgreSQL in Docker | 3000 |
 | PM Dashboard | React (onderdeel Discovery Tool of standalone) | 3000 |
 

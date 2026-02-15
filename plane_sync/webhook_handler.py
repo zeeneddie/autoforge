@@ -15,7 +15,7 @@ def verify_signature(payload_bytes: bytes, signature: str, secret: str) -> bool:
     Args:
         payload_bytes: Raw request body bytes.
         signature: Signature from the request header.
-        secret: Webhook secret configured in AutoForge.
+        secret: Webhook secret configured in MQ DevEngine.
 
     Returns:
         True if the signature is valid.

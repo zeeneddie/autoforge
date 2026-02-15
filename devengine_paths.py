@@ -1,18 +1,18 @@
 """
-AutoForge Path Resolution
+MQ DevEngine Path Resolution
 =========================
 
-Central module for resolving paths to autoforge-generated files within a project.
+Central module for resolving paths to MQ DevEngine-generated files within a project.
 
 Implements a tri-path resolution strategy for backward compatibility:
 
-    1. Check ``project_dir / ".autoforge" / X`` (current layout)
+    1. Check ``project_dir / ".mq-devengine" / X`` (current layout)
     2. Check ``project_dir / ".autocoder" / X`` (legacy layout)
     3. Check ``project_dir / X`` (legacy root-level layout)
     4. Default to the new location for fresh projects
 
 This allows existing projects with root-level ``features.db``, ``.agent.lock``,
-etc. to keep working while new projects store everything under ``.autoforge/``.
+etc. to keep working while new projects store everything under ``.mq-devengine/``.
 Projects using the old ``.autocoder/`` directory are auto-migrated on next start.
 
 The ``migrate_project_layout`` function can move an old-layout project to the
@@ -27,10 +27,10 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# .gitignore content written into every .autoforge/ directory
+# .gitignore content written into every .mq-devengine/ directory
 # ---------------------------------------------------------------------------
 _GITIGNORE_CONTENT = """\
-# AutoForge runtime files
+# MQ DevEngine runtime files
 features.db
 features.db-wal
 features.db-shm
@@ -53,11 +53,11 @@ assistant.db-shm
 def _resolve_path(project_dir: Path, filename: str) -> Path:
     """Resolve a file path using tri-path strategy.
 
-    Checks the new ``.autoforge/`` location first, then the legacy
+    Checks the new ``.mq-devengine/`` location first, then the legacy
     ``.autocoder/`` location, then the root-level location.  If none exist,
-    returns the new location so that newly-created files land in ``.autoforge/``.
+    returns the new location so that newly-created files land in ``.mq-devengine/``.
     """
-    new = project_dir / ".autoforge" / filename
+    new = project_dir / ".mq-devengine" / filename
     if new.exists():
         return new
     legacy = project_dir / ".autocoder" / filename
@@ -75,7 +75,7 @@ def _resolve_dir(project_dir: Path, dirname: str) -> Path:
     Same logic as ``_resolve_path`` but intended for directories such as
     ``prompts/``.
     """
-    new = project_dir / ".autoforge" / dirname
+    new = project_dir / ".mq-devengine" / dirname
     if new.exists():
         return new
     legacy = project_dir / ".autocoder" / dirname
@@ -88,27 +88,27 @@ def _resolve_dir(project_dir: Path, dirname: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# .autoforge directory management
+# .mq-devengine directory management
 # ---------------------------------------------------------------------------
 
-def get_autoforge_dir(project_dir: Path) -> Path:
-    """Return the ``.autoforge`` directory path.  Does NOT create it."""
-    return project_dir / ".autoforge"
+def get_devengine_dir(project_dir: Path) -> Path:
+    """Return the ``.mq-devengine`` directory path.  Does NOT create it."""
+    return project_dir / ".mq-devengine"
 
 
-def ensure_autoforge_dir(project_dir: Path) -> Path:
-    """Create the ``.autoforge/`` directory (if needed) and write its ``.gitignore``.
+def ensure_devengine_dir(project_dir: Path) -> Path:
+    """Create the ``.mq-devengine/`` directory (if needed) and write its ``.gitignore``.
 
     Returns:
-        The path to the ``.autoforge`` directory.
+        The path to the ``.mq-devengine`` directory.
     """
-    autoforge_dir = get_autoforge_dir(project_dir)
-    autoforge_dir.mkdir(parents=True, exist_ok=True)
+    devengine_dir = get_devengine_dir(project_dir)
+    devengine_dir.mkdir(parents=True, exist_ok=True)
 
-    gitignore_path = autoforge_dir / ".gitignore"
+    gitignore_path = devengine_dir / ".gitignore"
     gitignore_path.write_text(_GITIGNORE_CONTENT, encoding="utf-8")
 
-    return autoforge_dir
+    return devengine_dir
 
 
 # ---------------------------------------------------------------------------
@@ -162,9 +162,9 @@ def get_prompts_dir(project_dir: Path) -> Path:
 def get_expand_settings_path(project_dir: Path, uuid_hex: str) -> Path:
     """Return the path for an ephemeral expand-session settings file.
 
-    These files are short-lived and always stored in ``.autoforge/``.
+    These files are short-lived and always stored in ``.mq-devengine/``.
     """
-    return project_dir / ".autoforge" / f".claude_settings.expand.{uuid_hex}.json"
+    return project_dir / ".mq-devengine" / f".claude_settings.expand.{uuid_hex}.json"
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +175,7 @@ def has_agent_running(project_dir: Path) -> bool:
     """Check whether any agent or dev-server lock file exists at either location.
 
     Inspects the legacy root-level paths, the old ``.autocoder/`` paths, and
-    the new ``.autoforge/`` paths so that a running agent is detected
+    the new ``.mq-devengine/`` paths so that a running agent is detected
     regardless of project layout.
 
     Returns:
@@ -188,7 +188,7 @@ def has_agent_running(project_dir: Path) -> bool:
         # Check both old and new directory names for backward compatibility
         if (project_dir / ".autocoder" / name).exists():
             return True
-        if (project_dir / ".autoforge" / name).exists():
+        if (project_dir / ".mq-devengine" / name).exists():
             return True
     return False
 
@@ -198,7 +198,7 @@ def has_agent_running(project_dir: Path) -> bool:
 # ---------------------------------------------------------------------------
 
 def migrate_project_layout(project_dir: Path) -> list[str]:
-    """Migrate a project from the legacy root-level layout to ``.autoforge/``.
+    """Migrate a project from the legacy root-level layout to ``.mq-devengine/``.
 
     The migration is incremental and safe:
 
@@ -211,7 +211,7 @@ def migrate_project_layout(project_dir: Path) -> list[str]:
 
     Returns:
         A list of human-readable descriptions of what was migrated, e.g.
-        ``["prompts/ -> .autoforge/prompts/", "features.db -> .autoforge/features.db"]``.
+        ``["prompts/ -> .mq-devengine/prompts/", "features.db -> .mq-devengine/features.db"]``.
         An empty list means nothing was migrated (either everything is
         already migrated, or the agent is running).
     """
@@ -220,31 +220,31 @@ def migrate_project_layout(project_dir: Path) -> list[str]:
         logger.warning("Migration skipped: agent or dev-server is running for %s", project_dir)
         return []
 
-    # --- 0. Migrate .autocoder/ → .autoforge/ directory -------------------
+    # --- 0. Migrate .autocoder/ → .mq-devengine/ directory -------------------
     old_autocoder_dir = project_dir / ".autocoder"
-    new_autoforge_dir = project_dir / ".autoforge"
-    if old_autocoder_dir.exists() and old_autocoder_dir.is_dir() and not new_autoforge_dir.exists():
+    new_devengine_dir = project_dir / ".mq-devengine"
+    if old_autocoder_dir.exists() and old_autocoder_dir.is_dir() and not new_devengine_dir.exists():
         try:
-            old_autocoder_dir.rename(new_autoforge_dir)
-            logger.info("Migrated .autocoder/ -> .autoforge/")
-            migrated: list[str] = [".autocoder/ -> .autoforge/"]
+            old_autocoder_dir.rename(new_devengine_dir)
+            logger.info("Migrated .autocoder/ -> .mq-devengine/")
+            migrated: list[str] = [".autocoder/ -> .mq-devengine/"]
         except Exception:
-            logger.warning("Failed to migrate .autocoder/ -> .autoforge/", exc_info=True)
+            logger.warning("Failed to migrate .autocoder/ -> .mq-devengine/", exc_info=True)
             migrated = []
     else:
         migrated = []
 
-    autoforge_dir = ensure_autoforge_dir(project_dir)
+    devengine_dir = ensure_devengine_dir(project_dir)
 
     # --- 1. Migrate prompts/ directory -----------------------------------
     try:
         old_prompts = project_dir / "prompts"
-        new_prompts = autoforge_dir / "prompts"
+        new_prompts = devengine_dir / "prompts"
         if old_prompts.exists() and old_prompts.is_dir() and not new_prompts.exists():
             shutil.copytree(str(old_prompts), str(new_prompts))
             shutil.rmtree(str(old_prompts))
-            migrated.append("prompts/ -> .autoforge/prompts/")
-            logger.info("Migrated prompts/ -> .autoforge/prompts/")
+            migrated.append("prompts/ -> .mq-devengine/prompts/")
+            logger.info("Migrated prompts/ -> .mq-devengine/prompts/")
     except Exception:
         logger.warning("Failed to migrate prompts/ directory", exc_info=True)
 
@@ -253,7 +253,7 @@ def migrate_project_layout(project_dir: Path) -> list[str]:
     for db_name in db_names:
         try:
             old_db = project_dir / db_name
-            new_db = autoforge_dir / db_name
+            new_db = devengine_dir / db_name
             if old_db.exists() and not new_db.exists():
                 # Flush WAL to ensure all data is in the main database file
                 conn = sqlite3.connect(str(old_db))
@@ -288,8 +288,8 @@ def migrate_project_layout(project_dir: Path) -> list[str]:
                     wal_file = project_dir / f"{db_name}{suffix}"
                     wal_file.unlink(missing_ok=True)
 
-                migrated.append(f"{db_name} -> .autoforge/{db_name}")
-                logger.info("Migrated %s -> .autoforge/%s", db_name, db_name)
+                migrated.append(f"{db_name} -> .mq-devengine/{db_name}")
+                logger.info("Migrated %s -> .mq-devengine/%s", db_name, db_name)
         except Exception:
             logger.warning("Failed to migrate %s", db_name, exc_info=True)
 
@@ -304,11 +304,11 @@ def migrate_project_layout(project_dir: Path) -> list[str]:
     for filename in simple_files:
         try:
             old_file = project_dir / filename
-            new_file = autoforge_dir / filename
+            new_file = devengine_dir / filename
             if old_file.exists() and not new_file.exists():
                 shutil.move(str(old_file), str(new_file))
-                migrated.append(f"{filename} -> .autoforge/{filename}")
-                logger.info("Migrated %s -> .autoforge/%s", filename, filename)
+                migrated.append(f"{filename} -> .mq-devengine/{filename}")
+                logger.info("Migrated %s -> .mq-devengine/%s", filename, filename)
         except Exception:
             logger.warning("Failed to migrate %s", filename, exc_info=True)
 

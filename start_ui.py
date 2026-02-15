@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AutoForge UI Launcher
+MQ DevEngine UI Launcher
 =====================
 
 Automated launcher that handles all setup:
@@ -313,7 +313,7 @@ def start_production_server(port: int, host: str = "127.0.0.1"):
 
 def main() -> None:
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="AutoForge UI Launcher")
+    parser = argparse.ArgumentParser(description="MQ DevEngine UI Launcher")
     parser.add_argument("--dev", action="store_true", help="Run in development mode with Vite hot reload")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=None, help="Port to bind to (default: auto-detect from 8888)")
@@ -328,7 +328,7 @@ def main() -> None:
         print("  SECURITY WARNING")
         print("!" * 50)
         print(f"  Remote access enabled on host: {host}")
-        print("  The AutoForge UI will be accessible from other machines.")
+        print("  The MQ DevEngine UI will be accessible from other machines.")
         print("  Ensure you understand the security implications:")
         print("  - The agent has file system access to project directories")
         print("  - The API can start/stop agents and modify files")
@@ -336,7 +336,7 @@ def main() -> None:
         print("!" * 50 + "\n")
 
     print("=" * 50)
-    print("  AutoForge UI Setup")
+    print("  MQ DevEngine UI Setup")
     print("=" * 50)
 
     total_steps = 6 if not dev_mode else 5

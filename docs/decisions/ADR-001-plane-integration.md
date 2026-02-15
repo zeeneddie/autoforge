@@ -6,7 +6,7 @@
 
 ## Context
 
-AutoForge had een roadmap (Sprints 2-6) om zelf een agile planning-systeem te bouwen:
+MQ DevEngine had een roadmap (Sprints 2-6) om zelf een agile planning-systeem te bouwen:
 
 | Sprint | Onderwerp | Geschatte effort |
 |--------|-----------|------------------|
@@ -52,7 +52,7 @@ Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) a
 
 1. **Enorme tijdsbesparing.** 4 sprints vervangen door 2 integratie-sprints.
 2. **Betere UX.** Plane is een volwassen PM tool met drag & drop, filters, burndown charts, meerdere views.
-3. **Separation of concerns.** Plane doet planning, AutoForge doet uitvoering.
+3. **Separation of concerns.** Plane doet planning, MQ DevEngine doet uitvoering.
 4. **Self-hosted.** Volledige controle over data en deployment.
 5. **Forward-compatible.** Als we later toch eigen tabellen willen, kan de mapper aangepast worden.
 
@@ -63,7 +63,7 @@ Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) a
 | Extra infra (Docker + PostgreSQL + Redis) | Medium | Plane draait in Docker Compose, eenvoudige setup |
 | Plane downtime | Laag | Features zijn lokaal in SQLite, orchestrator werkt door |
 | Rate limit (60 req/min) | Laag | Budget: ~14 req/min, voldoende voor <50 items |
-| Twee UIs (Plane + AutoForge) | Medium | Later: deep links of embedded views |
+| Twee UIs (Plane + MQ DevEngine) | Medium | Later: deep links of embedded views |
 | Plane API deprecation (`/issues/` -> `/work-items/`) | Medium | Direct op nieuwe endpoints bouwen |
 
 ## Gevolgen
@@ -78,7 +78,7 @@ Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) a
 
 **Blijft:**
 - Sprint 1 (Multi-Model Support) - Al done
-- Sprint 4 (DoD & Sprint Execution) - AutoForge's kernwaarde
+- Sprint 4 (DoD & Sprint Execution) - MQ DevEngine's kernwaarde
 - Sprint 7 (Continuous Delivery) - Onafhankelijk van Plane
 
 **Nieuw:**

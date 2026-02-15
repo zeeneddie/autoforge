@@ -8,16 +8,16 @@
 |---|---|---|---|
 | Plane (Docker Compose) | 8080 (proxy), 8082 (API), 5433 (DB), 6380 (Redis), 9001 (MinIO) | Docker Compose | Container names |
 | ChromaDB | 8001 | Docker container | Container name |
-| AutoForge Server | 8888 | Python uvicorn | PID file |
-| AutoForge UI (dev) | 5175 | Vite dev server | PID file |
-| AutoForge Agent(s) | - | Subprocess via API | Agent status API |
+| MQ DevEngine Server | 8888 | Python uvicorn | PID file |
+| MQ DevEngine UI (dev) | 5175 | Vite dev server | PID file |
+| MQ DevEngine Agent(s) | - | Subprocess via API | Agent status API |
 
 ## PID File Locatie
 
-Alle PID files worden opgeslagen in `~/.autoforge/pids/`:
+Alle PID files worden opgeslagen in `~/.mq-devengine/pids/`:
 
 ```bash
-mkdir -p ~/.autoforge/pids
+mkdir -p ~/.mq-devengine/pids
 ```
 
 ---
@@ -87,22 +87,22 @@ docker ps --filter "name=project_manager_chromadb" --format "{{.Names}}"  # verw
 
 ---
 
-## 3. AutoForge Server
+## 3. MQ DevEngine Server
 
 ### Starten
 
 ```bash
-cd /home/eddie/Projects/autoforge
-nohup ./venv/bin/python -m server.main > /tmp/autoforge-server.log 2>&1 &
-echo $! > ~/.autoforge/pids/server.pid
-echo "AutoForge Server PID: $(cat ~/.autoforge/pids/server.pid)"
+cd /home/eddie/Projects/mq-devEngine
+nohup ./venv/bin/python -m server.main > /tmp/devengine-server.log 2>&1 &
+echo $! > ~/.mq-devengine/pids/server.pid
+echo "MQ DevEngine Server PID: $(cat ~/.mq-devengine/pids/server.pid)"
 ```
 
 ### Verificatie
 
 ```bash
 # PID check
-PID=$(cat ~/.autoforge/pids/server.pid 2>/dev/null)
+PID=$(cat ~/.mq-devengine/pids/server.pid 2>/dev/null)
 ps -p $PID -o pid,cmd --no-headers 2>/dev/null || echo "Process NOT running"
 
 # Port check
@@ -115,7 +115,7 @@ curl -s http://localhost:8888/api/health  # verwacht: {"status":"healthy"}
 ### Stoppen
 
 ```bash
-PID=$(cat ~/.autoforge/pids/server.pid 2>/dev/null)
+PID=$(cat ~/.mq-devengine/pids/server.pid 2>/dev/null)
 if [ -n "$PID" ]; then
     kill $PID 2>/dev/null
     sleep 2
@@ -124,7 +124,7 @@ if [ -n "$PID" ]; then
         echo "WARN: Process $PID still running, sending SIGKILL"
         kill -9 $PID 2>/dev/null
     fi
-    rm -f ~/.autoforge/pids/server.pid
+    rm -f ~/.mq-devengine/pids/server.pid
     echo "Server stopped"
 else
     echo "No PID file found"
@@ -134,7 +134,7 @@ fi
 ### Verificatie na stoppen
 
 ```bash
-PID=$(cat ~/.autoforge/pids/server.pid 2>/dev/null)
+PID=$(cat ~/.mq-devengine/pids/server.pid 2>/dev/null)
 ps -p $PID > /dev/null 2>&1 && echo "FAIL: still running" || echo "OK: stopped"
 ss -tlnp | grep 8888  # verwacht: leeg
 curl -s http://localhost:8888/api/health  # verwacht: connection refused
@@ -142,21 +142,21 @@ curl -s http://localhost:8888/api/health  # verwacht: connection refused
 
 ---
 
-## 4. AutoForge UI (Development)
+## 4. MQ DevEngine UI (Development)
 
 ### Starten
 
 ```bash
-cd /home/eddie/Projects/autoforge/ui
-nohup npm run dev > /tmp/autoforge-ui.log 2>&1 &
-echo $! > ~/.autoforge/pids/ui.pid
-echo "AutoForge UI PID: $(cat ~/.autoforge/pids/ui.pid)"
+cd /home/eddie/Projects/mq-devEngine/ui
+nohup npm run dev > /tmp/devengine-ui.log 2>&1 &
+echo $! > ~/.mq-devengine/pids/ui.pid
+echo "MQ DevEngine UI PID: $(cat ~/.mq-devengine/pids/ui.pid)"
 ```
 
 ### Verificatie
 
 ```bash
-PID=$(cat ~/.autoforge/pids/ui.pid 2>/dev/null)
+PID=$(cat ~/.mq-devengine/pids/ui.pid 2>/dev/null)
 ps -p $PID -o pid,cmd --no-headers 2>/dev/null || echo "Process NOT running"
 ss -tlnp | grep 5175
 curl -s -o /dev/null -w "%{http_code}" http://localhost:5175/  # verwacht: 200
@@ -165,23 +165,23 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:5175/  # verwacht: 200
 ### Stoppen
 
 ```bash
-PID=$(cat ~/.autoforge/pids/ui.pid 2>/dev/null)
+PID=$(cat ~/.mq-devengine/pids/ui.pid 2>/dev/null)
 if [ -n "$PID" ]; then
     kill $PID 2>/dev/null
     sleep 2
     if ps -p $PID > /dev/null 2>&1; then
         kill -9 $PID 2>/dev/null
     fi
-    rm -f ~/.autoforge/pids/ui.pid
+    rm -f ~/.mq-devengine/pids/ui.pid
     echo "UI stopped"
 fi
 ```
 
 ---
 
-## 5. AutoForge Agent (per project)
+## 5. MQ DevEngine Agent (per project)
 
-Agents worden gestart/gestopt via de AutoForge API.
+Agents worden gestart/gestopt via de MQ DevEngine API.
 
 ### Starten
 
@@ -224,7 +224,7 @@ curl -s -X POST http://localhost:8888/api/projects/PROJECT_NAME/agent/stop | pyt
 ```bash
 #!/bin/bash
 set -e
-mkdir -p ~/.autoforge/pids
+mkdir -p ~/.mq-devengine/pids
 
 echo "=== Starting Plane ==="
 cd /home/eddie/plane
@@ -233,23 +233,23 @@ docker compose -f docker-compose-local.yml up -d
 echo "=== Starting ChromaDB ==="
 docker start project_manager_chromadb 2>/dev/null || echo "Already running"
 
-echo "=== Starting AutoForge Server ==="
-cd /home/eddie/Projects/autoforge
+echo "=== Starting MQ DevEngine Server ==="
+cd /home/eddie/Projects/mq-devEngine
 if ss -tlnp | grep -q ':8888 '; then
     echo "Server already running on port 8888"
 else
-    nohup ./venv/bin/python -m server.main > /tmp/autoforge-server.log 2>&1 &
-    echo $! > ~/.autoforge/pids/server.pid
+    nohup ./venv/bin/python -m server.main > /tmp/devengine-server.log 2>&1 &
+    echo $! > ~/.mq-devengine/pids/server.pid
     sleep 3
 fi
 
-echo "=== Starting AutoForge UI ==="
-cd /home/eddie/Projects/autoforge/ui
+echo "=== Starting MQ DevEngine UI ==="
+cd /home/eddie/Projects/mq-devEngine/ui
 if ss -tlnp | grep -q ':5175 '; then
     echo "UI already running on port 5175"
 else
-    nohup npm run dev > /tmp/autoforge-ui.log 2>&1 &
-    echo $! > ~/.autoforge/pids/ui.pid
+    nohup npm run dev > /tmp/devengine-ui.log 2>&1 &
+    echo $! > ~/.mq-devengine/pids/ui.pid
     sleep 2
 fi
 
@@ -276,13 +276,13 @@ for project in klaverjas_app mq-discovery; do
     fi
 done
 
-echo "=== Stopping AutoForge UI ==="
-PID=$(cat ~/.autoforge/pids/ui.pid 2>/dev/null)
-[ -n "$PID" ] && kill $PID 2>/dev/null && rm -f ~/.autoforge/pids/ui.pid && echo "  UI stopped (PID $PID)"
+echo "=== Stopping MQ DevEngine UI ==="
+PID=$(cat ~/.mq-devengine/pids/ui.pid 2>/dev/null)
+[ -n "$PID" ] && kill $PID 2>/dev/null && rm -f ~/.mq-devengine/pids/ui.pid && echo "  UI stopped (PID $PID)"
 
-echo "=== Stopping AutoForge Server ==="
-PID=$(cat ~/.autoforge/pids/server.pid 2>/dev/null)
-[ -n "$PID" ] && kill $PID 2>/dev/null && rm -f ~/.autoforge/pids/server.pid && echo "  Server stopped (PID $PID)"
+echo "=== Stopping MQ DevEngine Server ==="
+PID=$(cat ~/.mq-devengine/pids/server.pid 2>/dev/null)
+[ -n "$PID" ] && kill $PID 2>/dev/null && rm -f ~/.mq-devengine/pids/server.pid && echo "  Server stopped (PID $PID)"
 
 echo "=== Stopping ChromaDB ==="
 docker stop project_manager_chromadb 2>/dev/null && echo "  ChromaDB stopped"
@@ -298,7 +298,7 @@ echo "Port 8080 (Plane):    $(ss -tlnp | grep -c ':8080 ') listeners"
 echo "Port 8001 (ChromaDB): $(ss -tlnp | grep -c ':8001 ') listeners"
 echo "Port 8888 (Server):   $(ss -tlnp | grep -c ':8888 ') listeners"
 echo "Port 5175 (UI):       $(ss -tlnp | grep -c ':5175 ') listeners"
-echo "PID files remaining:  $(ls ~/.autoforge/pids/ 2>/dev/null | wc -l)"
+echo "PID files remaining:  $(ls ~/.mq-devengine/pids/ 2>/dev/null | wc -l)"
 ```
 
 ### Status check
@@ -318,12 +318,12 @@ CHROMA_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8001/api
 echo "ChromaDB:  HTTP $CHROMA_STATUS"
 
 # Server
-SERVER_PID=$(cat ~/.autoforge/pids/server.pid 2>/dev/null)
+SERVER_PID=$(cat ~/.mq-devengine/pids/server.pid 2>/dev/null)
 SERVER_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/api/health 2>/dev/null)
 echo "Server:    HTTP $SERVER_STATUS (PID: ${SERVER_PID:-none})"
 
 # UI
-UI_PID=$(cat ~/.autoforge/pids/ui.pid 2>/dev/null)
+UI_PID=$(cat ~/.mq-devengine/pids/ui.pid 2>/dev/null)
 UI_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5175/ 2>/dev/null)
 echo "UI:        HTTP $UI_STATUS (PID: ${UI_PID:-none})"
 

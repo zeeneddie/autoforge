@@ -465,7 +465,7 @@ After two rounds of exhaustive research covering 50+ tools across every platform
 | Refine/split/reorganize existing work items | DOES NOT EXIST | No tool does this |
 | AI-powered requirements decomposition | DOES NOT EXIST | MetaGPT (greenfield only), StoryMachine (CLI) |
 | AI-powered iterative refinement of existing items | DOES NOT EXIST | None |
-| Push to Plane via API | DOES NOT EXIST | AutoForge is the only known Plane integration builder |
+| Push to Plane via API | DOES NOT EXIST | MQ DevEngine is the only known Plane integration builder |
 | Permissive license (MIT/Apache) | Available | Eververse (MIT), StrictDoc (Apache 2.0), CopilotKit (MIT) |
 | Modern tech stack (React/Next.js + Python) | Available | Eververse, CopilotKit, assistant-ui |
 

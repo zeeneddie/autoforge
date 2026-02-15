@@ -242,11 +242,11 @@ def main() -> None:
             print("Use an absolute path or register the project first.")
             return
 
-    # Migrate project layout to .autoforge/ if needed (idempotent, safe)
-    from autoforge_paths import migrate_project_layout
+    # Migrate project layout to .mq-devengine/ if needed (idempotent, safe)
+    from devengine_paths import migrate_project_layout
     migrated = migrate_project_layout(project_dir)
     if migrated:
-        print(f"Migrated project files to .autoforge/: {', '.join(migrated)}", flush=True)
+        print(f"Migrated project files to .mq-devengine/: {', '.join(migrated)}", flush=True)
 
     # Parse batch testing feature IDs (comma-separated string -> list[int])
     testing_feature_ids: list[int] | None = None

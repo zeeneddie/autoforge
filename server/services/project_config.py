@@ -6,7 +6,7 @@ Handles project type detection and dev command configuration.
 Detects project types by scanning for configuration files and provides
 default or custom dev commands for each project.
 
-Configuration is stored in {project_dir}/.autoforge/config.json.
+Configuration is stored in {project_dir}/.mq-devengine/config.json.
 """
 
 import json
@@ -88,7 +88,7 @@ def _get_config_path(project_dir: Path) -> Path:
     """
     Get the path to the project config file.
 
-    Checks the new .autoforge/ location first, falls back to .autocoder/
+    Checks the new .mq-devengine/ location first, falls back to .autocoder/
     for backward compatibility.
 
     Args:
@@ -97,7 +97,7 @@ def _get_config_path(project_dir: Path) -> Path:
     Returns:
         Path to the config.json file in the appropriate directory.
     """
-    new_path = project_dir / ".autoforge" / "config.json"
+    new_path = project_dir / ".mq-devengine" / "config.json"
     if new_path.exists():
         return new_path
     old_path = project_dir / ".autocoder" / "config.json"
@@ -146,7 +146,7 @@ def _save_config(project_dir: Path, config: dict) -> None:
     """
     Save the project configuration to disk.
 
-    Creates the .autoforge directory if it doesn't exist.
+    Creates the .mq-devengine directory if it doesn't exist.
 
     Args:
         project_dir: Path to the project directory.
@@ -157,7 +157,7 @@ def _save_config(project_dir: Path, config: dict) -> None:
     """
     config_path = _get_config_path(project_dir)
 
-    # Ensure the .autoforge directory exists
+    # Ensure the .mq-devengine directory exists
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -417,11 +417,11 @@ def clear_dev_command(project_dir: Path) -> None:
             config_path.unlink(missing_ok=True)
             logger.info("Removed empty config file for %s", project_dir.name)
 
-            # Also remove .autoforge directory if empty
-            autoforge_dir = config_path.parent
-            if autoforge_dir.exists() and not any(autoforge_dir.iterdir()):
-                autoforge_dir.rmdir()
-                logger.debug("Removed empty .autoforge directory for %s", project_dir.name)
+            # Also remove .mq-devengine directory if empty
+            devengine_dir = config_path.parent
+            if devengine_dir.exists() and not any(devengine_dir.iterdir()):
+                devengine_dir.rmdir()
+                logger.debug("Removed empty .mq-devengine directory for %s", project_dir.name)
         except OSError as e:
             logger.warning("Failed to clean up config for %s: %s", project_dir.name, e)
     else:

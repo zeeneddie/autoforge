@@ -1,4 +1,4 @@
-"""Sync service: bidirectional sync between Plane work items and AutoForge Features."""
+"""Sync service: bidirectional sync between Plane work items and MQ DevEngine Features."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def import_cycle(
     project_dir: Path,
     cycle_id: str,
 ) -> PlaneImportResult:
-    """Import work items from a Plane cycle into the AutoForge Feature DB.
+    """Import work items from a Plane cycle into the MQ DevEngine Feature DB.
 
     - New work items are created as Features.
     - Existing Features (matched by plane_work_item_id) are updated if Plane
@@ -61,7 +61,7 @@ def import_cycle(
 
     Args:
         client: Authenticated PlaneApiClient.
-        project_dir: Path to the AutoForge project directory.
+        project_dir: Path to the MQ DevEngine project directory.
         cycle_id: Plane cycle UUID to import from.
 
     Returns:
@@ -224,7 +224,7 @@ def outbound_sync(
     client: PlaneApiClient,
     project_dir: Path,
 ) -> PlaneOutboundResult:
-    """Push AutoForge feature status changes to Plane work items.
+    """Push MQ DevEngine feature status changes to Plane work items.
 
     For each feature linked to a Plane work item:
     1. Compute a status hash from passes/in_progress
@@ -234,7 +234,7 @@ def outbound_sync(
 
     Args:
         client: Authenticated PlaneApiClient.
-        project_dir: Path to the AutoForge project directory.
+        project_dir: Path to the MQ DevEngine project directory.
 
     Returns:
         PlaneOutboundResult with counts.

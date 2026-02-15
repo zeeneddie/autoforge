@@ -1,4 +1,4 @@
-"""Self-hosting setup: register AutoForge as a project in its own registry."""
+"""Self-hosting setup: register MQ DevEngine as a project in its own registry."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Marker files that identify the AutoForge project root
+# Marker files that identify the MQ DevEngine project root
 _MARKER_FILES = [
     "server/main.py",
     "parallel_orchestrator.py",
@@ -16,8 +16,8 @@ _MARKER_FILES = [
 ]
 
 
-def detect_autoforge_root(start: Path | None = None) -> Path | None:
-    """Detect the AutoForge project root by checking for marker files.
+def detect_devengine_root(start: Path | None = None) -> Path | None:
+    """Detect the MQ DevEngine project root by checking for marker files.
 
     Walks up from *start* (default: this file's grandparent) looking for a
     directory that contains all marker files.
@@ -39,17 +39,17 @@ def detect_autoforge_root(start: Path | None = None) -> Path | None:
     return None
 
 
-def setup_self_host(project_name: str = "autoforge") -> dict:
-    """Register AutoForge in its own project registry (idempotent).
+def setup_self_host(project_name: str = "mq-devengine") -> dict:
+    """Register MQ DevEngine in its own project registry (idempotent).
 
     Returns a dict with keys:
         - project_name: str
         - project_path: str
         - already_registered: bool
     """
-    root = detect_autoforge_root()
+    root = detect_devengine_root()
     if root is None:
-        raise RuntimeError("Cannot detect AutoForge project root")
+        raise RuntimeError("Cannot detect MQ DevEngine project root")
 
     # Ensure registry module is importable
     if str(root) not in sys.path:
@@ -59,7 +59,7 @@ def setup_self_host(project_name: str = "autoforge") -> dict:
 
     existing = get_project_path(project_name)
     if existing is not None:
-        logger.info("AutoForge already registered as '%s' at %s", project_name, existing)
+        logger.info("MQ DevEngine already registered as '%s' at %s", project_name, existing)
         return {
             "project_name": project_name,
             "project_path": str(existing),
@@ -77,7 +77,7 @@ def setup_self_host(project_name: str = "autoforge") -> dict:
             "already_registered": True,
         }
 
-    logger.info("Registered AutoForge as '%s' at %s", project_name, root)
+    logger.info("Registered MQ DevEngine as '%s' at %s", project_name, root)
     return {
         "project_name": project_name,
         "project_path": str(root),

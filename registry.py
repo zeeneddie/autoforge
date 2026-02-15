@@ -3,7 +3,7 @@ Project Registry Module
 =======================
 
 Cross-platform project registry for storing project name to path mappings.
-Uses SQLite database stored at ~/.autoforge/registry.db.
+Uses SQLite database stored at ~/.mq-devengine/registry.db.
 """
 
 import logging
@@ -24,19 +24,19 @@ logger = logging.getLogger(__name__)
 
 
 def _migrate_registry_dir() -> None:
-    """Migrate ~/.autocoder/ to ~/.autoforge/ if needed.
+    """Migrate ~/.autocoder/ to ~/.mq-devengine/ if needed.
 
     Provides backward compatibility by automatically renaming the old
     config directory to the new location on first access.
     """
     old_dir = Path.home() / ".autocoder"
-    new_dir = Path.home() / ".autoforge"
+    new_dir = Path.home() / ".mq-devengine"
     if old_dir.exists() and not new_dir.exists():
         try:
             old_dir.rename(new_dir)
-            logger.info("Migrated registry directory: ~/.autocoder/ -> ~/.autoforge/")
+            logger.info("Migrated registry directory: ~/.autocoder/ -> ~/.mq-devengine/")
         except Exception:
-            logger.warning("Failed to migrate ~/.autocoder/ to ~/.autoforge/", exc_info=True)
+            logger.warning("Failed to migrate ~/.autocoder/ to ~/.mq-devengine/", exc_info=True)
 
 
 # =============================================================================
@@ -136,15 +136,15 @@ _engine_lock = threading.Lock()
 
 def get_config_dir() -> Path:
     """
-    Get the config directory: ~/.autoforge/
+    Get the config directory: ~/.mq-devengine/
 
     Automatically migrates from ~/.autocoder/ if needed.
 
     Returns:
-        Path to ~/.autoforge/ (created if it doesn't exist)
+        Path to ~/.mq-devengine/ (created if it doesn't exist)
     """
     _migrate_registry_dir()
-    config_dir = Path.home() / ".autoforge"
+    config_dir = Path.home() / ".mq-devengine"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir
 

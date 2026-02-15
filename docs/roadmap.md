@@ -13,13 +13,13 @@ Zie [ADR-001](decisions/ADR-001-plane-integration.md) voor de rationale.
 ## Pipeline Overzicht
 
 ```
-Onboarding (Analyse) -> Discovery Tool (Requirements) -> Plane (Planning) -> AutoForge (Executie)
+Onboarding (Analyse) -> Discovery Tool (Requirements) -> Plane (Planning) -> MQ DevEngine (Executie)
                                                               |
                                                          PM Dashboard (Monitoring)
-                                                       [data uit Plane + AutoForge + Onboarding]
+                                                       [data uit Plane + MQ DevEngine + Onboarding]
 ```
 
-Onboarding levert codebase-kennis (kwaliteit, performance, security, IFPUG FP) die de Discovery-workflow voedt. Het PM Dashboard aggregeert data uit Plane, AutoForge en Onboarding. Zie [platform-overview.md](platform-overview.md) voor het volledige platformdiagram en [architecture.md](architecture.md) voor de architectuur.
+Onboarding levert codebase-kennis (kwaliteit, performance, security, IFPUG FP) die de Discovery-workflow voedt. Het PM Dashboard aggregeert data uit Plane, MQ DevEngine en Onboarding. Zie [platform-overview.md](platform-overview.md) voor het volledige platformdiagram en [architecture.md](architecture.md) voor de architectuur.
 
 ---
 
@@ -45,14 +45,14 @@ Per agent-type model selectie met OpenRouter support.
 
 > Afgerond: 2026-02-10 | Commit: `cbd5953`
 
-Work items uit Plane importeren als AutoForge Features.
+Work items uit Plane importeren als MQ DevEngine Features.
 
 | # | Item | Status |
 |---|---|---|
 | 2.1 | PlaneApiClient met auth + rate limiting (`plane_sync/client.py`) | done |
 | 2.2 | Pydantic modellen voor Plane API entities (`plane_sync/models.py`) | done |
 | 2.3 | Feature tabel migratie: plane_work_item_id, plane_synced_at, plane_updated_at | done |
-| 2.4 | DataMapper: Plane WorkItem -> AutoForge Feature (`plane_sync/mapper.py`) | done |
+| 2.4 | DataMapper: Plane WorkItem -> MQ DevEngine Feature (`plane_sync/mapper.py`) | done |
 | 2.5 | Import endpoint: `POST /api/plane/import-cycle` | done |
 | 2.6 | API endpoints: config, test-connection, cycles | done |
 | 2.7 | Settings UI: Plane connectie configuratie in SettingsModal | done |
@@ -60,9 +60,9 @@ Work items uit Plane importeren als AutoForge Features.
 
 **Acceptatiecriteria:**
 1. Maak een Cycle in Plane met 3-5 work items
-2. Configureer Plane API credentials in AutoForge settings
-3. Klik "Import Sprint" in AutoForge UI
-4. Features verschijnen in AutoForge's feature DB met juiste priority/category/dependencies
+2. Configureer Plane API credentials in MQ DevEngine settings
+3. Klik "Import Sprint" in MQ DevEngine UI
+4. Features verschijnen in MQ DevEngine's feature DB met juiste priority/category/dependencies
 5. Start de agent -- features worden opgepakt en geimplementeerd
 
 **Technische details:** Zie [plane-sync/api-design.md](plane-sync/api-design.md)
@@ -73,7 +73,7 @@ Work items uit Plane importeren als AutoForge Features.
 
 > Afgerond: 2026-02-10
 
-Bidirectionele status sync: AutoForge feature status wordt automatisch naar Plane gepusht, en Plane wijzigingen worden opgehaald via een achtergrond polling loop.
+Bidirectionele status sync: MQ DevEngine feature status wordt automatisch naar Plane gepusht, en Plane wijzigingen worden opgehaald via een achtergrond polling loop.
 
 | # | Item | Status |
 |---|---|---|
@@ -81,15 +81,15 @@ Bidirectionele status sync: AutoForge feature status wordt automatisch naar Plan
 | 3.2 | Echo prevention via status hash + timestamp vergelijking | done |
 | 3.3 | Background polling loop (configurable interval) | done |
 | 3.4 | Mid-sprint sync (nieuwe/gewijzigde/verwijderde items) | done |
-| 3.5 | Plane sync status in AutoForge UI | done |
+| 3.5 | Plane sync status in MQ DevEngine UI | done |
 | 3.6 | Optionele webhook handler met HMAC-SHA256 verificatie | done (Sprint 5) |
 | 3.7 | Change document generatie (git diff + AI summary) | done (Sprint 4) |
 
 **Acceptatiecriteria:**
-1. Plane work items gaan automatisch naar "started" als AutoForge ze oppakt
+1. Plane work items gaan automatisch naar "started" als MQ DevEngine ze oppakt
 2. Plane work items gaan naar "completed" als Features passing worden
-3. Edit een work item in Plane mid-sprint -- wijziging komt door in AutoForge
-4. Echo prevention: AutoForge's eigen updates triggeren geen onnodige re-sync
+3. Edit een work item in Plane mid-sprint -- wijziging komt door in MQ DevEngine
+4. Echo prevention: MQ DevEngine's eigen updates triggeren geen onnodige re-sync
 
 **Technische details:** Zie [decisions/ADR-003-data-mapping.md](decisions/ADR-003-data-mapping.md)
 
@@ -130,7 +130,7 @@ Test history tracking, release notes generatie, en real-time Plane webhooks.
 | 5.2 | Regression test reporting: TestRun DB model, recording in orchestrator, test-report API | done |
 | 5.1 | Release notes generatie uit voltooide features (markdown, per sprint) | done |
 | 3.6 | Plane webhooks: HMAC-SHA256 verificatie, event dedup, issue/cycle routing | done |
-| 5.3 | Self-hosting: AutoForge eigen backlog in Plane | done (Sprint 6) |
+| 5.3 | Self-hosting: MQ DevEngine eigen backlog in Plane | done (Sprint 6) |
 | 5.4 | Onboarding -> Plane importer (markdown -> Plane entities) | done (Sprint 6) |
 
 **Acceptatiecriteria:**
@@ -160,14 +160,14 @@ Self-hosting setup en Onboarding-to-Plane import pipeline.
 | # | Item | Status |
 |---|---|---|
 | 6.1 | Fix `background.py` registry import bug (`get_all_projects` -> `list_registered_projects`) | done |
-| 6.2 | Self-hosting setup: `POST /api/plane/self-host-setup` registreert AutoForge in eigen registry | done |
+| 6.2 | Self-hosting setup: `POST /api/plane/self-host-setup` registreert MQ DevEngine in eigen registry | done |
 | 6.3 | PlaneApiClient write operations: `create_work_item`, `create_module`, `add_work_items_to_module`, `add_work_items_to_cycle` | done |
 | 6.4 | Onboarding markdown parser: `marqed_import/parser.py` met `parse_marqed_tree()` | done |
 | 6.5 | Onboarding-to-Plane importer: `POST /api/plane/marqed-import` creates modules + work items in Plane | done |
 | 6.6 | Documentatie update: roadmap, architecture, API design | done |
 
 **Acceptatiecriteria:**
-1. `POST /api/plane/self-host-setup` registreert "autoforge" in registry (idempotent)
+1. `POST /api/plane/self-host-setup` registreert "mq-devengine" in registry (idempotent)
 2. Onboarding parser: 1 epic + 2 features + 3 stories -> correct nested entity tree
 3. Onboarding import: creates 1 module + 5 work items in Plane met correcte parent relaties
 4. Items in juiste module, optioneel in cycle
@@ -334,14 +334,14 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 
 | # | Item | Status |
 |---|---|---|
-| 8c.1 | Aggregation API: data from Plane hierarchy + AutoForge test results + Onboarding IFPUG FP | planned |
+| 8c.1 | Aggregation API: data from Plane hierarchy + MQ DevEngine test results + Onboarding IFPUG FP | planned |
 | 8c.2 | Dashboard UI: 4-level drill-down (Application > Epic > Feature > Story) | planned |
 | 8c.3 | Breadcrumb navigation across all hierarchy levels | planned |
 | 8c.4 | Metrics per level: children count, FP sum, tests per category, phase status | planned |
 | 8c.5 | Configurable CRUD mode: read-only fase 1, add+view fase 2, full CRUD fase 3 | planned |
 
 **Acceptatiecriteria:**
-1. Aggregation API combines data from Plane, AutoForge, and Onboarding sources
+1. Aggregation API combines data from Plane, MQ DevEngine, and Onboarding sources
 2. Dashboard shows Application level with summary of all epics, features, stories
 3. Click epic drills down to show features with their metrics
 4. Click feature drills down to show stories with individual metrics
@@ -372,7 +372,7 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 2. Tenant admin can create/configure tenants and assign users
 3. Team profiles specify AI models and prompt context per application
 4. Role-based access: viewer (read-only), editor (intake + modify), admin (full CRUD + team management)
-5. `npm install -g autoforge-ai` + `autoforge config` sets up a working instance
+5. `npm install -g mq-devengine-ai` + `mq-devengine config` sets up a working instance
 6. Plane Docker Compose starts with correct configuration
 7. p920 production server runs complete pipeline from scratch
 8. Dev and prod environments are fully independent
@@ -404,7 +404,7 @@ Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specif
 1. PM navigeert naar Feature "Data Export" in Dashboard, klikt [+], kiest "Bug", vult formulier in → Plane work item aangemaakt met label `intake:bug` en parent relatie
 2. Bug met prioriteit "High" verschijnt automatisch in actieve Plane cycle
 3. Nieuw requirement gaat via Discovery Tool (brownpaper) → gedecomponeerd tot micro features → terug in Plane
-4. Change request gaat direct naar Plane, AutoForge pakt op, PM ziet resultaat in intake overzicht
+4. Change request gaat direct naar Plane, MQ DevEngine pakt op, PM ziet resultaat in intake overzicht
 5. Audit trail toont volledige geschiedenis: wie, wanneer, welke fase, welke acties, test results
 6. Intake overzicht filtert op type, status, en prioriteit
 7. Sprint metrics tonen intake statistieken (open/actief/afgerond per type, doorlooptijd)
@@ -430,13 +430,13 @@ Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specif
 
 ## Sprint 11: Feedback Loop & Knowledge Management -- PLANNED
 
-> Doel: Sluit de feedback loop (AutoForge → PM → Discovery) en bepaal waar Onboarding-kennis het beste opgeslagen en benut wordt.
+> Doel: Sluit de feedback loop (MQ DevEngine → PM → Discovery) en bepaal waar Onboarding-kennis het beste opgeslagen en benut wordt.
 
 De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien naar de Discovery Tool. Onboarding-kennis (kwaliteit, performance, security, user journeys, IFPUG FP) moet het Discovery-proces voeden.
 
 | # | Item | Status |
 |---|---|---|
-| 11.1 | Feedback loop: AutoForge test resultaten + change docs als Plane work item comments | planned |
+| 11.1 | Feedback loop: MQ DevEngine test resultaten + change docs als Plane work item comments | planned |
 | 11.2 | Feedback loop: Discovery Tool kan afgewezen Plane items + feedback inladen als context voor verfijning | planned |
 | 11.3 | Feedback loop: notificatie naar PM bij feature completion (Plane notificatie of email/Slack) | planned |
 | 11.4 | **Analyse**: inventariseer alle kennis-artefacten die Onboarding oplevert (MD files, rapporten, metrics, IFPUG FP) | planned |
@@ -446,7 +446,7 @@ De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien na
 | 11.8 | Finetuning: evalueer of feedback loop en kennis-integratie werkt in de praktijk, pas aan waar nodig | planned |
 
 **Acceptatiecriteria:**
-1. Feature completion in AutoForge → automatisch comment op Plane work item met test resultaten
+1. Feature completion in MQ DevEngine → automatisch comment op Plane work item met test resultaten
 2. PM kan in Plane goedkeuren (Done) of afwijzen (comment met feedback)
 3. Discovery Tool kan afgewezen items + feedback laden en requirements verfijnen
 4. Onboarding-kennis beschikbaar in Discovery chat (bv. "je huidige auth gebruikt JWT, wil je dat uitbreiden?")
@@ -515,16 +515,16 @@ Elke sprint volgt dit protocol:
 **1. Planning (Claude Code + gebruiker)**
 - Claude Code stelt de sprint inhoud voor op basis van de roadmap
 - Gebruiker keurt goed, past aan, of voegt toe
-- Scope: klein genoeg dat AutoForge na de sprint nog steeds draait
+- Scope: klein genoeg dat MQ DevEngine na de sprint nog steeds draait
 
 **2. Uitvoering**
 - Kleine, gerichte wijzigingen -- een concern per commit
-- Na elke wijziging: verifiëren dat AutoForge nog opstart en functioneert
+- Na elke wijziging: verifiëren dat MQ DevEngine nog opstart en functioneert
 - Geen wijzigingen aan meerdere kernbestanden tegelijk tenzij onvermijdelijk
 
 **3. Definition of Done per sprint**
 - Alle wijzigingen gecommit en gepusht
-- AutoForge start op en bestaande functionaliteit werkt
+- MQ DevEngine start op en bestaande functionaliteit werkt
 - Nieuwe functionaliteit is testbaar
 - Geen regressies op bestaande features
 
@@ -549,7 +549,7 @@ De gebruiker vraagt Claude Code om de volgende sprint te starten. Claude Code:
 1. Leest deze roadmap en de huidige codebase
 2. Presenteert de sprint items aan de gebruiker
 3. Na goedkeuring: voert de items een voor een uit
-4. Na elk item: commit, verifieer dat AutoForge werkt
+4. Na elk item: commit, verifieer dat MQ DevEngine werkt
 5. Na alle items: push, sprint review met gebruiker
 6. Werkt de status in deze roadmap bij
 

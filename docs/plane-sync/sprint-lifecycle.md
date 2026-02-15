@@ -1,11 +1,11 @@
-# Sprint Lifecycle: Plane + AutoForge
+# Sprint Lifecycle: Plane + MQ DevEngine
 
 ## Overzicht
 
 Een complete sprint doorloopt 7 fasen, verdeeld over drie systemen.
 
 ```
-MarQed          Plane           AutoForge
+MarQed          Plane           MQ DevEngine
   |               |               |
   | 1. Analyse    |               |
   |-------------->|               |
@@ -73,11 +73,11 @@ epics/
 
 **Trigger:** Een van de volgende:
 - Cycle `start_date` bereikt (automatisch via polling)
-- Handmatige "Import Sprint" knop in AutoForge UI
+- Handmatige "Import Sprint" knop in MQ DevEngine UI
 - API call: `POST /api/plane/import-cycle`
 
 **Proces:**
-1. AutoForge Sync Service haalt work items op uit de actieve cycle
+1. MQ DevEngine Sync Service haalt work items op uit de actieve cycle
 2. DataMapper converteert naar Features:
    - Title -> name
    - Description -> description
@@ -88,11 +88,11 @@ epics/
 3. Features worden aangemaakt in project's feature DB
 4. `plane_work_item_id` en `plane_synced_at` worden opgeslagen
 
-**Resultaat:** Features in AutoForge DB, klaar voor de orchestrator.
+**Resultaat:** Features in MQ DevEngine DB, klaar voor de orchestrator.
 
-## Fase 5: Sprint Executie (AutoForge)
+## Fase 5: Sprint Executie (MQ DevEngine)
 
-**Wie:** AutoForge agents (coding + testing)
+**Wie:** MQ DevEngine agents (coding + testing)
 
 **Proces:**
 1. Orchestrator selecteert features op basis van priority en dependencies
@@ -107,7 +107,7 @@ epics/
 
 **Achtergrond:** Polling loop elke 30 seconden.
 
-### Outbound (AutoForge -> Plane)
+### Outbound (MQ DevEngine -> Plane)
 
 | Feature event | Plane actie |
 |---|---|
@@ -115,9 +115,9 @@ epics/
 | Feature passing (passes=true) | Work Item state -> "completed" |
 | Feature failing (passes=false, was true) | Work Item state -> "unstarted" |
 
-### Inbound (Plane -> AutoForge)
+### Inbound (Plane -> MQ DevEngine)
 
-| Plane event | AutoForge actie |
+| Plane event | MQ DevEngine actie |
 |---|---|
 | Work item description gewijzigd | Feature description updaten |
 | Work item priority gewijzigd | Feature priority updaten |
@@ -137,7 +137,7 @@ Na elke outbound push:
 **Trigger:** Alle features in sprint passing (`sprint_complete: true` in sync status).
 
 **Stap 1: DoD Verificatie**
-- AutoForge controleert of alle Plane-gelinkte features `passes=true` hebben
+- MQ DevEngine controleert of alle Plane-gelinkte features `passes=true` hebben
 - Als niet alle features passing zijn, wordt completion geweigerd met details
 
 **Stap 2: Change Log**
@@ -182,10 +182,10 @@ De orchestrator registreert `TestRun` records na elke agent completion:
 
 ## Webhooks (Sprint 5)
 
-Naast de 30-seconde polling loop ondersteunt AutoForge ook real-time webhooks:
+Naast de 30-seconde polling loop ondersteunt MQ DevEngine ook real-time webhooks:
 
-- Configureer webhook secret in AutoForge settings (optioneel maar aanbevolen)
-- Configureer in Plane: webhook URL = `{autoforge-url}/api/plane/webhooks`
+- Configureer webhook secret in MQ DevEngine settings (optioneel maar aanbevolen)
+- Configureer in Plane: webhook URL = `{devengine-url}/api/plane/webhooks`
 - Events (`issue.update`, `cycle.update`) triggeren directe re-import van de actieve cycle
 - Event dedup voorkomt dubbele verwerking (5s cooldown per event key)
 - Webhook count en timestamp zichtbaar in sync status UI
@@ -194,13 +194,13 @@ Naast de 30-seconde polling loop ondersteunt AutoForge ook real-time webhooks:
 
 ### Plane niet bereikbaar tijdens executie
 
-- AutoForge werkt gewoon door (features zijn lokaal in SQLite)
+- MQ DevEngine werkt gewoon door (features zijn lokaal in SQLite)
 - Outbound sync queue: status updates worden gebufferd
 - Bij reconnect: batch push van alle gemiste updates
 
 ### Feature faalt herhaaldelijk
 
-- Feature blijft `passes=false` in AutoForge
+- Feature blijft `passes=false` in MQ DevEngine
 - Work item in Plane blijft op "started" (niet terug naar "unstarted" tot handmatige interventie)
 - Na X pogingen: log warning, ga door met andere features
 
@@ -213,10 +213,10 @@ Naast de 30-seconde polling loop ondersteunt AutoForge ook real-time webhooks:
 
 ### Conflicterende edits
 
-- AutoForge en mens wijzigen tegelijk
+- MQ DevEngine en mens wijzigen tegelijk
 - **Regel:** Plane (mens) wint altijd
-- AutoForge detecteert via timestamp dat er een menselijke edit was
-- Menselijke wijziging wordt overgenomen, AutoForge's wijziging wordt overschreven
+- MQ DevEngine detecteert via timestamp dat er een menselijke edit was
+- Menselijke wijziging wordt overgenomen, MQ DevEngine's wijziging wordt overschreven
 
 ### Cross-project data lekkage (globale sync)
 

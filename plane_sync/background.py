@@ -1,4 +1,4 @@
-"""Background sync loop for bidirectional Plane <-> AutoForge sync."""
+"""Background sync loop for bidirectional Plane <-> MQ DevEngine sync."""
 
 from __future__ import annotations
 
