@@ -54,8 +54,8 @@ gh auth refresh -s admin:org,delete_repo
 | `mq-discover` | Discovery Tool - AI-powered requirements gathering (brownpaper & greenpaper) | Private |
 | `mq-monitor` | PM Dashboard - hierarchical drill-down, metrics, intake portal | Private |
 | `mq-onboarding` | Onboarding - codebase analyse, kennis opbouw, IFPUG FP | Private |
-| `mq-planning` | Plane SDK abstraction layer - sync, webhooks, cycles | Private |
-| `mq-import` | MarQed tree format parser and Plane importer | Private |
+| `mq-planning` | MQ Planning SDK abstraction layer - sync, webhooks, cycles | Private |
+| `mq-import` | MarQed tree format parser and MQ Planning importer | Private |
 | `mq-auth` | Multi-tenant auth service - schema-per-tenant, JWT, RBAC | Private |
 | `mq-supervisor` | Meta-agent - process monitoring, stuck detection, quality gates | Private |
 | `mq-feedbackLoop` | Feedback loop, knowledge management, traceability | Private |

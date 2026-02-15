@@ -8,7 +8,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .client import PlaneApiClient, PlaneApiError
+from .client import PlanningApiClient, PlanningApiError
 from .models import SprintCompletionResult
 from .release_notes import build_release_notes_md, save_release_notes
 
@@ -141,7 +141,7 @@ def _get_test_report(project_dir: Path) -> dict | None:
         try:
             # Get features linked to Plane
             linked = session.query(Feature).filter(
-                Feature.plane_work_item_id.isnot(None)
+                Feature.planning_work_item_id.isnot(None)
             ).all()
             if not linked:
                 return None
@@ -206,7 +206,7 @@ def _get_test_report(project_dir: Path) -> dict | None:
 
 
 def complete_sprint(
-    client: PlaneApiClient,
+    client: PlanningApiClient,
     project_dir: Path,
     cycle_id: str,
     project_name: str | None = None,
@@ -221,7 +221,7 @@ def complete_sprint(
     5. Create git tag
 
     Args:
-        client: Authenticated PlaneApiClient.
+        client: Authenticated PlanningApiClient.
         project_dir: Path to the MQ DevEngine project directory.
         cycle_id: Plane cycle UUID.
 
@@ -233,7 +233,7 @@ def complete_sprint(
     # 1. Verify DoD
     with _get_db_session(project_dir) as session:
         linked_features = session.query(Feature).filter(
-            Feature.plane_work_item_id.isnot(None)
+            Feature.planning_work_item_id.isnot(None)
         ).all()
 
         if not linked_features:
@@ -247,7 +247,7 @@ def complete_sprint(
             feature_data.append({
                 "name": f.name,
                 "passes": bool(f.passes),
-                "plane_work_item_id": f.plane_work_item_id,
+                "planning_work_item_id": f.planning_work_item_id,
             })
 
     passing = sum(1 for f in feature_data if f["passes"])
@@ -268,7 +268,7 @@ def complete_sprint(
     try:
         cycle = client.get_cycle(cycle_id)
         cycle_name = cycle.name
-    except PlaneApiError:
+    except PlanningApiError:
         cycle_name = cycle_id
 
     # 4. Post comments on each work item
@@ -277,11 +277,11 @@ def complete_sprint(
             comment_html = _build_feature_comment_html(
                 f["name"], f["passes"], change_log
             )
-            client.create_issue_comment(f["plane_work_item_id"], comment_html)
-        except PlaneApiError as e:
+            client.create_issue_comment(f["planning_work_item_id"], comment_html)
+        except PlanningApiError as e:
             logger.warning(
                 "Failed to post comment on work item %s: %s",
-                f["plane_work_item_id"], e,
+                f["planning_work_item_id"], e,
             )
 
     # 5. Update cycle description with retrospective
@@ -294,7 +294,7 @@ def complete_sprint(
             cycle_id,
             {"description": existing_desc + separator + retro_html},
         )
-    except PlaneApiError as e:
+    except PlanningApiError as e:
         logger.warning("Failed to update cycle description: %s", e)
 
     # 6. Create git tag
@@ -324,7 +324,7 @@ def complete_sprint(
         if str(root) not in sys.path:
             sys.path.insert(0, str(root))
         from registry import set_setting
-        key = f"plane_sprint_completed_{cycle_id}"
+        key = f"planning_sprint_completed_{cycle_id}"
         if project_name:
             key = f"{key}:{project_name}"
         set_setting(key, "true")
@@ -339,7 +339,7 @@ def complete_sprint(
         with _get_db_session(project_dir) as session:
             for f in feature_data:
                 feat = session.query(Feature).filter(
-                    Feature.plane_work_item_id == f["plane_work_item_id"]
+                    Feature.planning_work_item_id == f["planning_work_item_id"]
                 ).first()
                 if feat:
                     f["category"] = feat.category

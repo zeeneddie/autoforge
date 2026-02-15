@@ -1,11 +1,11 @@
-# Sprint Lifecycle: Plane + MQ DevEngine
+# Sprint Lifecycle: MQ Planning + MQ DevEngine
 
 ## Overzicht
 
 Een complete sprint doorloopt 7 fasen, verdeeld over drie systemen.
 
 ```
-MarQed          Plane           MQ DevEngine
+MarQed          MQ Planning     MQ DevEngine
   |               |               |
   | 1. Analyse    |               |
   |-------------->|               |
@@ -45,36 +45,36 @@ epics/
 
 **Human-in-the-loop:** Pull Request review in Git. Mens valideert, past aan, keurt goed.
 
-## Fase 2: Import naar Plane
+## Fase 2: Import naar MQ Planning
 
 **Trigger:** PR gemerged (gevalideerde markdown) OF handmatige import.
 
 **Proces:**
-1. md-to-plane importer leest de markdown bestanden
-2. Creëert epics, work items, sub-items in Plane via API
+1. md-to-planning importer leest de markdown bestanden
+2. Creëert epics, work items, sub-items in MQ Planning via API
 3. Zet relations (dependencies) en priorities
 
-**Resultaat:** Gestructureerde backlog in Plane, klaar voor sprint planning.
+**Resultaat:** Gestructureerde backlog in MQ Planning, klaar voor sprint planning.
 
-## Fase 3: Sprint Planning (in Plane)
+## Fase 3: Sprint Planning (in MQ Planning)
 
 **Wie:** Mens (product owner / developer)
 
 **Acties:**
-1. Maak een nieuwe Cycle (sprint) in Plane
+1. Maak een nieuwe Cycle (sprint) in MQ Planning
 2. Sleep work items van backlog naar cycle
 3. Prioriteer binnen de cycle
 4. Wijs toe aan modules indien gewenst
 5. Zet start- en einddatum
 
-**Output:** Plane Cycle met geselecteerde work items, klaar voor uitvoering.
+**Output:** MQ Planning Cycle met geselecteerde work items, klaar voor uitvoering.
 
 ## Fase 4: Sprint Activatie
 
 **Trigger:** Een van de volgende:
 - Cycle `start_date` bereikt (automatisch via polling)
 - Handmatige "Import Sprint" knop in MQ DevEngine UI
-- API call: `POST /api/plane/import-cycle`
+- API call: `POST /api/planning/import-cycle`
 
 **Proces:**
 1. MQ DevEngine Sync Service haalt work items op uit de actieve cycle
@@ -86,7 +86,7 @@ epics/
    - State group -> passes/in_progress
    - Parent -> dependencies
 3. Features worden aangemaakt in project's feature DB
-4. `plane_work_item_id` en `plane_synced_at` worden opgeslagen
+4. `planning_work_item_id` en `planning_synced_at` worden opgeslagen
 
 **Resultaat:** Features in MQ DevEngine DB, klaar voor de orchestrator.
 
@@ -101,23 +101,23 @@ epics/
 4. Bij succes: `passes=true`, `in_progress=false`
 5. Bij falen: `passes=false`, terug in queue
 
-**Ongewijzigd:** De bestaande orchestrator en agents hoeven niet aangepast te worden. Ze werken met Features uit de DB, ongeacht of die uit Plane of een app_spec komen.
+**Ongewijzigd:** De bestaande orchestrator en agents hoeven niet aangepast te worden. Ze werken met Features uit de DB, ongeacht of die uit MQ Planning of een app_spec komen.
 
 ## Fase 6: Bidirectionele Sync (Sprint 3)
 
 **Achtergrond:** Polling loop elke 30 seconden.
 
-### Outbound (MQ DevEngine -> Plane)
+### Outbound (MQ DevEngine -> MQ Planning)
 
-| Feature event | Plane actie |
+| Feature event | MQ Planning actie |
 |---|---|
 | Agent start feature (in_progress=true) | Work Item state -> "started" |
 | Feature passing (passes=true) | Work Item state -> "completed" |
 | Feature failing (passes=false, was true) | Work Item state -> "unstarted" |
 
-### Inbound (Plane -> MQ DevEngine)
+### Inbound (MQ Planning -> MQ DevEngine)
 
-| Plane event | MQ DevEngine actie |
+| MQ Planning event | MQ DevEngine actie |
 |---|---|
 | Work item description gewijzigd | Feature description updaten |
 | Work item priority gewijzigd | Feature priority updaten |
@@ -127,7 +127,7 @@ epics/
 ### Echo Prevention
 
 Na elke outbound push:
-1. Sla Plane's `updated_at` op als `Feature.plane_updated_at`
+1. Sla MQ Planning's `updated_at` op als `Feature.planning_updated_at`
 2. Bij volgende poll: vergelijk timestamps
 3. Gelijk = eigen update = skip
 4. Verschillend = menselijke edit = sync
@@ -137,13 +137,13 @@ Na elke outbound push:
 **Trigger:** Alle features in sprint passing (`sprint_complete: true` in sync status).
 
 **Stap 1: DoD Verificatie**
-- MQ DevEngine controleert of alle Plane-gelinkte features `passes=true` hebben
+- MQ DevEngine controleert of alle MQ Planning-gelinkte features `passes=true` hebben
 - Als niet alle features passing zijn, wordt completion geweigerd met details
 
 **Stap 2: Change Log**
 - `git log --oneline` sinds de laatste git tag
 
-**Stap 3: Retrospective naar Plane**
+**Stap 3: Retrospective naar MQ Planning**
 - Completion comment op elk work item met status + change log
 - Cycle description update met retrospective samenvatting (pass rate, feature lijst)
 
@@ -158,13 +158,13 @@ Na elke outbound push:
 - Data komt uit het `TestRun` model (geregistreerd door de orchestrator)
 
 **Stap 6: Registry Flag**
-- `plane_sprint_completed_{cycle_id}=true` in registry
+- `planning_sprint_completed_{cycle_id}=true` in registry
 
 **Output:**
 - Git tag op HEAD
 - Release notes in `releases/` directory
-- Retrospective comments op Plane work items
-- Cycle description update in Plane
+- Retrospective comments op MQ Planning work items
+- Cycle description update in MQ Planning
 
 ## Test History (Sprint 5)
 
@@ -176,7 +176,7 @@ De orchestrator registreert `TestRun` records na elke agent completion:
 | Coding agent | Na elke feature completion | feature_ids, passed state, return code |
 
 **Aggregatie:**
-- `GET /api/plane/test-report?project_name=X` geeft per-feature en totaal overzicht
+- `GET /api/planning/test-report?project_name=X` geeft per-feature en totaal overzicht
 - Sprint stats in sync status bevatten `total_test_runs` en `overall_pass_rate`
 - Release notes bevatten een test results tabel
 
@@ -185,14 +185,14 @@ De orchestrator registreert `TestRun` records na elke agent completion:
 Naast de 30-seconde polling loop ondersteunt MQ DevEngine ook real-time webhooks:
 
 - Configureer webhook secret in MQ DevEngine settings (optioneel maar aanbevolen)
-- Configureer in Plane: webhook URL = `{devengine-url}/api/plane/webhooks`
+- Configureer in MQ Planning: webhook URL = `{devengine-url}/api/planning/webhooks`
 - Events (`issue.update`, `cycle.update`) triggeren directe re-import van de actieve cycle
 - Event dedup voorkomt dubbele verwerking (5s cooldown per event key)
 - Webhook count en timestamp zichtbaar in sync status UI
 
 ## Foutscenario's
 
-### Plane niet bereikbaar tijdens executie
+### MQ Planning niet bereikbaar tijdens executie
 
 - MQ DevEngine werkt gewoon door (features zijn lokaal in SQLite)
 - Outbound sync queue: status updates worden gebufferd
@@ -201,12 +201,12 @@ Naast de 30-seconde polling loop ondersteunt MQ DevEngine ook real-time webhooks
 ### Feature faalt herhaaldelijk
 
 - Feature blijft `passes=false` in MQ DevEngine
-- Work item in Plane blijft op "started" (niet terug naar "unstarted" tot handmatige interventie)
+- Work item in MQ Planning blijft op "started" (niet terug naar "unstarted" tot handmatige interventie)
 - Na X pogingen: log warning, ga door met andere features
 
-### Mid-sprint wijzigingen in Plane
+### Mid-sprint wijzigingen in MQ Planning
 
-- Mens voegt work item toe aan cycle in Plane
+- Mens voegt work item toe aan cycle in MQ Planning
 - Volgende poll detecteert nieuw item -> importeert als Feature
 - Mens verwijdert work item uit cycle -> Feature wordt gemarkeerd (niet verwijderd)
 - Mens wijzigt priority -> Feature priority wordt bijgewerkt
@@ -214,14 +214,14 @@ Naast de 30-seconde polling loop ondersteunt MQ DevEngine ook real-time webhooks
 ### Conflicterende edits
 
 - MQ DevEngine en mens wijzigen tegelijk
-- **Regel:** Plane (mens) wint altijd
+- **Regel:** MQ Planning (mens) wint altijd
 - MQ DevEngine detecteert via timestamp dat er een menselijke edit was
 - Menselijke wijziging wordt overgenomen, MQ DevEngine's wijziging wordt overschreven
 
 ### Cross-project data lekkage (globale sync)
 
 - **Status:** Workaround actief, fix gepland in Sprint 7.1
-- Plane sync configuratie is globaal — bij meerdere projecten importeert de sync loop work items naar alle projecten
+- MQ Planning sync configuratie is globaal — bij meerdere projecten importeert de sync loop work items naar alle projecten
 - **Workaround:** Disable sync bij meerdere projecten, gebruik handmatige import per project
 - **Oplossing:** Per-project sync met `:project_name` suffix op registry keys
 - Zie [ADR-004](../decisions/ADR-004-per-project-plane-sync.md)

@@ -1,4 +1,4 @@
-"""HTTP client for the Plane API with authentication and rate limiting."""
+"""HTTP client for the Planning API with authentication and rate limiting."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from typing import Any
 import requests
 
 from .models import (
-    PlaneCycle,
-    PlaneModule,
-    PlanePaginatedResponse,
-    PlaneState,
-    PlaneWorkItem,
+    PlanningCycle,
+    PlanningModule,
+    PlanningPaginatedResponse,
+    PlanningState,
+    PlanningWorkItem,
 )
 
 logger = logging.getLogger(__name__)
@@ -22,17 +22,17 @@ logger = logging.getLogger(__name__)
 _MIN_REQUEST_INTERVAL = 1.5  # seconds between requests
 
 
-class PlaneApiError(Exception):
-    """Raised when the Plane API returns an error."""
+class PlanningApiError(Exception):
+    """Raised when the Planning API returns an error."""
 
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code
         self.message = message
-        super().__init__(f"Plane API error {status_code}: {message}")
+        super().__init__(f"Planning API error {status_code}: {message}")
 
 
-class PlaneApiClient:
-    """HTTP client for the Plane REST API.
+class PlanningApiClient:
+    """HTTP client for the Planning REST API.
 
     Handles authentication via X-API-Key header and basic rate limiting.
     """
@@ -89,7 +89,7 @@ class PlaneApiClient:
             )
             self._last_request_time = time.monotonic()
         except requests.RequestException as e:
-            raise PlaneApiError(0, f"Connection error: {e}") from e
+            raise PlanningApiError(0, f"Connection error: {e}") from e
 
         if resp.status_code == 429:
             # Rate limited — wait and retry once
@@ -106,7 +106,7 @@ class PlaneApiClient:
                 detail = resp.json()
             except Exception:
                 detail = resp.text
-            raise PlaneApiError(resp.status_code, str(detail))
+            raise PlanningApiError(resp.status_code, str(detail))
 
         if resp.status_code == 204:
             return None
@@ -118,32 +118,32 @@ class PlaneApiClient:
     def test_connection(self) -> dict:
         """Test connection by fetching the project details.
 
-        Returns project info dict on success, raises PlaneApiError on failure.
+        Returns project info dict on success, raises PlanningApiError on failure.
         """
         return self._request("GET", "/")
 
     # --- States ---
 
-    def list_states(self) -> list[PlaneState]:
+    def list_states(self) -> list[PlanningState]:
         """List all states for the project."""
         data = self._request("GET", "/states/")
         results = data if isinstance(data, list) else data.get("results", data)
-        return [PlaneState(**s) for s in results]
+        return [PlanningState(**s) for s in results]
 
     # --- Cycles ---
 
-    def list_cycles(self) -> list[PlaneCycle]:
+    def list_cycles(self) -> list[PlanningCycle]:
         """List all cycles for the project."""
         data = self._request("GET", "/cycles/")
         results = data if isinstance(data, list) else data.get("results", data)
-        return [PlaneCycle(**c) for c in results]
+        return [PlanningCycle(**c) for c in results]
 
-    def get_cycle(self, cycle_id: str) -> PlaneCycle:
+    def get_cycle(self, cycle_id: str) -> PlanningCycle:
         """Get a single cycle by ID."""
         data = self._request("GET", f"/cycles/{cycle_id}/")
-        return PlaneCycle(**data)
+        return PlanningCycle(**data)
 
-    def list_cycle_work_items(self, cycle_id: str) -> list[PlaneWorkItem]:
+    def list_cycle_work_items(self, cycle_id: str) -> list[PlanningWorkItem]:
         """List all work items in a cycle."""
         data = self._request("GET", f"/cycles/{cycle_id}/cycle-issues/")
         # The response may be a list or paginated
@@ -153,21 +153,21 @@ class PlaneApiClient:
             results = data.get("results", [])
         else:
             results = []
-        return [PlaneWorkItem(**item) for item in results]
+        return [PlanningWorkItem(**item) for item in results]
 
     # --- Work Items ---
 
-    def get_work_item(self, work_item_id: str) -> PlaneWorkItem:
+    def get_work_item(self, work_item_id: str) -> PlanningWorkItem:
         """Get a single work item by ID."""
         data = self._request("GET", f"/issues/{work_item_id}/")
-        return PlaneWorkItem(**data)
+        return PlanningWorkItem(**data)
 
     def update_work_item(
         self, work_item_id: str, updates: dict
-    ) -> PlaneWorkItem:
+    ) -> PlanningWorkItem:
         """Update a work item. Returns the updated work item."""
         data = self._request("PATCH", f"/issues/{work_item_id}/", json=updates)
-        return PlaneWorkItem(**data)
+        return PlanningWorkItem(**data)
 
     # --- Comments ---
 
@@ -191,7 +191,7 @@ class PlaneApiClient:
 
     # --- Cycles (write) ---
 
-    def update_cycle(self, cycle_id: str, updates: dict) -> PlaneCycle:
+    def update_cycle(self, cycle_id: str, updates: dict) -> PlanningCycle:
         """Update a cycle (e.g. append to description).
 
         Args:
@@ -199,22 +199,22 @@ class PlaneApiClient:
             updates: Dict of fields to update.
 
         Returns:
-            The updated PlaneCycle.
+            The updated PlanningCycle.
         """
         data = self._request("PATCH", f"/cycles/{cycle_id}/", json=updates)
-        return PlaneCycle(**data)
+        return PlanningCycle(**data)
 
     # --- Modules ---
 
-    def list_modules(self) -> list[PlaneModule]:
+    def list_modules(self) -> list[PlanningModule]:
         """List all modules for the project."""
         data = self._request("GET", "/modules/")
         results = data if isinstance(data, list) else data.get("results", data)
-        return [PlaneModule(**m) for m in results]
+        return [PlanningModule(**m) for m in results]
 
     # --- Work Items (write) ---
 
-    def create_work_item(self, data: dict) -> PlaneWorkItem:
+    def create_work_item(self, data: dict) -> PlanningWorkItem:
         """Create a new work item (issue).
 
         Args:
@@ -222,24 +222,24 @@ class PlaneApiClient:
                   state, parent, etc.
 
         Returns:
-            The created PlaneWorkItem.
+            The created PlanningWorkItem.
         """
         result = self._request("POST", "/issues/", json=data)
-        return PlaneWorkItem(**result)
+        return PlanningWorkItem(**result)
 
     # --- Modules (write) ---
 
-    def create_module(self, data: dict) -> PlaneModule:
+    def create_module(self, data: dict) -> PlanningModule:
         """Create a new module.
 
         Args:
             data: Dict with fields like name, description, status.
 
         Returns:
-            The created PlaneModule.
+            The created PlanningModule.
         """
         result = self._request("POST", "/modules/", json=data)
-        return PlaneModule(**result)
+        return PlanningModule(**result)
 
     def add_work_items_to_module(
         self, module_id: str, issue_ids: list[str]

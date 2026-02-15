@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Loader2, AlertCircle, Check, Moon, Sun, ChevronDown, ChevronRight } from 'lucide-react'
-import { useSettings, useUpdateSettings, useAvailableModels, usePlaneConfig, useUpdatePlaneConfig, useTestPlaneConnection, usePlaneCycles, useImportPlaneCycle, usePlaneSyncStatus, useTogglePlaneSync, useCompleteSprint } from '../hooks/useProjects'
+import { useSettings, useUpdateSettings, useAvailableModels, usePlanningConfig, useUpdatePlanningConfig, useTestPlanningConnection, usePlanningCycles, useImportPlanningCycle, usePlanningSyncStatus, useTogglePlanningSync, useCompleteSprint } from '../hooks/useProjects'
 import { useTheme, THEMES } from '../hooks/useTheme'
 import {
   Dialog,
@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import type { ModelInfo, PlaneConnectionResult, PlaneCycleSummary, SprintCompletionResult } from '../lib/types'
+import type { ModelInfo, PlanningConnectionResult, PlanningCycleSummary, SprintCompletionResult } from '../lib/types'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -421,8 +421,8 @@ export function SettingsModal({ isOpen, onClose, selectedProject }: SettingsModa
 
             <hr className="border-border" />
 
-            {/* Plane Integration Section */}
-            <PlaneSettingsSection selectedProject={selectedProject} />
+            {/* MQ Planning Integration Section */}
+            <PlanningSettingsSection selectedProject={selectedProject} />
           </div>
         )}
       </DialogContent>
@@ -430,39 +430,39 @@ export function SettingsModal({ isOpen, onClose, selectedProject }: SettingsModa
   )
 }
 
-/** Collapsible Plane integration settings section. */
-function PlaneSettingsSection({ selectedProject }: { selectedProject: string | null }) {
+/** Collapsible MQ Planning integration settings section. */
+function PlanningSettingsSection({ selectedProject }: { selectedProject: string | null }) {
   const [expanded, setExpanded] = useState(false)
-  const { data: planeConfig, isLoading } = usePlaneConfig(selectedProject)
-  const updateConfig = useUpdatePlaneConfig()
-  const testConnection = useTestPlaneConnection()
-  const { data: cycles, refetch: fetchCycles, isFetching: cyclesLoading } = usePlaneCycles(selectedProject)
-  const importCycle = useImportPlaneCycle()
-  const { data: syncStatus } = usePlaneSyncStatus(selectedProject)
-  const toggleSync = useTogglePlaneSync()
+  const { data: planningConfig, isLoading } = usePlanningConfig(selectedProject)
+  const updateConfig = useUpdatePlanningConfig()
+  const testConnection = useTestPlanningConnection()
+  const { data: cycles, refetch: fetchCycles, isFetching: cyclesLoading } = usePlanningCycles(selectedProject)
+  const importCycle = useImportPlanningCycle()
+  const { data: syncStatus } = usePlanningSyncStatus(selectedProject)
+  const toggleSync = useTogglePlanningSync()
   const completeSprint = useCompleteSprint()
   const [completionResult, setCompletionResult] = useState<SprintCompletionResult | null>(null)
 
   const [formValues, setFormValues] = useState({
-    plane_api_url: '',
-    plane_api_key: '',
-    plane_workspace_slug: '',
-    plane_project_id: '',
-    plane_webhook_secret: '',
+    planning_api_url: '',
+    planning_api_key: '',
+    planning_workspace_slug: '',
+    planning_project_id: '',
+    planning_webhook_secret: '',
   })
   const [formDirty, setFormDirty] = useState(false)
-  const [connectionResult, setConnectionResult] = useState<PlaneConnectionResult | null>(null)
+  const [connectionResult, setConnectionResult] = useState<PlanningConnectionResult | null>(null)
   const [importResult, setImportResult] = useState<{ imported: number; updated: number; skipped: number } | null>(null)
 
   // Initialize form values from config
   const initForm = () => {
-    if (planeConfig && !formDirty) {
+    if (planningConfig && !formDirty) {
       setFormValues({
-        plane_api_url: planeConfig.plane_api_url || '',
-        plane_api_key: '',
-        plane_workspace_slug: planeConfig.plane_workspace_slug || '',
-        plane_project_id: planeConfig.plane_project_id || '',
-        plane_webhook_secret: '',
+        planning_api_url: planningConfig.planning_api_url || '',
+        planning_api_key: '',
+        planning_workspace_slug: planningConfig.planning_workspace_slug || '',
+        planning_project_id: planningConfig.planning_project_id || '',
+        planning_webhook_secret: '',
       })
     }
   }
@@ -479,11 +479,11 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
 
   const handleSave = () => {
     const update: Record<string, string | undefined> = {}
-    if (formValues.plane_api_url) update.plane_api_url = formValues.plane_api_url
-    if (formValues.plane_api_key) update.plane_api_key = formValues.plane_api_key
-    if (formValues.plane_workspace_slug) update.plane_workspace_slug = formValues.plane_workspace_slug
-    if (formValues.plane_project_id) update.plane_project_id = formValues.plane_project_id
-    if (formValues.plane_webhook_secret) update.plane_webhook_secret = formValues.plane_webhook_secret
+    if (formValues.planning_api_url) update.planning_api_url = formValues.planning_api_url
+    if (formValues.planning_api_key) update.planning_api_key = formValues.planning_api_key
+    if (formValues.planning_workspace_slug) update.planning_workspace_slug = formValues.planning_workspace_slug
+    if (formValues.planning_project_id) update.planning_project_id = formValues.planning_project_id
+    if (formValues.planning_webhook_secret) update.planning_webhook_secret = formValues.planning_webhook_secret
     if (selectedProject) update.project_name = selectedProject
 
     updateConfig.mutate(update, {
@@ -505,7 +505,7 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
     fetchCycles()
   }
 
-  const handleImport = (cycle: PlaneCycleSummary) => {
+  const handleImport = (cycle: PlanningCycleSummary) => {
     if (!selectedProject) return
 
     setImportResult(null)
@@ -532,8 +532,8 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
         className="flex items-center gap-2 w-full text-left"
       >
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        <Label className="font-medium cursor-pointer">Plane Integration</Label>
-        {planeConfig?.plane_api_key_set && (
+        <Label className="font-medium cursor-pointer">MQ Planning Integration</Label>
+        {planningConfig?.planning_api_key_set && (
           <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600">
             Connected
           </span>
@@ -544,7 +544,7 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
         <div className="space-y-4 pl-6">
           {!selectedProject ? (
             <p className="text-sm text-muted-foreground py-2">
-              Select a project to configure Plane sync.
+              Select a project to configure MQ Planning sync.
             </p>
           ) : isLoading ? (
             <div className="flex items-center gap-2 py-4">
@@ -559,8 +559,8 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
                 <input
                   type="text"
                   placeholder="http://localhost:8080"
-                  value={formValues.plane_api_url}
-                  onChange={(e) => handleFieldChange('plane_api_url', e.target.value)}
+                  value={formValues.planning_api_url}
+                  onChange={(e) => handleFieldChange('planning_api_url', e.target.value)}
                   className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
@@ -570,9 +570,9 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
                 <Label className="text-sm">API Key</Label>
                 <input
                   type="password"
-                  placeholder={planeConfig?.plane_api_key_set ? planeConfig.plane_api_key_masked : 'plane_api_xxxx'}
-                  value={formValues.plane_api_key}
-                  onChange={(e) => handleFieldChange('plane_api_key', e.target.value)}
+                  placeholder={planningConfig?.planning_api_key_set ? planningConfig.planning_api_key_masked : 'planning_api_xxxx'}
+                  value={formValues.planning_api_key}
+                  onChange={(e) => handleFieldChange('planning_api_key', e.target.value)}
                   className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
@@ -583,36 +583,36 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
                 <input
                   type="text"
                   placeholder="my-workspace"
-                  value={formValues.plane_workspace_slug}
-                  onChange={(e) => handleFieldChange('plane_workspace_slug', e.target.value)}
+                  value={formValues.planning_workspace_slug}
+                  onChange={(e) => handleFieldChange('planning_workspace_slug', e.target.value)}
                   className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
 
               {/* Project ID */}
               <div className="space-y-1">
-                <Label className="text-sm">Plane Project ID</Label>
+                <Label className="text-sm">Planning Project ID</Label>
                 <input
                   type="text"
                   placeholder="project-uuid"
-                  value={formValues.plane_project_id}
-                  onChange={(e) => handleFieldChange('plane_project_id', e.target.value)}
+                  value={formValues.planning_project_id}
+                  onChange={(e) => handleFieldChange('planning_project_id', e.target.value)}
                   className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
 
               {/* Webhook Secret */}
               <div className="space-y-1">
-                <Label className="text-sm">Webhook Secret {planeConfig?.plane_webhook_secret_set && <span className="text-xs text-green-600">(set)</span>}</Label>
+                <Label className="text-sm">Webhook Secret {planningConfig?.planning_webhook_secret_set && <span className="text-xs text-green-600">(set)</span>}</Label>
                 <input
                   type="password"
-                  placeholder={planeConfig?.plane_webhook_secret_set ? '********' : 'Optional HMAC secret'}
-                  value={formValues.plane_webhook_secret || ''}
-                  onChange={(e) => handleFieldChange('plane_webhook_secret', e.target.value)}
+                  placeholder={planningConfig?.planning_webhook_secret_set ? '********' : 'Optional HMAC secret'}
+                  value={formValues.planning_webhook_secret || ''}
+                  onChange={(e) => handleFieldChange('planning_webhook_secret', e.target.value)}
                   className="w-full px-3 py-1.5 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Configure in Plane's webhook settings. URL: <code className="bg-muted px-1 rounded">{'{your-devengine-url}'}/api/plane/webhooks</code>
+                  Configure in MQ Planning webhook settings. URL: <code className="bg-muted px-1 rounded">{'{your-devengine-url}'}/api/planning/webhooks</code>
                 </p>
               </div>
 
@@ -735,7 +735,7 @@ function PlaneSettingsSection({ selectedProject }: { selectedProject: string | n
                   <div className="space-y-0.5">
                     <Label className="text-sm font-medium">Background Sync</Label>
                     <p className="text-xs text-muted-foreground">
-                      Auto-sync status between MQ DevEngine and Plane
+                      Auto-sync status between MQ DevEngine and MQ Planning
                     </p>
                   </div>
                   <Switch

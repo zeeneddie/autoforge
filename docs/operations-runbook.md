@@ -6,7 +6,7 @@
 
 | Component | Port | Start methode | PID tracking |
 |---|---|---|---|
-| Plane (Docker Compose) | 8080 (proxy), 8082 (API), 5433 (DB), 6380 (Redis), 9001 (MinIO) | Docker Compose | Container names |
+| MQ Planning (Docker Compose) | 8080 (proxy), 8082 (API), 5433 (DB), 6380 (Redis), 9001 (MinIO) | Docker Compose | Container names |
 | ChromaDB | 8001 | Docker container | Container name |
 | MQ DevEngine Server | 8888 | Python uvicorn | PID file |
 | MQ DevEngine UI (dev) | 5175 | Vite dev server | PID file |
@@ -22,7 +22,7 @@ mkdir -p ~/.mq-devengine/pids
 
 ---
 
-## 1. Plane (Docker Compose)
+## 1. MQ Planning (Docker Compose)
 
 ### Starten
 
@@ -226,7 +226,7 @@ curl -s -X POST http://localhost:8888/api/projects/PROJECT_NAME/agent/stop | pyt
 set -e
 mkdir -p ~/.mq-devengine/pids
 
-echo "=== Starting Plane ==="
+echo "=== Starting MQ Planning ==="
 cd /home/eddie/plane
 docker compose -f docker-compose-local.yml up -d
 
@@ -255,7 +255,7 @@ fi
 
 echo ""
 echo "=== Status ==="
-echo "Plane:    $(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/)"
+echo "Planning: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/)"
 echo "ChromaDB: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:8001/api/v1/heartbeat)"
 echo "Server:   $(curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/api/health)"
 echo "UI:       $(curl -s -o /dev/null -w '%{http_code}' http://localhost:5175/)"
@@ -287,14 +287,14 @@ PID=$(cat ~/.mq-devengine/pids/server.pid 2>/dev/null)
 echo "=== Stopping ChromaDB ==="
 docker stop project_manager_chromadb 2>/dev/null && echo "  ChromaDB stopped"
 
-echo "=== Stopping Plane ==="
+echo "=== Stopping MQ Planning ==="
 cd /home/eddie/plane
-docker compose -f docker-compose-local.yml down && echo "  Plane stopped"
+docker compose -f docker-compose-local.yml down && echo "  MQ Planning stopped"
 
 echo ""
 echo "=== Verificatie ==="
 sleep 2
-echo "Port 8080 (Plane):    $(ss -tlnp | grep -c ':8080 ') listeners"
+echo "Port 8080 (Planning): $(ss -tlnp | grep -c ':8080 ') listeners"
 echo "Port 8001 (ChromaDB): $(ss -tlnp | grep -c ':8001 ') listeners"
 echo "Port 8888 (Server):   $(ss -tlnp | grep -c ':8888 ') listeners"
 echo "Port 5175 (UI):       $(ss -tlnp | grep -c ':5175 ') listeners"
@@ -308,10 +308,10 @@ echo "PID files remaining:  $(ls ~/.mq-devengine/pids/ 2>/dev/null | wc -l)"
 echo "=== Omgevingen Status ==="
 echo ""
 
-# Plane
-PLANE_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/ 2>/dev/null)
-PLANE_CONTAINERS=$(docker ps --filter "name=plane" --format "{{.Names}}" 2>/dev/null | wc -l)
-echo "Plane:     HTTP $PLANE_STATUS ($PLANE_CONTAINERS containers)"
+# MQ Planning
+PLANNING_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/ 2>/dev/null)
+PLANNING_CONTAINERS=$(docker ps --filter "name=plane" --format "{{.Names}}" 2>/dev/null | wc -l)
+echo "Planning:  HTTP $PLANNING_STATUS ($PLANNING_CONTAINERS containers)"
 
 # ChromaDB
 CHROMA_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8001/api/v1/heartbeat 2>/dev/null)

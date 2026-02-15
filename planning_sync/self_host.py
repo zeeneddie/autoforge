@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 _MARKER_FILES = [
     "server/main.py",
     "parallel_orchestrator.py",
-    "plane_sync/__init__.py",
+    "planning_sync/__init__.py",
 ]
 
 

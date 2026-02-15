@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { usePlaneSyncStatus, useTestReport } from '../hooks/useProjects'
+import { usePlanningSyncStatus, useTestReport } from '../hooks/useProjects'
 import { Trophy, Activity, Zap, AlertCircle } from 'lucide-react'
 
 interface SprintMetricsPanelProps {
@@ -8,7 +8,7 @@ interface SprintMetricsPanelProps {
 }
 
 export function SprintMetricsPanel({ projectName }: SprintMetricsPanelProps) {
-  const { data: syncStatus, isLoading: syncLoading } = usePlaneSyncStatus()
+  const { data: syncStatus, isLoading: syncLoading } = usePlanningSyncStatus()
   const { data: report, isLoading: reportLoading } = useTestReport(projectName, true)
 
   if (syncLoading || reportLoading) {
@@ -78,7 +78,7 @@ export function SprintMetricsPanel({ projectName }: SprintMetricsPanelProps) {
             </div>
           ) : (
             <div className="text-sm text-muted-foreground">
-              No active sprint. Import a Plane cycle to track sprint progress.
+              No active sprint. Import a planning cycle to track sprint progress.
             </div>
           )}
         </CardContent>

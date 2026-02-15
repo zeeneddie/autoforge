@@ -603,41 +603,41 @@ export interface NextRunResponse {
   active_schedule_count: number
 }
 
-// Plane Integration Types
+// MQ Planning Integration Types
 
-export interface PlaneConfig {
-  plane_api_url: string
-  plane_api_key_set: boolean
-  plane_api_key_masked: string
-  plane_workspace_slug: string
-  plane_project_id: string
-  plane_sync_enabled: boolean
-  plane_poll_interval: number
-  plane_active_cycle_id: string | null
-  plane_webhook_secret_set: boolean
+export interface PlanningConfig {
+  planning_api_url: string
+  planning_api_key_set: boolean
+  planning_api_key_masked: string
+  planning_workspace_slug: string
+  planning_project_id: string
+  planning_sync_enabled: boolean
+  planning_poll_interval: number
+  planning_active_cycle_id: string | null
+  planning_webhook_secret_set: boolean
   project_name: string | null
 }
 
-export interface PlaneConfigUpdate {
-  plane_api_url?: string
-  plane_api_key?: string
-  plane_workspace_slug?: string
-  plane_project_id?: string
-  plane_sync_enabled?: boolean
-  plane_poll_interval?: number
-  plane_active_cycle_id?: string
-  plane_webhook_secret?: string
+export interface PlanningConfigUpdate {
+  planning_api_url?: string
+  planning_api_key?: string
+  planning_workspace_slug?: string
+  planning_project_id?: string
+  planning_sync_enabled?: boolean
+  planning_poll_interval?: number
+  planning_active_cycle_id?: string
+  planning_webhook_secret?: string
   project_name?: string
 }
 
-export interface PlaneConnectionResult {
+export interface PlanningConnectionResult {
   status: 'ok' | 'error'
   message: string
   workspace: string
   project_name: string
 }
 
-export interface PlaneCycleSummary {
+export interface PlanningCycleSummary {
   id: string
   name: string
   start_date: string | null
@@ -647,15 +647,15 @@ export interface PlaneCycleSummary {
   completed_issues: number
 }
 
-export interface PlaneImportResult {
+export interface PlanningImportResult {
   imported: number
   skipped: number
   updated: number
-  details: PlaneImportDetail[]
+  details: PlanningImportDetail[]
 }
 
-export interface PlaneImportDetail {
-  plane_id: string
+export interface PlanningImportDetail {
+  planning_id: string
   name: string
   action: 'created' | 'updated' | 'skipped'
   reason: string
@@ -670,7 +670,7 @@ export interface SprintStats {
   overall_pass_rate?: number
 }
 
-export interface PlaneSyncStatus {
+export interface PlanningSyncStatus {
   enabled: boolean
   running: boolean
   last_sync_at: string | null

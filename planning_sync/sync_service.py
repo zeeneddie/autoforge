@@ -8,9 +8,9 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .client import PlaneApiClient, PlaneApiError
-from .mapper import feature_status_to_plane_update, state_group_for_id, work_item_to_feature_dict
-from .models import PlaneImportDetail, PlaneImportResult, PlaneOutboundResult
+from .client import PlanningApiClient, PlanningApiError
+from .mapper import feature_status_to_planning_update, state_group_for_id, work_item_to_feature_dict
+from .models import PlanningImportDetail, PlanningImportResult, PlanningOutboundResult
 
 logger = logging.getLogger(__name__)
 
@@ -48,24 +48,24 @@ def _get_db_session(project_dir: Path):
 
 
 def import_cycle(
-    client: PlaneApiClient,
+    client: PlanningApiClient,
     project_dir: Path,
     cycle_id: str,
-) -> PlaneImportResult:
+) -> PlanningImportResult:
     """Import work items from a Plane cycle into the MQ DevEngine Feature DB.
 
     - New work items are created as Features.
-    - Existing Features (matched by plane_work_item_id) are updated if Plane
+    - Existing Features (matched by planning_work_item_id) are updated if Plane
       has a newer updated_at timestamp.
     - Cancelled work items are skipped.
 
     Args:
-        client: Authenticated PlaneApiClient.
+        client: Authenticated PlanningApiClient.
         project_dir: Path to the MQ DevEngine project directory.
         cycle_id: Plane cycle UUID to import from.
 
     Returns:
-        PlaneImportResult with counts and details.
+        PlanningImportResult with counts and details.
     """
     _, Feature = _get_db_classes()
 
@@ -80,15 +80,15 @@ def import_cycle(
         cycle_id, len(work_items), len(states), len(modules),
     )
 
-    result = PlaneImportResult()
+    result = PlanningImportResult()
 
     with _get_db_session(project_dir) as session:
-        # Build lookup: plane_work_item_id -> feature_id for dependency resolution
+        # Build lookup: planning_work_item_id -> feature_id for dependency resolution
         existing_features = session.query(Feature).filter(
-            Feature.plane_work_item_id.isnot(None)
+            Feature.planning_work_item_id.isnot(None)
         ).all()
-        plane_to_feature: dict[str, int] = {
-            f.plane_work_item_id: f.id for f in existing_features
+        planning_to_feature: dict[str, int] = {
+            f.planning_work_item_id: f.id for f in existing_features
         }
 
         # Determine next available priority
@@ -104,8 +104,8 @@ def import_cycle(
             group = state_group_for_id(item.state, states)
             if group == "cancelled":
                 result.skipped += 1
-                result.details.append(PlaneImportDetail(
-                    plane_id=item.id,
+                result.details.append(PlanningImportDetail(
+                    planning_id=item.id,
                     name=item.name,
                     action="skipped",
                     reason="cancelled",
@@ -114,20 +114,20 @@ def import_cycle(
 
             # Check if already imported
             existing = session.query(Feature).filter(
-                Feature.plane_work_item_id == item.id
+                Feature.planning_work_item_id == item.id
             ).first()
 
             if existing:
                 # Update if Plane has a newer version
                 if (
                     item.updated_at
-                    and existing.plane_updated_at
-                    and item.updated_at == existing.plane_updated_at.isoformat()
+                    and existing.planning_updated_at
+                    and item.updated_at == existing.planning_updated_at.isoformat()
                 ):
                     # Same timestamp = our own update echoing back, skip
                     result.skipped += 1
-                    result.details.append(PlaneImportDetail(
-                        plane_id=item.id,
+                    result.details.append(PlanningImportDetail(
+                        planning_id=item.id,
                         name=item.name,
                         action="skipped",
                         reason="already_imported",
@@ -137,7 +137,7 @@ def import_cycle(
 
                 # Plane has a newer version — update the feature
                 mapped = work_item_to_feature_dict(
-                    item, states, modules, plane_to_feature,
+                    item, states, modules, planning_to_feature,
                 )
                 existing.name = mapped["name"]
                 existing.description = mapped["description"]
@@ -146,15 +146,15 @@ def import_cycle(
                 existing.steps = mapped["steps"]
                 if mapped["dependencies"] is not None:
                     existing.dependencies = mapped["dependencies"]
-                existing.plane_synced_at = datetime.now(timezone.utc)
-                existing.plane_updated_at = (
+                existing.planning_synced_at = datetime.now(timezone.utc)
+                existing.planning_updated_at = (
                     datetime.fromisoformat(item.updated_at)
                     if item.updated_at else None
                 )
 
                 result.updated += 1
-                result.details.append(PlaneImportDetail(
-                    plane_id=item.id,
+                result.details.append(PlanningImportDetail(
+                    planning_id=item.id,
                     name=item.name,
                     action="updated",
                     feature_id=existing.id,
@@ -162,7 +162,7 @@ def import_cycle(
             else:
                 # Create new Feature
                 mapped = work_item_to_feature_dict(
-                    item, states, modules, plane_to_feature,
+                    item, states, modules, planning_to_feature,
                 )
                 new_feature = Feature(
                     name=mapped["name"],
@@ -173,9 +173,9 @@ def import_cycle(
                     passes=mapped["passes"],
                     in_progress=mapped["in_progress"],
                     dependencies=mapped["dependencies"],
-                    plane_work_item_id=mapped["plane_work_item_id"],
-                    plane_synced_at=datetime.now(timezone.utc),
-                    plane_updated_at=(
+                    planning_work_item_id=mapped["planning_work_item_id"],
+                    planning_synced_at=datetime.now(timezone.utc),
+                    planning_updated_at=(
                         datetime.fromisoformat(item.updated_at)
                         if item.updated_at else None
                     ),
@@ -184,12 +184,12 @@ def import_cycle(
                 session.flush()  # Get the ID
 
                 # Track for dependency resolution of later items
-                plane_to_feature[item.id] = new_feature.id
+                planning_to_feature[item.id] = new_feature.id
                 next_priority += 1
 
                 result.imported += 1
-                result.details.append(PlaneImportDetail(
-                    plane_id=item.id,
+                result.details.append(PlanningImportDetail(
+                    planning_id=item.id,
                     name=item.name,
                     action="created",
                     feature_id=new_feature.id,
@@ -198,13 +198,13 @@ def import_cycle(
         # Detect items removed from the cycle (mid-sprint removals)
         cycle_item_ids = {item.id for item in work_items}
         for feature in existing_features:
-            if feature.plane_work_item_id not in cycle_item_ids:
+            if feature.planning_work_item_id not in cycle_item_ids:
                 # Item was removed from the cycle — mark as skipped (not deleted)
                 if not feature.passes and feature.in_progress:
                     feature.in_progress = False
                     result.skipped += 1
-                    result.details.append(PlaneImportDetail(
-                        plane_id=feature.plane_work_item_id,
+                    result.details.append(PlanningImportDetail(
+                        planning_id=feature.planning_work_item_id,
                         name=feature.name,
                         action="skipped",
                         reason="removed_from_cycle",
@@ -221,34 +221,34 @@ def import_cycle(
 
 
 def outbound_sync(
-    client: PlaneApiClient,
+    client: PlanningApiClient,
     project_dir: Path,
-) -> PlaneOutboundResult:
+) -> PlanningOutboundResult:
     """Push MQ DevEngine feature status changes to Plane work items.
 
     For each feature linked to a Plane work item:
     1. Compute a status hash from passes/in_progress
-    2. Skip if hash matches plane_last_status_hash (no change)
+    2. Skip if hash matches planning_last_status_hash (no change)
     3. Map status to Plane state group and push via API
-    4. Store Plane's response updated_at as plane_updated_at (echo prevention)
+    4. Store Plane's response updated_at as planning_updated_at (echo prevention)
 
     Args:
-        client: Authenticated PlaneApiClient.
+        client: Authenticated PlanningApiClient.
         project_dir: Path to the MQ DevEngine project directory.
 
     Returns:
-        PlaneOutboundResult with counts.
+        PlanningOutboundResult with counts.
     """
     _, Feature = _get_db_classes()
 
     # Fetch Plane states once
     states = client.list_states()
 
-    result = PlaneOutboundResult()
+    result = PlanningOutboundResult()
 
     with _get_db_session(project_dir) as session:
         features = session.query(Feature).filter(
-            Feature.plane_work_item_id.isnot(None)
+            Feature.planning_work_item_id.isnot(None)
         ).all()
 
         for feature in features:
@@ -258,37 +258,37 @@ def outbound_sync(
             status_hash = f"{passes}:{in_progress}"
 
             # Skip if status hasn't changed since last push
-            if feature.plane_last_status_hash == status_hash:
+            if feature.planning_last_status_hash == status_hash:
                 result.skipped += 1
                 continue
 
             # Build the Plane update
-            update = feature_status_to_plane_update(passes, in_progress, states)
+            update = feature_status_to_planning_update(passes, in_progress, states)
             if not update:
                 result.skipped += 1
                 continue
 
             try:
                 updated_item = client.update_work_item(
-                    feature.plane_work_item_id, update
+                    feature.planning_work_item_id, update
                 )
 
                 # Store Plane's response timestamp for echo prevention
                 if updated_item.updated_at:
-                    feature.plane_updated_at = datetime.fromisoformat(
+                    feature.planning_updated_at = datetime.fromisoformat(
                         updated_item.updated_at
                     )
 
                 # Mark this status as synced
-                feature.plane_last_status_hash = status_hash
-                feature.plane_synced_at = datetime.now(timezone.utc)
+                feature.planning_last_status_hash = status_hash
+                feature.planning_synced_at = datetime.now(timezone.utc)
 
                 result.pushed += 1
                 logger.debug(
                     "Pushed status %s for feature %d (%s) to Plane",
                     status_hash, feature.id, feature.name,
                 )
-            except PlaneApiError as e:
+            except PlanningApiError as e:
                 result.errors += 1
                 logger.warning(
                     "Failed to push feature %d to Plane: %s",

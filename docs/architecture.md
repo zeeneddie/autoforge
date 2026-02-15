@@ -9,7 +9,7 @@ Het **MarQed.ai platform** bestaat uit vijf componenten die samen een volledige 
 | **Onboarding** | Codebase analyse, kennis opbouw, IFPUG functiepunten | Python, 11 AI agents, markdown output | Developer, Tech Lead |
 | **Discovery Tool** | Requirements gathering: brownpaper (bestaand) en greenpaper (nieuwbouw) | React/assistant-ui, FastAPI, PostgreSQL | Product Manager, Stakeholder |
 | **PM Dashboard** | Hiërarchisch overzicht met drill-down en metriek | React, Aggregatie API | Product Manager |
-| **Plane** | Planning, backlog, sprint management (SSOT) | Self-hosted, PostgreSQL, REST API | Product Manager, Developer |
+| **MQ Planning** | Planning, backlog, sprint management (SSOT) | Plane (self-hosted), PostgreSQL, REST API | Product Manager, Developer |
 | **MQ DevEngine** | Autonome code-uitvoering, testing, delivery | Python/FastAPI, Claude Agent SDK | Developer |
 
 Zie [platform-overview.md](platform-overview.md) voor het volledige platformdiagram met alle datastromen.
@@ -35,7 +35,7 @@ MarQed.ai Platform
 |          | + kennis               | naar               |    |    |        |
 |          |                        |                    |    |    |        |
 |          |       +================+================+   |    |    |        |
-|          |       ||        PLANE (SSOT)            ||--+    |    |        |
+|          |       ||     MQ PLANNING (SSOT)         ||--+    |    |        |
 |          |       ||  Backlog, Cycles, Modules      || hierarchie |        |
 |          |       ||  Prioritering, Voortgang       || + states   |        |
 |          |       +================+====+===========+        |    |        |
@@ -56,11 +56,11 @@ MarQed.ai Platform
 
 ### 1. Mens als regisseur
 
-De AI doet het zware werk (analyseren, genereren, bouwen, testen). De mens maakt **alle GO/NO-GO beslissingen**. Geen enkel item mag automatisch van Discovery naar Plane of van Plane naar productie zonder menselijke goedkeuring.
+De AI doet het zware werk (analyseren, genereren, bouwen, testen). De mens maakt **alle GO/NO-GO beslissingen**. Geen enkel item mag automatisch van Discovery naar MQ Planning of van MQ Planning naar productie zonder menselijke goedkeuring.
 
-### 2. Plane is Single Source of Truth
+### 2. MQ Planning is Single Source of Truth
 
-Plane is de enige bron van waarheid voor alle work items. De Discovery Tool is ephemeer (sessie resulteert in Plane items). Onboarding is referentiemateriaal. MQ DevEngine leest uit en schrijft terug naar Plane. Geen dubbele administratie.
+MQ Planning is de enige bron van waarheid voor alle work items. De Discovery Tool is ephemeer (sessie resulteert in MQ Planning items). Onboarding is referentiemateriaal. MQ DevEngine leest uit en schrijft terug naar MQ Planning. Geen dubbele administratie.
 
 ### 3. Micro features: maximaal 2 uur bouwen + testen
 
@@ -77,10 +77,10 @@ Korte cycles, snelle feedback. Als iets niet klopt, wordt het binnen uren ontdek
 ### 5. Feedback loop sluit altijd
 
 De pipeline is cyclisch, niet lineair:
-- Test resultaten → Plane work item comment
+- Test resultaten → MQ Planning work item comment
 - PM reviewt → goedkeuren of afwijzen met feedback
 - Afgewezen items → terug naar Discovery met context
-- Verfijnde requirements → opnieuw naar Plane → opnieuw bouwen
+- Verfijnde requirements → opnieuw naar MQ Planning → opnieuw bouwen
 
 Geen dood spoor. Elke uitkomst leidt tot een volgende actie.
 
@@ -90,7 +90,7 @@ Elk tool heeft precies één verantwoordelijkheid:
 - **Onboarding**: bestaande codebase analyseren en kennis opbouwen
 - **Discovery Tool**: requirements ophalen en verfijnen (brownpaper + greenpaper)
 - **PM Dashboard**: voortgang monitoren met drill-down
-- **Plane**: werk plannen en voortgang beheren
+- **MQ Planning**: werk plannen en voortgang beheren
 - **MQ DevEngine**: code schrijven en testen
 
 Geen tool doet het werk van een ander tool.
@@ -99,10 +99,10 @@ Geen tool doet het werk van een ander tool.
 
 | Rol | Ziet | Doet |
 |-----|------|------|
-| **Product Manager / Stakeholder** | Discovery Tool, PM Dashboard, Plane (kanban + voortgang) | Requirements sturen, voortgang monitoren, prioriteren, reviewen, goedkeuren |
-| **Developer / Tech Lead** | Onboarding, Plane, MQ DevEngine, Git | Codebase onboarden, sprints starten, executie monitoren, resultaten delen |
+| **Product Manager / Stakeholder** | Discovery Tool, PM Dashboard, MQ Planning (kanban + voortgang) | Requirements sturen, voortgang monitoren, prioriteren, reviewen, goedkeuren |
+| **Developer / Tech Lead** | Onboarding, MQ Planning, MQ DevEngine, Git | Codebase onboarden, sprints starten, executie monitoren, resultaten delen |
 
-De PM hoeft nooit in MQ DevEngine of Onboarding te werken. De developer deelt uitkomsten met de PM via Plane en het PM Dashboard.
+De PM hoeft nooit in MQ DevEngine of Onboarding te werken. De developer deelt uitkomsten met de PM via MQ Planning en het PM Dashboard.
 
 ### 8. Confidence scoring
 
@@ -113,7 +113,7 @@ De AI markeert items waar het onzeker over is. Onzekere requirements worden visu
 - **Business review**: leesbaar overzicht in Discovery Tool of gedeelde link — PM beoordeelt inhoud
 - **Technisch review**: Git PR met markdown — tech lead beoordeelt architectuur en haalbaarheid
 
-Beide sporen moeten goedgekeurd zijn voordat items naar Plane gepusht worden.
+Beide sporen moeten goedgekeurd zijn voordat items naar MQ Planning gepusht worden.
 
 ### 10. Progressive disclosure
 
@@ -136,11 +136,11 @@ Bestaande codebase + requirements
          |
          v
   Onboarding AI agents scannen:
-    - Welke modules/packages bestaan er?        -> Plane Modules
-    - Wat zijn de grote functionele gebieden?    -> Plane Epics
-    - Welke specifieke verbeteringen/features?   -> Plane Work Items
-    - Welke sub-taken per work item?             -> Plane Sub-Work Items
-    - Welke dependencies tussen items?           -> Plane Relations
+    - Welke modules/packages bestaan er?        -> MQ Planning Modules
+    - Wat zijn de grote functionele gebieden?    -> MQ Planning Epics
+    - Welke specifieke verbeteringen/features?   -> MQ Planning Work Items
+    - Welke sub-taken per work item?             -> MQ Planning Sub-Work Items
+    - Welke dependencies tussen items?           -> MQ Planning Relations
     - IFPUG functiepunten per entity
          |
          v
@@ -163,7 +163,7 @@ De Discovery Tool heeft twee modi:
 ```
 Brownpaper input:                     Greenpaper input:
   - Onboarding kennis + IFPUG FP       - PM/stakeholder visie
-  - Bestaande Plane backlog             - Referentie-architectuur (optioneel)
+  - Bestaande MQ Planning backlog        - Referentie-architectuur (optioneel)
   - PM/stakeholder antwoorden           - PM/stakeholder antwoorden
          |                                      |
          v                                      v
@@ -191,27 +191,27 @@ Discovery output
          +---> Technisch review: Git PR met markdown voor tech lead
          |
          v (beide goedgekeurd)
-  Push naar Plane
+  Push naar MQ Planning
 ```
 
 ### Stap 3b: PM Dashboard (apart component)
 
 Het PM Dashboard is een **zelfstandig component** naast de andere tools met twee functies:
 
-1. **Monitoring:** Aggregeert data uit Plane (hiërarchie, states), MQ DevEngine (test results), en Onboarding (IFPUG functiepunten) tot een 4-niveau drill-down overzicht.
+1. **Monitoring:** Aggregeert data uit MQ Planning (hiërarchie, states), MQ DevEngine (test results), en Onboarding (IFPUG functiepunten) tot een 4-niveau drill-down overzicht.
 
 2. **Intake portaal** (vanaf CRUD fase 2): De PM kan direct vanuit de hiërarchie nieuwe requirements, change requests en bug reports aanmaken. Items worden automatisch gerouteerd:
-   - **Nieuw requirement** → Discovery Tool (brownpaper) voor decompositie → Plane
-   - **Change request** → Direct naar Plane cycle → MQ DevEngine
-   - **Bug report** → Direct naar Plane cycle (hoge prio) → MQ DevEngine
+   - **Nieuw requirement** → Discovery Tool (brownpaper) voor decompositie → MQ Planning
+   - **Change request** → Direct naar MQ Planning cycle → MQ DevEngine
+   - **Bug report** → Direct naar MQ Planning cycle (hoge prio) → MQ DevEngine
 
-Elk intake item heeft een volledige audit trail (wie, wanneer, welke fase, welke acties, test results) en is traceerbaar via Plane labels en parent-relaties.
+Elk intake item heeft een volledige audit trail (wie, wanneer, welke fase, welke acties, test results) en is traceerbaar via MQ Planning labels en parent-relaties.
 
 Zie [platform-overview.md](platform-overview.md) voor de volledige specificatie: drill-down niveaus, metriek, fase-tracking, CRUD-modus, intake flow, audit trail, en helpdesk connector architectuur.
 
-### Stap 4: Sprint Planning (Plane)
+### Stap 4: Sprint Planning (MQ Planning)
 
-Mens organiseert werk in Plane:
+Mens organiseert werk in MQ Planning:
 
 - Drag & drop in cycles (sprints)
 - Prioriteiten aanpassen
@@ -220,10 +220,10 @@ Mens organiseert werk in Plane:
 
 ### Stap 5: Sprint Executie (MQ DevEngine)
 
-Plane Sync Service importeert de actieve cycle naar MQ DevEngine:
+Planning Sync Service importeert de actieve cycle naar MQ DevEngine:
 
 ```
-Plane Cycle (actief)
+MQ Planning Cycle (actief)
          |
     Sync Service pollt elke 30s
          |
@@ -237,7 +237,7 @@ Plane Cycle (actief)
   Orchestrator pakt features op
     - Coding agents implementeren (micro features, <= 2 uur)
     - Testing agents verifiëren
-    - Status updates terug naar Plane
+    - Status updates terug naar MQ Planning
 ```
 
 ### Stap 6: Feedback Loop
@@ -250,10 +250,10 @@ Feature completion
     - Test resultaten
     - Change document (git diff + AC check)
          |
-         +---> Plane work item: status update + comment met resultaten
+         +---> MQ Planning work item: status update + comment met resultaten
          |
          v
-  PM reviewt in PM Dashboard of Plane:
+  PM reviewt in PM Dashboard of MQ Planning:
     - Goedgekeurd  -> status "Done", volgende feature
     - Afgekeurd    -> comment met feedback
                            |
@@ -262,7 +262,7 @@ Feature completion
                    (item + feedback als context)
                            |
                            v
-                   Verfijnde requirements -> Plane -> MQ DevEngine
+                   Verfijnde requirements -> MQ Planning -> MQ DevEngine
 ```
 
 ### Stap 7: Doorlopende Intake (na initiële oplevering)
@@ -275,9 +275,9 @@ PM ziet item in Dashboard
          v
   Intake formulier: type (requirement/change/bug) + details
          |
-         +--- Requirement --> Discovery Tool (brownpaper) --> Plane
+         +--- Requirement --> Discovery Tool (brownpaper) --> MQ Planning
          |
-         +--- Change/Bug --> Direct Plane cycle --> MQ DevEngine
+         +--- Change/Bug --> Direct MQ Planning cycle --> MQ DevEngine
          |
          v
   Resultaat zichtbaar in Dashboard intake-overzicht
@@ -316,17 +316,17 @@ Server API -> process_manager.py -> autonomous_agent_demo.py (CLI)
 - **State:** React Query voor server state
 - **Real-time:** WebSocket voor agent output streaming
 
-### Plane Sync Service
+### Planning Sync Service
 
 ```
 mq-devEngine/
-  plane_sync/
+  planning_sync/
     __init__.py
-    client.py           # PlaneApiClient (HTTP, auth, rate limiting, write ops)
-    models.py           # Pydantic modellen voor Plane API + MQ DevEngine endpoints
+    client.py           # PlanningApiClient (HTTP, auth, rate limiting, write ops)
+    models.py           # Pydantic modellen voor MQ Planning API + MQ DevEngine endpoints
     mapper.py           # Work Item <-> Feature conversie, AC parsing
     sync_service.py     # import_cycle + outbound_sync (bidirectional)
-    background.py       # PlaneSyncLoop: asyncio polling per project, sprint detection
+    background.py       # PlanningSyncLoop: asyncio polling per project, sprint detection
     completion.py       # Sprint completion: DoD, retrospective, git tag, release notes
     release_notes.py    # Markdown release notes generator
     webhook_handler.py  # HMAC-SHA256 verificatie + event parsing
@@ -341,19 +341,19 @@ mq-devEngine/
     __init__.py         # Package exports
     parser.py           # parse_marqed_tree(): directory tree -> MarQedEntity tree
     models.py           # Pydantic modellen: MarQedImportRequest/Result
-    importer.py         # import_to_plane(): MarQedEntity tree -> Plane modules + work items
+    importer.py         # import_to_planning(): MarQedEntity tree -> MQ Planning modules + work items
 ```
 
 De Onboarding importer parseert markdown directory trees en creëert de corresponderende
-Plane entiteiten:
+MQ Planning entiteiten:
 
-| Onboarding entity | Plane entity | Rationale |
+| Onboarding entity | MQ Planning entity | Rationale |
 |---|---|---|
 | Epic | Module | Modules bieden grouping + status |
 | Feature | Work Item | Direct mapping |
 | Story | Sub-Work Item (parent=feature) | Via `parent` field |
 | Task | Sub-Work Item (parent=story) | Via `parent` field |
-| Dependencies | In description | Plane API v1 heeft geen relations endpoint |
+| Dependencies | In description | MQ Planning API v1 heeft geen relations endpoint |
 
 ### Test History
 
@@ -361,8 +361,8 @@ Het `TestRun` model in `api/database.py` registreert per-feature, per-agent test
 
 - **Recording:** De orchestrator schrijft `TestRun` rows na elke agent completion (testing + coding)
 - **Batch tracking:** `feature_ids_in_batch` legt vast welke features samen getest werden
-- **API:** `GET /api/plane/test-report?project_name=X` aggregeert pass/fail rates (`all_features=true` voor alle features)
-- **History API:** `GET /api/plane/test-history` retourneert individuele TestRun records voor heatmap/timeline
+- **API:** `GET /api/planning/test-report?project_name=X` aggregeert pass/fail rates (`all_features=true` voor alle features)
+- **History API:** `GET /api/planning/test-history` retourneert individuele TestRun records voor heatmap/timeline
 - **Sprint stats:** `total_test_runs` en `overall_pass_rate` in sync status
 
 ### Analytics Dashboard
@@ -384,18 +384,18 @@ ui/src/components/
 
 ### Webhooks
 
-Naast de polling loop ondersteunt MQ DevEngine ook real-time webhooks van Plane:
+Naast de polling loop ondersteunt MQ DevEngine ook real-time webhooks van MQ Planning:
 
-- **Endpoint:** `POST /api/plane/webhooks` (exempt van localhost middleware)
+- **Endpoint:** `POST /api/planning/webhooks` (exempt van localhost middleware)
 - **Authenticatie:** HMAC-SHA256 verificatie met configureerbaar secret
 - **Dedup:** 5-seconde cooldown per event key voorkomt dubbele verwerking
 - **Events:** `issue.update` en `cycle.update` triggeren `import_cycle()` voor de actieve cycle
 
 ## Bekende Beperkingen & Geplande Fixes
 
-### ~~Plane Sync is globaal (niet per project)~~ -- OPGELOST (Sprint 7.1)
+### ~~Planning Sync is globaal (niet per project)~~ -- OPGELOST (Sprint 7.1)
 
-Opgelost in Sprint 7.1. Plane sync configuratie is nu per-project. Elk project heeft eigen `plane_project_id`, `plane_active_cycle_id`, `plane_sync_enabled`, en `plane_poll_interval`. Gedeelde settings (`plane_api_url`, `plane_api_key`, `plane_workspace_slug`, `plane_webhook_secret`) blijven globaal. Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md).
+Opgelost in Sprint 7.1. Planning sync configuratie is nu per-project. Elk project heeft eigen `planning_project_id`, `planning_active_cycle_id`, `planning_sync_enabled`, en `planning_poll_interval`. Gedeelde settings (`planning_api_url`, `planning_api_key`, `planning_workspace_slug`, `planning_webhook_secret`) blijven globaal. Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md).
 
 ### ~~Geen graceful agent shutdown~~ -- OPGELOST (Sprint 7.2)
 
@@ -421,7 +421,7 @@ Status flow: `stopped → running → finishing → stopped` (graceful) of `runn
 | Service | Vereisten | Port |
 |---------|-----------|------|
 | Onboarding | Python 3.12+, Docker, ChromaDB | 8000 |
-| Plane | Docker Compose (PostgreSQL, Redis, MinIO) | 8080 |
+| MQ Planning (Plane) | Docker Compose (PostgreSQL, Redis, MinIO) | 8080 |
 | MQ DevEngine | Python 3.11+, Node.js 20+ | 5175 |
 | Discovery Tool | React, FastAPI, PostgreSQL in Docker | 3000 |
 | PM Dashboard | React (onderdeel Discovery Tool of standalone) | 3000 |

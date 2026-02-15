@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from plane_sync.client import PlaneApiClient, PlaneApiError
-from plane_sync.models import PlaneState
+from planning_sync.client import PlanningApiClient, PlanningApiError
+from planning_sync.models import PlanningState
 
 from .models import MarQedImportEntityResult, MarQedImportResult
 from .parser import MarQedEntity, parse_marqed_tree
@@ -32,7 +32,7 @@ _STATUS_TO_GROUP = {
 }
 
 
-def _find_state_id(states: list[PlaneState], group: str) -> str | None:
+def _find_state_id(states: list[PlanningState], group: str) -> str | None:
     """Find a state ID matching the given group."""
     for s in states:
         if s.group == group:
@@ -62,8 +62,8 @@ def _build_description_html(entity: MarQedEntity) -> str:
     return "\n".join(parts) if parts else f"<p>{entity.name}</p>"
 
 
-def import_to_plane(
-    client: PlaneApiClient,
+def import_to_planning(
+    client: PlanningApiClient,
     marqed_dir: str | Path,
     cycle_id: str | None = None,
 ) -> MarQedImportResult:
@@ -80,7 +80,7 @@ def import_to_plane(
     8. Add all work items to cycle if cycle_id provided
 
     Args:
-        client: Configured PlaneApiClient.
+        client: Configured PlanningApiClient.
         marqed_dir: Path to the MarQed project root.
         cycle_id: Optional cycle ID to add all work items to.
 
@@ -97,7 +97,7 @@ def import_to_plane(
             identifier="",
             name=str(marqed_dir),
             entity_type="project",
-            plane_type="",
+            planning_type="",
             action="error",
             error="Failed to parse MarQed directory tree",
         ))
@@ -106,13 +106,13 @@ def import_to_plane(
     # 2. Fetch states
     try:
         states = client.list_states()
-    except PlaneApiError as e:
+    except PlanningApiError as e:
         result.errors = 1
         result.entities.append(MarQedImportEntityResult(
             identifier="",
             name="states",
             entity_type="",
-            plane_type="",
+            planning_type="",
             action="error",
             error=f"Failed to fetch Plane states: {e}",
         ))
@@ -142,18 +142,18 @@ def import_to_plane(
                 identifier=epic.identifier,
                 name=epic.name,
                 entity_type="epic",
-                plane_type="module",
-                plane_id=module.id,
+                planning_type="module",
+                planning_id=module.id,
                 action="created",
             ))
-        except PlaneApiError as e:
+        except PlanningApiError as e:
             logger.warning("Failed to create module for %s: %s", epic.identifier, e)
             result.errors += 1
             result.entities.append(MarQedImportEntityResult(
                 identifier=epic.identifier,
                 name=epic.name,
                 entity_type="epic",
-                plane_type="module",
+                planning_type="module",
                 action="error",
                 error=str(e),
             ))
@@ -189,18 +189,18 @@ def import_to_plane(
                     identifier=feature.identifier,
                     name=feature.name,
                     entity_type="feature",
-                    plane_type="work_item",
-                    plane_id=wi.id,
+                    planning_type="work_item",
+                    planning_id=wi.id,
                     action="created",
                 ))
-            except PlaneApiError as e:
+            except PlanningApiError as e:
                 logger.warning("Failed to create work item for %s: %s", feature.identifier, e)
                 result.errors += 1
                 result.entities.append(MarQedImportEntityResult(
                     identifier=feature.identifier,
                     name=feature.name,
                     entity_type="feature",
-                    plane_type="work_item",
+                    planning_type="work_item",
                     action="error",
                     error=str(e),
                 ))
@@ -234,18 +234,18 @@ def import_to_plane(
                         identifier=story.identifier,
                         name=story.name,
                         entity_type="story",
-                        plane_type="sub_work_item",
-                        plane_id=story_wi.id,
+                        planning_type="sub_work_item",
+                        planning_id=story_wi.id,
                         action="created",
                     ))
-                except PlaneApiError as e:
+                except PlanningApiError as e:
                     logger.warning("Failed to create sub-item for %s: %s", story.identifier, e)
                     result.errors += 1
                     result.entities.append(MarQedImportEntityResult(
                         identifier=story.identifier,
                         name=story.name,
                         entity_type="story",
-                        plane_type="sub_work_item",
+                        planning_type="sub_work_item",
                         action="error",
                         error=str(e),
                     ))
@@ -278,18 +278,18 @@ def import_to_plane(
                             identifier=task.identifier,
                             name=task.name,
                             entity_type="task",
-                            plane_type="sub_work_item",
-                            plane_id=task_wi.id,
+                            planning_type="sub_work_item",
+                            planning_id=task_wi.id,
                             action="created",
                         ))
-                    except PlaneApiError as e:
+                    except PlanningApiError as e:
                         logger.warning("Failed to create sub-item for %s: %s", task.identifier, e)
                         result.errors += 1
                         result.entities.append(MarQedImportEntityResult(
                             identifier=task.identifier,
                             name=task.name,
                             entity_type="task",
-                            plane_type="sub_work_item",
+                            planning_type="sub_work_item",
                             action="error",
                             error=str(e),
                         ))
@@ -298,14 +298,14 @@ def import_to_plane(
         if module_id and module_work_item_ids:
             try:
                 client.add_work_items_to_module(module_id, module_work_item_ids)
-            except PlaneApiError as e:
+            except PlanningApiError as e:
                 logger.warning("Failed to add items to module %s: %s", module_id, e)
 
     # 8. Add all work items to cycle
     if cycle_id and all_work_item_ids:
         try:
             client.add_work_items_to_cycle(cycle_id, all_work_item_ids)
-        except PlaneApiError as e:
+        except PlanningApiError as e:
             logger.warning("Failed to add items to cycle %s: %s", cycle_id, e)
 
     return result

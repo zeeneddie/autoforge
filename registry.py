@@ -627,38 +627,38 @@ def get_all_settings() -> dict[str, str]:
 
 
 # =============================================================================
-# Per-Project Plane Settings
+# Per-Project Planning Settings
 # =============================================================================
 
-_PER_PROJECT_PLANE_KEYS = [
-    "plane_project_id",
-    "plane_active_cycle_id",
-    "plane_sync_enabled",
-    "plane_poll_interval",
+_PER_PROJECT_PLANNING_KEYS = [
+    "planning_project_id",
+    "planning_active_cycle_id",
+    "planning_sync_enabled",
+    "planning_poll_interval",
 ]
 
 
-def get_plane_setting(key: str, project_name: str | None = None, default=None):
-    """Read a Plane setting.
+def get_planning_setting(key: str, project_name: str | None = None, default=None):
+    """Read a planning setting.
 
     For per-project keys: returns the project-scoped value only (no global fallback).
     For shared keys (api_url, api_key, workspace_slug, webhook_secret): returns global value.
     """
-    if project_name and key in _PER_PROJECT_PLANE_KEYS:
+    if project_name and key in _PER_PROJECT_PLANNING_KEYS:
         val = get_setting(f"{key}:{project_name}")
         return val if val is not None else default
     return get_setting(key, default)
 
 
-def set_plane_setting(key: str, value: str, project_name: str | None = None):
-    """Write a Plane setting. Per-project keys used when applicable."""
-    if project_name and key in _PER_PROJECT_PLANE_KEYS:
+def set_planning_setting(key: str, value: str, project_name: str | None = None):
+    """Write a planning setting. Per-project keys used when applicable."""
+    if project_name and key in _PER_PROJECT_PLANNING_KEYS:
         set_setting(f"{key}:{project_name}", value)
     else:
         set_setting(key, value)
 
 
-def migrate_global_plane_settings():
+def migrate_global_planning_settings():
     """One-time migration: copy global per-project keys to first registered project.
 
     After migration, deletes the global keys to prevent silent fallback contamination.
@@ -668,7 +668,7 @@ def migrate_global_plane_settings():
         return
     first_project = next(iter(projects))
     migrated = False
-    for key in _PER_PROJECT_PLANE_KEYS:
+    for key in _PER_PROJECT_PLANNING_KEYS:
         global_val = get_setting(key)
         per_project_val = get_setting(f"{key}:{first_project}")
         if global_val and not per_project_val:
@@ -678,4 +678,4 @@ def migrate_global_plane_settings():
         if global_val:
             delete_setting(key)
     if migrated:
-        logger.info("Migrated global Plane settings to project '%s'", first_project)
+        logger.info("Migrated global planning settings to project '%s'", first_project)

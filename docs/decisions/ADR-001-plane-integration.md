@@ -1,4 +1,4 @@
-# ADR-001: Plane als Project Management Frontend
+# ADR-001: MQ Planning als Project Management Frontend
 
 **Status:** Geaccepteerd
 **Datum:** 2026-02-10
@@ -19,7 +19,7 @@ Totaal: 4 sprints aan eigen PM-development.
 
 ## Beslissing
 
-Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) als project management frontend. Integreer via Plane's REST API + webhooks.
+Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) als project management frontend (MQ Planning). Integreer via de REST API + webhooks.
 
 ## Alternatieven Overwogen
 
@@ -43,7 +43,7 @@ Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) a
 - **Pro:** Al onderdeel van git workflow
 - **Con:** Beperkte PM features, geen echte sprint/cycle support, geen epics
 
-### 5. Plane integratie (gekozen)
+### 5. MQ Planning integratie (gekozen)
 
 - **Pro:** Self-hosted, open-source, complete PM features (epics, cycles, modules, kanban, burndown), actieve community, REST API + webhooks
 - **Con:** Extra infra (Docker + PostgreSQL + Redis), twee UIs
@@ -51,8 +51,8 @@ Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) a
 ## Rationale
 
 1. **Enorme tijdsbesparing.** 4 sprints vervangen door 2 integratie-sprints.
-2. **Betere UX.** Plane is een volwassen PM tool met drag & drop, filters, burndown charts, meerdere views.
-3. **Separation of concerns.** Plane doet planning, MQ DevEngine doet uitvoering.
+2. **Betere UX.** MQ Planning is een volwassen PM tool met drag & drop, filters, burndown charts, meerdere views.
+3. **Separation of concerns.** MQ Planning doet planning, MQ DevEngine doet uitvoering.
 4. **Self-hosted.** Volledige controle over data en deployment.
 5. **Forward-compatible.** Als we later toch eigen tabellen willen, kan de mapper aangepast worden.
 
@@ -60,36 +60,36 @@ Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) a
 
 | Risico | Impact | Mitigatie |
 |--------|--------|-----------|
-| Extra infra (Docker + PostgreSQL + Redis) | Medium | Plane draait in Docker Compose, eenvoudige setup |
-| Plane downtime | Laag | Features zijn lokaal in SQLite, orchestrator werkt door |
+| Extra infra (Docker + PostgreSQL + Redis) | Medium | MQ Planning draait in Docker Compose, eenvoudige setup |
+| MQ Planning downtime | Laag | Features zijn lokaal in SQLite, orchestrator werkt door |
 | Rate limit (60 req/min) | Laag | Budget: ~14 req/min, voldoende voor <50 items |
-| Twee UIs (Plane + MQ DevEngine) | Medium | Later: deep links of embedded views |
-| Plane API deprecation (`/issues/` -> `/work-items/`) | Medium | Direct op nieuwe endpoints bouwen |
+| Twee UIs (MQ Planning + MQ DevEngine) | Medium | Later: deep links of embedded views |
+| MQ Planning API deprecation (`/issues/` -> `/work-items/`) | Medium | Direct op nieuwe endpoints bouwen |
 
 ## Gevolgen
 
 ### Roadmap impact
 
-**Vervalt (Plane neemt over):**
-- Sprint 2 (Data Model) - Plane heeft Modules, Work Items, Cycles
-- Sprint 3 (Analyse Workflow) - Planning gebeurt in Plane
-- Sprint 5 (Dual Kanban Board) - Plane IS het kanban board
-- Sprint 6 (Velocity & Metrics) - Plane heeft ingebouwde analytics
+**Vervalt (MQ Planning neemt over):**
+- Sprint 2 (Data Model) - MQ Planning heeft Modules, Work Items, Cycles
+- Sprint 3 (Analyse Workflow) - Planning gebeurt in MQ Planning
+- Sprint 5 (Dual Kanban Board) - MQ Planning IS het kanban board
+- Sprint 6 (Velocity & Metrics) - MQ Planning heeft ingebouwde analytics
 
 **Blijft:**
 - Sprint 1 (Multi-Model Support) - Al done
 - Sprint 4 (DoD & Sprint Execution) - MQ DevEngine's kernwaarde
-- Sprint 7 (Continuous Delivery) - Onafhankelijk van Plane
+- Sprint 7 (Continuous Delivery) - Onafhankelijk van MQ Planning
 
 **Nieuw:**
-- Sprint 2 (nieuw): Plane Integratie - Inbound sync
-- Sprint 3 (nieuw): Plane Integratie - Bidirectionele sync
+- Sprint 2 (nieuw): MQ Planning Integratie - Inbound sync
+- Sprint 3 (nieuw): MQ Planning Integratie - Bidirectionele sync
 
 **Resultaat: 7 sprints -> 5 sprints**
 
 ### Technische impact
 
-- Nieuwe module: `plane_sync/` (client, mapper, sync service, webhook handler)
-- 3 extra kolommen op Feature tabel (plane_work_item_id, plane_synced_at, plane_updated_at)
-- Nieuwe API router: `/api/plane/*`
-- Plane configuratie in registry settings + `.env`
+- Nieuwe module: `planning_sync/` (client, mapper, sync service, webhook handler)
+- 3 extra kolommen op Feature tabel (planning_work_item_id, planning_synced_at, planning_updated_at)
+- Nieuwe API router: `/api/planning/*`
+- MQ Planning configuratie in registry settings + `.env`

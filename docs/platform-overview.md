@@ -11,7 +11,7 @@ Het MarQed.ai platform bestaat uit vijf componenten:
 | **Onboarding** | Codebase analyse, kennis opbouw, IFPUG functiepunten | Developer, Tech Lead |
 | **Discovery Tool** | Requirements gathering: brownpaper (bestaand) en greenpaper (nieuwbouw) | Product Manager, Stakeholder |
 | **PM Dashboard** | Hiërarchisch overzicht met drill-down, metriek, en intake portaal | Product Manager |
-| **Plane** | Planning, backlog, sprint management (SSOT) | Product Manager, Developer |
+| **MQ Planning** | Planning, backlog, sprint management (SSOT) | Product Manager, Developer |
 | **MQ DevEngine** | Autonome code-uitvoering, testing, delivery | Developer |
 
 ## Platformdiagram
@@ -37,7 +37,7 @@ MarQed.ai Platform
 |          | + kennis               | naar               |    |    |        |
 |          |                        |                    |    |    |        |
 |          |       +================+================+   |    |    |        |
-|          |       ||        PLANE (SSOT)            ||--+    |    |        |
+|          |       ||     MQ PLANNING (SSOT)         ||--+    |    |        |
 |          |       ||  Backlog, Cycles, Modules      || hierarchie |        |
 |          |       ||  Prioritering, Voortgang       || + states   |        |
 |          |       +================+====+===========+        |    |        |
@@ -60,7 +60,7 @@ Het PM Dashboard aggregeert data uit drie bronnen:
 
 ```
 +------------------+     +------------------+     +------------------+
-|     Plane        |     |    MQ DevEngine     |     |   Onboarding     |
+|   MQ Planning    |     |    MQ DevEngine     |     |   Onboarding     |
 |                  |     |                  |     |                  |
 | Modules (epics)  |     | TestRun records  |     | IFPUG functie-   |
 | Work Items       |     | pass/fail counts |     |   punten per     |
@@ -86,7 +86,7 @@ Het PM Dashboard aggregeert data uit drie bronnen:
 
 | Bron | Data | Richting |
 |------|------|----------|
-| **Plane** | Modules (epics), Work Items (features), Sub-Work Items (stories), States, Cycles, voortgang % | Plane --> Dashboard |
+| **MQ Planning** | Modules (epics), Work Items (features), Sub-Work Items (stories), States, Cycles, voortgang % | MQ Planning --> Dashboard |
 | **MQ DevEngine** | TestRun records, pass/fail counts, pass rate, agent_type, batch info | MQ DevEngine --> Dashboard |
 | **Onboarding** | IFPUG functiepunten per entity, codebase kennis-artefacten | Onboarding --> Dashboard |
 
@@ -113,7 +113,7 @@ Onboarding output                PM / Stakeholder
     +-----------------------------------+
                     |
                     v
-               Push naar Plane
+               Push naar MQ Planning
 ```
 
 **Brownpaper** is voor bestaande codebases. Onboarding heeft al gescand en bevindingen opgeleverd. De Discovery Tool presenteert deze bevindingen aan de PM ter bevestiging ("Klopt dit? Wat mist er?"), documenteert de huidige staat, en interviewt over gewenste wijzigingen en nieuwe functionaliteit.
@@ -136,7 +136,7 @@ Onboarding output                PM / Stakeholder
     +-----------------------------------+
                     |
                     v
-               Push naar Plane
+               Push naar MQ Planning
 ```
 
 **Greenpaper** is voor nieuwbouw. Er is geen bestaande codebase en dus geen Onboarding-output. De Discovery Tool start blanco met documentatie en interviews, en laat de AI een volledige hierarchie genereren.
@@ -147,13 +147,13 @@ Onboarding output                PM / Stakeholder
 Niveau 0: Applicatie
   |-- epics count, features count, stories count, totaal FP, totaal tests, overall voortgang
   |
-  +-- Niveau 1: Epic (Plane Module)
+  +-- Niveau 1: Epic (MQ Planning Module)
        |-- features count, stories count, FP som, tests per categorie, voortgang
        |
-       +-- Niveau 2: Feature (Plane Work Item)
+       +-- Niveau 2: Feature (MQ Planning Work Item)
             |-- stories count, FP som, tests per categorie, fase-status
             |
-            +-- Niveau 3: User Story (Plane Sub-Work Item)
+            +-- Niveau 3: User Story (MQ Planning Sub-Work Item)
                  |-- FP, tests per categorie, AC status, fase-tracking
 ```
 
@@ -180,9 +180,9 @@ Discovery --> Planning --> Building --> Testing --> Review --> Done
                                   Blocked (dwars-status) -------+
 ```
 
-Mapping naar Plane states:
+Mapping naar MQ Planning states:
 
-| Plane state | Fase | Omschrijving |
+| MQ Planning state | Fase | Omschrijving |
 |-------------|------|-------------|
 | `backlog` | Discovery | Item is geidentificeerd, requirements worden verzameld |
 | `unstarted` | Planning | Requirements zijn klaar, wacht op sprint toewijzing |
@@ -224,9 +224,9 @@ Ongebruikte FP **vervallen** aan het eind van de maand -- geen rollover. Dit hou
 
 | Type | Omschrijving | Voorbeeld | Route na intake |
 |------|-------------|-----------|-----------------|
-| **Nieuw requirement** | Uitbreiding van bestaande functionaliteit of geheel nieuwe feature | "We willen ook 2FA op de login" | PM Dashboard → Discovery Tool (brownpaper) → Plane → MQ DevEngine |
-| **Change request** | Wijziging op een bestaand item; scope is duidelijk | "Zoekfunctie moet ook op categorie filteren" | PM Dashboard → Plane (direct) → MQ DevEngine |
-| **Bug report** | Defect in bestaande functionaliteit | "Export knop crasht bij >1000 rijen" | PM Dashboard → Plane (direct, hoge prio) → MQ DevEngine |
+| **Nieuw requirement** | Uitbreiding van bestaande functionaliteit of geheel nieuwe feature | "We willen ook 2FA op de login" | PM Dashboard → Discovery Tool (brownpaper) → MQ Planning → MQ DevEngine |
+| **Change request** | Wijziging op een bestaand item; scope is duidelijk | "Zoekfunctie moet ook op categorie filteren" | PM Dashboard → MQ Planning (direct) → MQ DevEngine |
+| **Bug report** | Defect in bestaande functionaliteit | "Export knop crasht bij >1000 rijen" | PM Dashboard → MQ Planning (direct, hoge prio) → MQ DevEngine |
 
 ### Intake flow
 
@@ -260,9 +260,9 @@ PM ziet in Dashboard:
         +------ Annuleren? -----> Geen item aangemaakt
         |
         v  (Indienen)
-  Plane Work Item aangemaakt:
+  MQ Planning Work Item aangemaakt:
     - Label: "intake:bug" / "intake:change" / "intake:requirement"
-    - Parent relatie: gekoppeld aan bestaand Plane item
+    - Parent relatie: gekoppeld aan bestaand MQ Planning item
     - Metadata: bron="pm-dashboard", intake_timestamp, pm_naam
     - FP: bevestigde inschatting
         |
@@ -277,9 +277,9 @@ PM ziet in Dashboard:
         |                             Feature C: 6 FP
         |                                    |
         |                                    v
-        |                              Plane (gedecomponeerd)
+        |                              MQ Planning (gedecomponeerd)
         |                                    |
-        +------ Change / Bug? ----------> Plane cycle (direct)
+        +------ Change / Bug? ----------> MQ Planning cycle (direct)
         |                                    |
         v                                    v
   MQ DevEngine pakt op, bouwt/fixt, test
@@ -298,8 +298,8 @@ PM ziet in Dashboard:
 | Type | Gaat via Discovery? | Reden |
 |------|-------------------|-------|
 | **Nieuw requirement** | Ja (brownpaper) | Moet gedecomponeerd worden tot micro features (max 2 uur). Kan impact hebben op meerdere epics/features. |
-| **Change request** | Nee, direct naar Plane | Scope is afgebakend: wijziging op een bestaand, bekend item. Geen decompositie nodig. |
-| **Bug report** | Nee, direct naar Plane | Fixes zijn klein en urgent. Snelle turnaround is belangrijker dan decompositie. |
+| **Change request** | Nee, direct naar MQ Planning | Scope is afgebakend: wijziging op een bestaand, bekend item. Geen decompositie nodig. |
+| **Bug report** | Nee, direct naar MQ Planning | Fixes zijn klein en urgent. Snelle turnaround is belangrijker dan decompositie. |
 
 Bij twijfel (is dit een change of een nieuw requirement?) kan de PM altijd kiezen voor "requirement" om via Discovery te gaan -- beter te veel decompositie dan te weinig.
 
@@ -334,7 +334,7 @@ De PM kan bij review #1:
 - **Scope aanpassen**: terug naar het formulier om de omschrijving te verfijnen
 - **Annuleren**: geen item aangemaakt, geen FP verbruikt
 
-Bij requirements komt na Discovery decompositie een **tweede review** waar de PM de FP-breakdown per sub-item ziet en goedkeurt voordat de items naar Plane gaan.
+Bij requirements komt na Discovery decompositie een **tweede review** waar de PM de FP-breakdown per sub-item ziet en goedkeurt voordat de items naar MQ Planning gaan.
 
 #### Admin-override
 
@@ -414,7 +414,7 @@ De PM ziet in één oogopslag:
 
 ### Traceerbaarheid: audit trail
 
-Elk intake item heeft een volledige audit trail, opgeslagen als Plane work item comments:
+Elk intake item heeft een volledige audit trail, opgeslagen als MQ Planning work item comments:
 
 ```
 Audit trail voor BUG-001: "Export crasht bij >1000 rijen"
@@ -454,24 +454,24 @@ Elk audit trail event bevat:
 - **Actie** (wat er is gebeurd)
 - **Details** (test results, branch naam, review comment)
 
-### Plane labels en metadata
+### MQ Planning labels en metadata
 
-Elk intake item wordt in Plane aangemaakt met gestructureerde metadata:
+Elk intake item wordt in MQ Planning aangemaakt met gestructureerde metadata:
 
 | Veld | Waarde | Doel |
 |------|--------|------|
 | Label | `intake:bug` / `intake:change` / `intake:requirement` | Filteren en rapporteren per type |
-| Label | `source:pm-dashboard` | Onderscheid van items uit Discovery Tool of directe Plane input |
-| Parent | Bestaand Plane work item ID | Traceerbaarheid naar het item waar het bij hoort |
+| Label | `source:pm-dashboard` | Onderscheid van items uit Discovery Tool of directe MQ Planning input |
+| Parent | Bestaand MQ Planning work item ID | Traceerbaarheid naar het item waar het bij hoort |
 | Custom field | `intake_by` | PM naam voor audit trail |
 | Custom field | `intake_at` | Timestamp van aanmaak |
-| Description prefix | `[BUG]` / `[CHANGE]` / `[REQ]` | Visuele herkenning in Plane UI |
+| Description prefix | `[BUG]` / `[CHANGE]` / `[REQ]` | Visuele herkenning in MQ Planning UI |
 
 ### Prioriteit-escalatie
 
 | Intake type | Default prioriteit | Escalatie regel |
 |-------------|-------------------|-----------------|
-| Bug - Critical | Urgent | Gaat voor alles in huidige cycle, MQ DevEngine pakt direct op |
+| Bug - Critical | Urgent | Gaat voor alles in huidige cycle, MQ DevEngine pakt direct op  |
 | Bug - High | High | Toegevoegd aan huidige cycle, volgende in queue |
 | Bug - Medium/Low | Medium/Low | Toegevoegd aan backlog, PM plant in volgende cycle |
 | Change request | Zoals ingevoerd | Geen escalatie, PM bepaalt prioriteit |
@@ -479,7 +479,7 @@ Elk intake item wordt in Plane aangemaakt met gestructureerde metadata:
 
 ### Helpdesk-integratie (toekomstig)
 
-> Dit is een architectuuridee voor latere sprints. Het intake-patroon (type → route → Plane → track) is identiek aan de PM Dashboard intake; alleen de bron verschilt.
+> Dit is een architectuuridee voor latere sprints. Het intake-patroon (type → route → MQ Planning → track) is identiek aan de PM Dashboard intake; alleen de bron verschilt.
 
 ```
 Externe ITSM-platformen                    MarQed.ai Platform
@@ -491,7 +491,7 @@ Externe ITSM-platformen                    MarQed.ai Platform
 | TOPdesk           |                     |      (bug/change/req)     |
 +-------------------+                     |    - AI matching op       |
                                           |      bestaand item        |
-                                          |    - Plane work item      |
+                                          |    - MQ Planning work item |
                                           |      aanmaken             |
                                           +------------+--------------+
                                                        |
@@ -521,11 +521,11 @@ Connectors per platform zouden een **adapter-patroon** volgen:
                 |
 3. Twee-sporen review: PM business review + tech lead Git PR
                 |
-4. Push naar Plane (SSOT)
+4. Push naar MQ Planning (SSOT)
                 |
-5. MQ DevEngine importeert, bouwt, test, pusht status terug naar Plane
+5. MQ DevEngine importeert, bouwt, test, pusht status terug naar MQ Planning
                 |
-6. PM monitort voortgang in PM Dashboard (data uit Plane + MQ DevEngine + Onboarding)
+6. PM monitort voortgang in PM Dashboard (data uit MQ Planning + MQ DevEngine + Onboarding)
                 |
 7. Feedback loop: goedgekeurd = Done, afgekeurd = terug naar Discovery
 ```
@@ -544,7 +544,7 @@ Connectors per platform zouden een **adapter-patroon** volgen:
    Requirement     Change / Bug
         |               |
   Discovery Tool   Direct naar
-  (brownpaper)     Plane cycle
+  (brownpaper)     MQ Planning cycle
         |               |
   FP-breakdown          |
   PM bevestigt          |
@@ -558,7 +558,7 @@ Connectors per platform zouden een **adapter-patroon** volgen:
 13. PM reviewt: goedgekeurd = Done, afgekeurd = feedback
 ```
 
-De twee flows (initieel en doorlopend) gebruiken dezelfde onderliggende infrastructuur: Plane als SSOT, MQ DevEngine als executie-engine, PM Dashboard als monitoring. Het verschil zit in de **ingang** (Discovery Tool vs. intake formulier) en de **routing** (altijd via Discovery vs. direct naar Plane).
+De twee flows (initieel en doorlopend) gebruiken dezelfde onderliggende infrastructuur: MQ Planning als SSOT, MQ DevEngine als executie-engine, PM Dashboard als monitoring. Het verschil zit in de **ingang** (Discovery Tool vs. intake formulier) en de **routing** (altijd via Discovery vs. direct naar MQ Planning).
 
 ---
 
@@ -640,7 +640,7 @@ Voor het kantoor/operatiecentrum: de hele pipeline live volgen op meerdere scher
 ```
 Monitor 1: INTAKE          Monitor 2: PLANNING         Monitor 3: EXECUTIE        Monitor 4: KWALITEIT
 +-------------------+    +-------------------+     +-------------------+     +-------------------+
-| Nieuwe items      |    | Plane Backlog     |     | MQ DevEngine Status  |     | Test Results      |
+| Nieuwe items      |    | MQ Planning       |     | MQ DevEngine Status  |     | Test Results      |
 | FP Budget meter   |    | Sprint Board      |     | Actieve agents    |     | Pass/Fail rates   |
 | Wachtrij          |    | Prioriteiten      |     | Live code output  |     | Review queue      |
 | Intake trend      |    | Sprint progress   |     | Build logs        |     | Kwaliteitsmetrics |
@@ -665,7 +665,7 @@ Een meta-agent die boven de individuele agents staat en het hele proces bewaakt:
                            |
           +----------------+----------------+
           |                |                |
-     Discovery Tool    Plane Sync      MQ DevEngine
+     Discovery Tool    Planning Sync   MQ DevEngine
      (quality check    (prioriteit     (agent health,
       op requirements)  optimalisatie)  stuck detection)
 ```
@@ -689,7 +689,7 @@ Een meta-agent die boven de individuele agents staat en het hele proces bewaakt:
 DEV (huidige machine)                    PROD (p920 / marqed003)
 +-------------------------------+       +-------------------------------+
 | MQ DevEngine (source, ./venv/)   |       | MQ DevEngine (npm global)        |
-| Plane (Docker, localhost:8080)|       | Plane (Docker, :8080)         |
+| MQ Planning (Docker, localhost:8080)|  | MQ Planning (Docker, :8080)   |
 | MarQed Discovery (source)     |       | MarQed Discovery (gebouwd)    |
 | Claude Code (dev tools)       |       | Claude CLI (agents)           |
 | SQLite (~/.mq-devengine/)        |       | SQLite (~/.mq-devengine/)        |
@@ -700,15 +700,15 @@ DEV (huidige machine)                    PROD (p920 / marqed003)
 **Deployment stappen p920:**
 
 1. `npm install -g mq-devengine-ai` (CLI + backend + UI)
-2. `mq-devengine config` (stel .env in: Claude API key, Plane URL)
-3. Plane Docker Compose opzetten op p920
-4. MarQed import tree importeren in Plane
+2. `mq-devengine config` (stel .env in: Claude API key, MQ Planning URL)
+3. MQ Planning Docker Compose opzetten op p920
+4. MarQed import tree importeren in MQ Planning
 5. MQ DevEngine agents starten op mq-discovery project
 6. Validatie: volledige pipeline draait vanaf scratch
 
 **Vereisten:**
 - `AUTOFORGE_ALLOW_REMOTE=1` in .env op p920
-- Firewall: poort 8888 (MQ DevEngine) + 8080 (Plane) open binnen intern netwerk
+- Firewall: poort 8888 (MQ DevEngine) + 8080 (MQ Planning) open binnen intern netwerk
 - SSH toegang voor deployment en monitoring
 - Git repo voor mq-discovery project
 

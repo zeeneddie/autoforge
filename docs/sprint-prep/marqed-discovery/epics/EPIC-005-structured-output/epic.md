@@ -4,7 +4,7 @@
 **Status:** planned
 **Depends on:** EPIC-003
 
-Claude structured output schema for entity generation. This epic defines the JSON schemas that constrain Claude's output into well-typed Epic, Feature, and Story entities, ensuring that AI-generated hierarchies are machine-parseable, validated, and ready for persistence and Plane export.
+Claude structured output schema for entity generation. This epic defines the JSON schemas that constrain Claude's output into well-typed Epic, Feature, and Story entities, ensuring that AI-generated hierarchies are machine-parseable, validated, and ready for persistence and MQ Planning export.
 
 ## Acceptance Criteria
 

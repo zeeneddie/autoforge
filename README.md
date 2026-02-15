@@ -2,29 +2,29 @@
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/leonvanzyl)
 
-A long-running autonomous coding agent powered by the Claude Agent SDK. MQ DevEngine is the **execution engine** in the **MarQed.ai platform**: Onboarding (analysis) → Discovery Tool (requirements) → Plane (planning) → MQ DevEngine (execution) → PM Dashboard (monitoring).
+A long-running autonomous coding agent powered by the Claude Agent SDK. MQ DevEngine is the **execution engine** in the **MarQed.ai platform**: Onboarding (analysis) → Discovery Tool (requirements) → MQ Planning (planning) → MQ DevEngine (execution) → PM Dashboard (monitoring).
 
 ## Pipeline
 
 ```
 MarQed.ai Platform
-Onboarding → Discovery Tool → Plane (SSOT) ←→ MQ DevEngine
+Onboarding → Discovery Tool → MQ Planning (SSOT) ←→ MQ DevEngine
                                     |
                                PM Dashboard
-                          [Plane + MQ DevEngine + Onboarding]
+                          [MQ Planning + MQ DevEngine + Onboarding]
 ```
 
-**Onboarding** provides codebase analysis, knowledge, and IFPUG function points. **Discovery Tool** gathers requirements in two modes: brownpaper (existing codebase) and greenpaper (new build). **PM Dashboard** gives PMs a hierarchical drill-down view aggregating data from Plane, MQ DevEngine, and Onboarding. See [platform-overview.md](docs/platform-overview.md) for the full diagram.
+**Onboarding** provides codebase analysis, knowledge, and IFPUG function points. **Discovery Tool** gathers requirements in two modes: brownpaper (existing codebase) and greenpaper (new build). **PM Dashboard** gives PMs a hierarchical drill-down view aggregating data from MQ Planning, MQ DevEngine, and Onboarding. See [platform-overview.md](docs/platform-overview.md) for the full diagram.
 
 ## Design Principles
 
 1. **Human as director** -- AI does the heavy lifting; humans make all GO/NO-GO decisions. No item flows between tools without human approval.
-2. **Plane is Single Source of Truth** -- All work items live in Plane. Other tools read from and write to Plane. No duplicate administration.
+2. **MQ Planning is Single Source of Truth** -- All work items live in MQ Planning. Other tools read from and write to MQ Planning. No duplicate administration.
 3. **Micro features (max 2 hours)** -- Every feature must be small enough to build and test within 2 hours, so users can review and course-correct quickly.
 4. **Fail fast, cycle short** -- Short cycles, fast feedback. Rejections flow back into Discovery immediately. Never work on the wrong thing for long.
 5. **Feedback loop always closes** -- Test results and user feedback flow back to Discovery. Every outcome leads to a next action. No dead ends.
-6. **Separation of duties** -- Each tool has exactly one responsibility: Onboarding (analyze), Discovery (gather), PM Dashboard (monitor), Plane (plan), MQ DevEngine (build).
-7. **Two audiences** -- PMs see Discovery Tool + PM Dashboard + Plane. Developers manage Onboarding + MQ DevEngine. Developers share outcomes with PMs via Plane and the PM Dashboard.
+6. **Separation of duties** -- Each tool has exactly one responsibility: Onboarding (analyze), Discovery (gather), PM Dashboard (monitor), MQ Planning (plan), MQ DevEngine (build).
+7. **Two audiences** -- PMs see Discovery Tool + PM Dashboard + MQ Planning. Developers manage Onboarding + MQ DevEngine. Developers share outcomes with PMs via MQ Planning and the PM Dashboard.
 8. **Confidence scoring** -- AI marks uncertain items visually so humans know where to focus review attention.
 9. **Two-track review** -- Business review (PM approves content) + Technical review (tech lead approves architecture via Git PR). Both required before Plane push.
 10. **Progressive disclosure** -- Start broad, go deeper where the human chooses. Sessions are resumable across days.
@@ -470,20 +470,20 @@ Uitgebreide documentatie is beschikbaar in de [`docs/`](docs/) folder:
 
 ### Architectuur & Ontwerp
 - [**Platform Overzicht**](docs/platform-overview.md) -- MarQed.ai platform: 5 componenten, platformdiagram, datastromen, brownpaper/greenpaper, PM Dashboard
-- [**Systeemarchitectuur**](docs/architecture.md) -- Onboarding + Discovery + PM Dashboard + Plane + MQ DevEngine pipeline, component overzicht, deployment
+- [**Systeemarchitectuur**](docs/architecture.md) -- Onboarding + Discovery + PM Dashboard + MQ Planning + MQ DevEngine pipeline, component overzicht, deployment
 - [**Roadmap**](docs/roadmap.md) -- Sprint planning v2 (7 sprints + 7.1/7.2 voltooid: per-project sync + graceful shutdown)
-- [**Operations Guide**](docs/operations-guide.md) -- Plane + MQ DevEngine opstarten, sync configureren, agent starten, troubleshooting
+- [**Operations Guide**](docs/operations-guide.md) -- MQ Planning + MQ DevEngine opstarten, sync configureren, agent starten, troubleshooting
 - [**GitHub Setup**](docs/github-setup.md) -- GitHub Organization setup (marqed-ai), repository structuur, fork management
 
 ### Architecture Decision Records (ADR)
-- [**ADR-001: Plane Integratie**](docs/decisions/ADR-001-plane-integration.md) -- Waarom Plane als PM frontend ipv zelf bouwen
+- [**ADR-001: MQ Planning Integratie**](docs/decisions/ADR-001-plane-integration.md) -- Waarom Plane als PM frontend ipv zelf bouwen
 - [**ADR-002: Analyse Pipeline**](docs/decisions/ADR-002-analysis-pipeline.md) -- Waar analyse, review en executie plaatsvindt
-- [**ADR-003: Data Mapping**](docs/decisions/ADR-003-data-mapping.md) -- Entity/state/priority mapping tussen Onboarding, Plane en MQ DevEngine
-- [**ADR-004: Per-Project Plane Sync**](docs/decisions/ADR-004-per-project-plane-sync.md) -- Per-project sync configuratie, voorkomt cross-project data lekkage
+- [**ADR-003: Data Mapping**](docs/decisions/ADR-003-data-mapping.md) -- Entity/state/priority mapping tussen Onboarding, MQ Planning en MQ DevEngine
+- [**ADR-004: Per-Project Planning Sync**](docs/decisions/ADR-004-per-project-plane-sync.md) -- Per-project sync configuratie, voorkomt cross-project data lekkage
 
-### Plane Sync Module
-- [**API Design**](docs/plane-sync/api-design.md) -- REST API endpoints: config, cycles, import, sync, webhooks, test-report, sprint completion
-- [**Sprint Lifecycle**](docs/plane-sync/sprint-lifecycle.md) -- Complete sprint lifecycle: 7 fasen, test history, webhooks, release notes
+### Planning Sync Module
+- [**API Design**](docs/planning-sync/api-design.md) -- REST API endpoints: config, cycles, import, sync, webhooks, test-report, sprint completion
+- [**Sprint Lifecycle**](docs/planning-sync/sprint-lifecycle.md) -- Complete sprint lifecycle: 7 fasen, test history, webhooks, release notes
 
 ---
 

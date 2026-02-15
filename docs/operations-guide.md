@@ -6,17 +6,17 @@ MQ DevEngine draait in combinatie met drie componenten:
 
 | Component | Rol | Standaard URL |
 |-----------|-----|---------------|
-| **Plane** | Project management, sprint cycles, work items | `http://localhost:8080` |
+| **MQ Planning** | Project management, sprint cycles, work items | `http://localhost:8080` |
 | **MQ DevEngine** | Autonoom coding platform, agent orchestratie | `http://localhost:8888` |
 | **Claude CLI** | LLM backend voor de coding/testing/initializer agents | N/A (CLI tool) |
 
-De opstartvolgorde is: Plane → MQ DevEngine → Sync configureren → Agent starten.
+De opstartvolgorde is: MQ Planning → MQ DevEngine → Sync configureren → Agent starten.
 
 ---
 
-## Plane opstarten (Docker)
+## MQ Planning opstarten (Docker)
 
-Plane draait als een set Docker containers. Start vanuit de Plane project directory:
+MQ Planning (Plane) draait als een set Docker containers. Start vanuit de Plane project directory:
 
 ```bash
 cd /home/eddie/Projects/plane
@@ -40,7 +40,7 @@ docker start <container_id>
 ### Verificatie
 
 - Open `http://localhost:8080` in de browser
-- De Plane login pagina moet zichtbaar zijn
+- De MQ Planning login pagina moet zichtbaar zijn
 - Data wordt persistent opgeslagen in het `plane_pgdata` Docker volume
 
 ---
@@ -183,21 +183,21 @@ Controleer dat het juiste model geselecteerd is en dat de authenticatie werkt.
 
 ---
 
-## Plane Sync configureren
+## Planning Sync configureren
 
 ### Via de MQ DevEngine UI
 
-Open Settings (tandwiel icoon) in de MQ DevEngine UI en vul de Plane sectie in:
+Open Settings (tandwiel icoon) in de MQ DevEngine UI en vul de MQ Planning sectie in:
 
 | Setting | Beschrijving | Voorbeeld |
 |---------|-------------|-----------|
-| `plane_api_url` | Plane API base URL | `http://localhost:8080/api/v1` |
-| `plane_api_key` | Plane API key (uit Plane profiel settings) | `plane_api_...` |
-| `plane_workspace_slug` | Workspace slug in Plane | `my-workspace` |
-| `plane_project_id` | Project UUID in Plane | `a1b2c3d4-...` |
-| `plane_cycle_id` | Active cycle UUID in Plane | `e5f6g7h8-...` |
+| `planning_api_url` | MQ Planning API base URL | `http://localhost:8080/api/v1` |
+| `planning_api_key` | MQ Planning API key (uit MQ Planning profiel settings) | `plane_api_...` |
+| `planning_workspace_slug` | Workspace slug in MQ Planning | `my-workspace` |
+| `planning_project_id` | Project UUID in MQ Planning | `a1b2c3d4-...` |
+| `planning_cycle_id` | Active cycle UUID in MQ Planning | `e5f6g7h8-...` |
 
-De API key is te vinden in Plane onder: **Profile → Settings → API Tokens**.
+De API key is te vinden in MQ Planning onder: **Profile → Settings → API Tokens**.
 
 ### Via registry (CLI)
 
@@ -211,14 +211,14 @@ curl -X PATCH http://localhost:8888/api/settings \
 
 ### Sync starten
 
-- **Via UI:** Toggle de sync schakelaar in de Settings modal (Plane sectie)
-- **Via API:** `POST http://localhost:8888/api/plane/sync/toggle`
+- **Via UI:** Toggle de sync schakelaar in de Settings modal (MQ Planning sectie)
+- **Via API:** `POST http://localhost:8888/api/planning/sync/toggle`
 
 > **WAARSCHUWING: Globale sync bij meerdere projecten**
 >
-> De Plane sync configuratie is momenteel **globaal** — niet per project. Als je meerdere projecten hebt geregistreerd (bijv. `klaverjas_app` en `mq-discovery`), importeert de sync loop work items uit de geconfigureerde Plane cycle naar **alle** projecten. Dit veroorzaakt cross-project data lekkage.
+> De Planning sync configuratie is momenteel **globaal** — niet per project. Als je meerdere projecten hebt geregistreerd (bijv. `klaverjas_app` en `mq-discovery`), importeert de sync loop work items uit de geconfigureerde MQ Planning cycle naar **alle** projecten. Dit veroorzaakt cross-project data lekkage.
 >
-> **Workaround:** Disable sync (`plane_sync_enabled=false`) wanneer meerdere projecten geregistreerd zijn. Gebruik handmatige import via `POST /api/plane/import-cycle` per project.
+> **Workaround:** Disable sync (`planning_sync_enabled=false`) wanneer meerdere projecten geregistreerd zijn. Gebruik handmatige import via `POST /api/planning/import-cycle` per project.
 >
 > **Fix:** Per-project sync configuratie is gepland in Sprint 7.1. Zie [ADR-004](decisions/ADR-004-per-project-plane-sync.md).
 
@@ -226,27 +226,27 @@ curl -X PATCH http://localhost:8888/api/settings \
 
 ## Sync werking
 
-### Inbound sync (Plane → MQ DevEngine)
+### Inbound sync (MQ Planning → MQ DevEngine)
 
-- Haalt work items op uit de geconfigureerde Plane cycle
+- Haalt work items op uit de geconfigureerde MQ Planning cycle
 - Maakt nieuwe MQ DevEngine features aan voor onbekende work items
-- Matcht bestaande features op `plane_work_item_id`
+- Matcht bestaande features op `planning_work_item_id`
 - Synchroniseert titel, beschrijving, prioriteit en acceptance criteria
 
-### Outbound sync (MQ DevEngine → Plane)
+### Outbound sync (MQ DevEngine → MQ Planning)
 
-- Pusht feature status naar het bijbehorende Plane work item:
+- Pusht feature status naar het bijbehorende MQ Planning work item:
   - Alle tests passen → state **Done**
   - Tests in progress → state **In Progress**
   - Geen tests → state **Todo**
-- Gebruikt een hash (`plane_last_status_hash`) om onnodige API calls te voorkomen
+- Gebruikt een hash (`planning_last_status_hash`) om onnodige API calls te voorkomen
 
 ### Echo prevention
 
 Bidirectionele sync kan echo-loops veroorzaken. Dit wordt voorkomen door:
 
-- **Outbound:** `plane_last_status_hash` slaat `"{passes}:{in_progress}"` op — skip als hash ongewijzigd
-- **Inbound:** vergelijkt Plane `updated_at` met opgeslagen `plane_updated_at` — skip als gelijk (eigen update die terugkomt)
+- **Outbound:** `planning_last_status_hash` slaat `"{passes}:{in_progress}"` op — skip als hash ongewijzigd
+- **Inbound:** vergelijkt MQ Planning `updated_at` met opgeslagen `planning_updated_at` — skip als gelijk (eigen update die terugkomt)
 
 ### Interval
 
@@ -254,7 +254,7 @@ De sync loop draait elke **30 seconden** (configureerbaar). Elke iteratie voert 
 
 ### Let op
 
-Features die al bestonden in MQ DevEngine voor de sync werd geconfigureerd, worden **niet** automatisch gelinkt aan Plane work items. Deze moeten handmatig gekoppeld worden door de `plane_work_item_id` te zetten.
+Features die al bestonden in MQ DevEngine voor de sync werd geconfigureerd, worden **niet** automatisch gelinkt aan MQ Planning work items. Deze moeten handmatig gekoppeld worden door de `planning_work_item_id` te zetten.
 
 ---
 
@@ -302,13 +302,13 @@ curl -X POST http://localhost:8888/api/projects/<project_name>/agent/stop
 
 - Het kanban board toont features die van **Todo** → **In Progress** → **Passing** gaan
 - De terminal/logs tonen agent output per subprocess
-- Als Plane sync actief is, worden statuswijzigingen automatisch naar Plane gepusht
+- Als Planning sync actief is, worden statuswijzigingen automatisch naar MQ Planning gepusht
 
 ---
 
 ## Troubleshooting
 
-### Plane containers gestopt
+### MQ Planning containers gestopt
 
 ```bash
 # Bekijk status
@@ -320,7 +320,7 @@ docker start $(docker ps -a --filter "name=plane" --filter "status=exited" -q)
 
 ### Port 80 in gebruik
 
-Plane probeert standaard poort 80 te gebruiken. Als deze bezet is, pas de proxy poort aan in de Docker Compose configuratie. De standaard workaround is poort 8080.
+MQ Planning (Plane) probeert standaard poort 80 te gebruiken. Als deze bezet is, pas de proxy poort aan in de Docker Compose configuratie. De standaard workaround is poort 8080.
 
 ### Agent crasht direct
 
@@ -329,15 +329,15 @@ Plane probeert standaard poort 80 te gebruiken. Als deze bezet is, pas de proxy 
 3. Check of het model beschikbaar is in de settings
 4. Bekijk de agent logs in de terminal output
 
-### Sync pusht niet naar Plane
+### Sync pusht niet naar MQ Planning
 
 Als de outbound sync geen updates stuurt terwijl de status veranderd is:
 
-1. Controleer of de sync actief is: `GET http://localhost:8888/api/plane/sync-status`
+1. Controleer of de sync actief is: `GET http://localhost:8888/api/planning/sync-status`
 2. De hash kan out-of-sync zijn. Reset door de feature status te wijzigen (bijv. een test opnieuw laten draaien)
-3. Controleer de Plane API key geldigheid
+3. Controleer de MQ Planning API key geldigheid
 4. Bekijk de server logs voor API fouten
 
 ### Features niet gelinkt na sync
 
-Features die bestonden voor de Plane sync was geconfigureerd, worden niet automatisch gekoppeld. Koppel ze handmatig via de database of door de feature te verwijderen en opnieuw te laten importeren via de sync.
+Features die bestonden voor de Planning sync was geconfigureerd, worden niet automatisch gekoppeld. Koppel ze handmatig via de database of door de feature te verwijderen en opnieuw te laten importeren via de sync.

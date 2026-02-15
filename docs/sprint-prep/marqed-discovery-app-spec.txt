@@ -10,7 +10,7 @@
     desired changes) and greenpaper mode (for new builds, starting from a blank slate with
     vision interviews). The AI decomposes high-level ideas into a strict hierarchy of
     Epics, Features, Stories, and Tasks, each with acceptance criteria, confidence scores,
-    and function point estimates. All output is pushed to Plane (the single source of truth
+    and function point estimates. All output is pushed to MQ Planning (the single source of truth
     for work item management) via the Plane Python SDK.
 
     The second capability is a PM Dashboard that provides a hierarchical overview with
@@ -125,21 +125,21 @@
 
     <plane_integration>
       14. Plane SDK setup: Install and configure plane-sdk Python package. Initialize
-          PlaneClient with API URL, API key, workspace slug from environment variables.
+          PlanningClient with API URL, API key, workspace slug from environment variables.
           Singleton client instance available via dependency injection.
       15. Plane authentication: Verify Plane API credentials on startup or first use.
-          GET /api/plane/test-connection endpoint that validates credentials and returns
+          GET /api/planning/test-connection endpoint that validates credentials and returns
           workspace info. Clear error messages for invalid credentials.
-      16. Read Plane modules: GET /api/plane/modules endpoint that fetches all modules
+      16. Read Plane modules: GET /api/planning/modules endpoint that fetches all modules
           from the configured Plane project. Returns module ID, name, description, and
           work item count. Used to display existing epics in brownpaper mode.
-      17. Read Plane work items: GET /api/plane/work-items endpoint with optional
+      17. Read Plane work items: GET /api/planning/work-items endpoint with optional
           module_id filter. Returns work items with ID, name, description, state,
           priority, parent ID, and sub-work-item count. Pagination support.
-      18. Read Plane cycles: GET /api/plane/cycles endpoint that fetches all cycles
+      18. Read Plane cycles: GET /api/planning/cycles endpoint that fetches all cycles
           from the configured project. Returns cycle ID, name, start/end dates, and
           work item count. Used for cycle assignment during export.
-      19. Write work items to Plane: POST /api/plane/push endpoint that creates
+      19. Write work items to Plane: POST /api/planning/push endpoint that creates
           modules (from epics), work items (from features), and sub-work items (from
           stories/tasks) in Plane. Supports optional cycle assignment. Returns created
           item IDs for reference tracking.
@@ -193,7 +193,7 @@
       31. Phase 6 - Export Preparation: Claude generates the final structured output
           with the complete hierarchy. Produces a summary with total counts (epics,
           features, stories), total function points, and confidence distribution.
-          Prepares data for push to Plane.
+          Prepares data for push to MQ Planning.
       32. Phase transition logic: Backend tracks current phase per session. Phase
           advances when Claude signals completion via structured output marker or when
           user explicitly advances. Phase can be revisited by navigating backwards.
@@ -290,9 +290,9 @@
           views on mobile. On desktop, side-by-side layout with resizable divider.
       55. Header bar: Fixed header with session name (editable inline), mode badge
           (brownpaper/greenpaper), phase indicator (Phase 1 of 6), and action buttons
-          (Save, Export to Plane, Settings). Session name auto-saves on blur.
+          (Save, Export to MQ Planning, Settings). Session name auto-saves on blur.
       56. Keyboard shortcuts: Ctrl+1 to focus chat panel, Ctrl+2 to focus tree panel,
-          Ctrl+S to save session, Ctrl+E to export to Plane, Escape to close detail
+          Ctrl+S to save session, Ctrl+E to export to MQ Planning, Escape to close detail
           panels. Keyboard shortcut reference accessible via Ctrl+/ or ? key.
     </split_screen_layout>
 
@@ -324,7 +324,7 @@
 
     <session_management>
       63. Create new session: POST /api/sessions endpoint accepting session name, mode
-          (brownpaper/greenpaper), and optional plane_project_id and onboarding_path.
+          (brownpaper/greenpaper), and optional planning_project_id and onboarding_path.
           Returns session ID and initial phase. UI shows a new session dialog with
           mode selection radio buttons and name input.
       64. Resume existing session: GET /api/sessions/{session_id} returns session
@@ -344,7 +344,7 @@
       68. Session status tracking: Sessions have status enum: active, paused, completed,
           exported, deleted. Status transitions: active -> paused (user leaves),
           paused -> active (user resumes), active -> completed (phase 6 done),
-          completed -> exported (pushed to Plane).
+          completed -> exported (pushed to MQ Planning).
     </session_management>
 
     <error_handling>
@@ -366,7 +366,7 @@
           rendering errors and shows recovery UI.
       73. Input validation: Frontend validates user inputs before sending to API.
           Session name: 1-200 characters, no empty strings. Entity names: 1-500
-          characters. Chat messages: 1-10000 characters. Plane credentials: URL format
+          characters. Chat messages: 1-10000 characters. MQ Planning credentials: URL format
           validation, API key format check.
       74. Request timeout handling: API requests timeout after 30 seconds (configurable).
           Claude API calls timeout after 120 seconds (streaming keeps connection alive).
@@ -379,7 +379,7 @@
           All configuration read from environment with sensible defaults. Required
           variables (ANTHROPIC_API_KEY, DATABASE_URL) validated on startup with
           clear error messages if missing.
-      76. Plane configuration UI: Settings page with inputs for Plane API URL, API
+      76. MQ Planning configuration UI: Settings page with inputs for Plane API URL, API
           key, workspace slug, and project ID. Test connection button validates
           credentials. Configuration stored in .env or via API endpoint
           PUT /api/config/plane.
@@ -388,7 +388,7 @@
           claude-sonnet-4-5-20250514, claude-opus-4-20250514. Configuration applied
           per session or globally.
       78. Application configuration endpoint: GET /api/config returns non-sensitive
-          configuration (Plane connection status, Claude model, feature flags).
+          configuration (MQ Planning connection status, Claude model, feature flags).
           PUT /api/config updates configuration. Sensitive values (API keys) are
           write-only and never returned in GET responses.
     </configuration>
@@ -421,7 +421,7 @@
         - mode: VARCHAR(20) NOT NULL CHECK (mode IN ('brownpaper', 'greenpaper'))
         - status: VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed', 'exported', 'deleted'))
         - current_phase: INTEGER NOT NULL DEFAULT 1 CHECK (current_phase BETWEEN 1 AND 6)
-        - plane_project_id: VARCHAR(100) NULLABLE (Plane project UUID for integration)
+        - planning_project_id: VARCHAR(100) NULLABLE (Plane project UUID for integration)
         - onboarding_path: TEXT NULLABLE (filesystem path to Onboarding output directory)
         - total_input_tokens: INTEGER NOT NULL DEFAULT 0
         - total_output_tokens: INTEGER NOT NULL DEFAULT 0
@@ -446,7 +446,7 @@
         - confidence: FLOAT NOT NULL DEFAULT 0.5 CHECK (confidence BETWEEN 0.0 AND 1.0)
         - fp_estimate: INTEGER NOT NULL DEFAULT 0 (IFPUG function point estimate)
         - sort_order: INTEGER NOT NULL DEFAULT 0 (ordering among siblings)
-        - plane_work_item_id: VARCHAR(100) NULLABLE (Plane ID after export)
+        - planning_work_item_id: VARCHAR(100) NULLABLE (Plane ID after export)
         - created_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         - updated_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         INDEXES:
@@ -520,7 +520,7 @@
         Purpose: Session list for landing page
 
       - POST /api/sessions
-        Body: { name, mode, plane_project_id?, onboarding_path? }
+        Body: { name, mode, planning_project_id?, onboarding_path? }
         Returns: Created session with id, initial phase (1), status (active)
         Purpose: Create new discovery session
 
@@ -602,26 +602,26 @@
     </entities>
 
     <plane>
-      - GET /api/plane/test-connection
+      - GET /api/planning/test-connection
         Returns: { connected: true, workspace: "...", project: "..." } or error
-        Purpose: Validate Plane credentials before use
+        Purpose: Validate MQ Planning credentials before use
 
-      - GET /api/plane/modules
+      - GET /api/planning/modules
         Query params: project_id (optional, uses default)
         Returns: List of Plane modules with id, name, description, work_item_count
         Purpose: Load existing epics for brownpaper mode context
 
-      - GET /api/plane/work-items
+      - GET /api/planning/work-items
         Query params: module_id (optional), state (optional), limit, offset
         Returns: Paginated list of Plane work items with details
         Purpose: Load existing work items for brownpaper mode context
 
-      - GET /api/plane/cycles
+      - GET /api/planning/cycles
         Query params: project_id (optional)
         Returns: List of Plane cycles with id, name, start_date, end_date, work_item_count
         Purpose: Cycle selection for export assignment
 
-      - POST /api/plane/push
+      - POST /api/planning/push
         Body: { session_id, cycle_id? (optional cycle assignment), dry_run? (boolean, default false) }
         Returns: { created: { modules: N, work_items: N, sub_work_items: N }, errors: [...], dry_run: bool }
         Purpose: Push session hierarchy to Plane. Dry run mode validates without creating items
@@ -654,7 +654,7 @@
     <header>
       - Left: Session name (inline editable), mode badge (brownpaper blue / greenpaper green)
       - Center: Phase indicator showing "Phase N of 6: Phase Name" with clickable progress dots
-      - Right: Action buttons - Save (auto-save indicator), Export to Plane (primary button),
+      - Right: Action buttons - Save (auto-save indicator), Export to MQ Planning (primary button),
         Settings (gear icon), Session List (list icon)
     </header>
 
@@ -687,8 +687,8 @@
     <modals_overlays>
       - New Session dialog: mode selection (brownpaper/greenpaper radio), name input,
         Plane project dropdown (optional), Onboarding path input (brownpaper only)
-      - Settings modal: Plane connection, Claude configuration, keyboard shortcuts reference
-      - Export confirmation: preview of what will be pushed to Plane, cycle selection dropdown,
+      - Settings modal: MQ Planning connection, Claude configuration, keyboard shortcuts reference
+      - Export confirmation: preview of what will be pushed to MQ Planning, cycle selection dropdown,
         dry run checkbox, push button
       - Delete confirmation: "Are you sure?" with session name, entity count warning
       - Error modal: critical error display with retry/dismiss options
@@ -839,16 +839,16 @@
     </user_flow_3>
 
     <user_flow_4>
-      <title>Push to Plane</title>
+      <title>Push to MQ Planning</title>
       1. User completes Phase 6, session status is "completed"
-      2. Clicks "Export to Plane" button in header
+      2. Clicks "Export to MQ Planning" button in header
       3. Export confirmation modal shows: summary of what will be created
          (e.g., 4 modules, 12 work items, 35 sub-work items)
       4. User optionally selects a Plane cycle for assignment
       5. User clicks "Dry Run" to validate without creating items
       6. Dry run shows: "All items valid, ready to push"
-      7. User clicks "Push to Plane" primary button
-      8. Progress indicator shows items being created (POST /api/plane/push)
+      7. User clicks "Push to MQ Planning" primary button
+      8. Progress indicator shows items being created (POST /api/planning/push)
       9. Completion message: "Created 4 modules, 12 work items, 35 sub-work items"
       10. Session status updated to "exported", tree nodes show Plane IDs
     </user_flow_4>
@@ -937,7 +937,7 @@
         - Implement responsive layout with mobile tab toggle
         - Create header bar with session info and action buttons
         - Build session list page as the landing view
-        - Implement Push to Plane workflow with dry run validation
+        - Implement Push to MQ Planning workflow with dry run validation
         - Create export confirmation modal with cycle selection
         - Add keyboard shortcuts for panel focus and common actions
         - Implement error handling UI (toasts, modals, error boundaries)
@@ -1026,7 +1026,7 @@
     </criterion>
 
     <criterion number="14">
-      Push to Plane creates modules (from epics), work items (from features), and
+      Push to MQ Planning creates modules (from epics), work items (from features), and
       sub-work items (from stories) in the configured Plane project. Dry run mode
       validates without creating items. Optional cycle assignment works correctly.
     </criterion>

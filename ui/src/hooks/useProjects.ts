@@ -4,7 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import type { FeatureCreate, FeatureUpdate, ModelsResponse, ProjectSettingsUpdate, Settings, SettingsUpdate, PlaneConfigUpdate } from '../lib/types'
+import type { FeatureCreate, FeatureUpdate, ModelsResponse, ProjectSettingsUpdate, Settings, SettingsUpdate, PlanningConfigUpdate } from '../lib/types'
 
 // ============================================================================
 // Projects
@@ -338,78 +338,78 @@ export function useUpdateSettings() {
 }
 
 // ============================================================================
-// Plane Integration
+// MQ Planning Integration
 // ============================================================================
 
-export function usePlaneConfig(projectName?: string | null) {
+export function usePlanningConfig(projectName?: string | null) {
   return useQuery({
-    queryKey: ['plane-config', projectName],
-    queryFn: () => api.getPlaneConfig(projectName || undefined),
+    queryKey: ['planning-config', projectName],
+    queryFn: () => api.getPlanningConfig(projectName || undefined),
     staleTime: 60000,
     retry: 1,
   })
 }
 
-export function useUpdatePlaneConfig() {
+export function useUpdatePlanningConfig() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (config: PlaneConfigUpdate) => api.updatePlaneConfig(config),
+    mutationFn: (config: PlanningConfigUpdate) => api.updatePlanningConfig(config),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['plane-config', variables.project_name] })
-      queryClient.invalidateQueries({ queryKey: ['plane-config', null] })
-      queryClient.invalidateQueries({ queryKey: ['plane-config', undefined] })
+      queryClient.invalidateQueries({ queryKey: ['planning-config', variables.project_name] })
+      queryClient.invalidateQueries({ queryKey: ['planning-config', null] })
+      queryClient.invalidateQueries({ queryKey: ['planning-config', undefined] })
     },
   })
 }
 
-export function useTestPlaneConnection() {
+export function useTestPlanningConnection() {
   return useMutation({
-    mutationFn: (projectName?: string) => api.testPlaneConnection(projectName),
+    mutationFn: (projectName?: string) => api.testPlanningConnection(projectName),
   })
 }
 
-export function usePlaneCycles(projectName?: string | null) {
+export function usePlanningCycles(projectName?: string | null) {
   return useQuery({
-    queryKey: ['plane-cycles', projectName],
-    queryFn: () => api.getPlaneCycles(projectName || undefined),
+    queryKey: ['planning-cycles', projectName],
+    queryFn: () => api.getPlanningCycles(projectName || undefined),
     enabled: false, // Only fetch on demand
     retry: 1,
   })
 }
 
-export function useImportPlaneCycle() {
+export function useImportPlanningCycle() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({ cycleId, projectName }: { cycleId: string; projectName: string }) =>
-      api.importPlaneCycle(cycleId, projectName),
+      api.importPlanningCycle(cycleId, projectName),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['features', variables.projectName] })
       queryClient.invalidateQueries({ queryKey: ['project'] })
-      queryClient.invalidateQueries({ queryKey: ['plane-config', variables.projectName] })
+      queryClient.invalidateQueries({ queryKey: ['planning-config', variables.projectName] })
     },
   })
 }
 
-export function usePlaneSyncStatus(projectName?: string | null) {
+export function usePlanningSyncStatus(projectName?: string | null) {
   return useQuery({
-    queryKey: ['plane-sync-status', projectName],
-    queryFn: () => api.getPlaneSyncStatus(projectName || undefined),
+    queryKey: ['planning-sync-status', projectName],
+    queryFn: () => api.getPlanningSyncStatus(projectName || undefined),
     refetchInterval: 10000,
     retry: 1,
     enabled: !!projectName,
   })
 }
 
-export function useTogglePlaneSync() {
+export function useTogglePlanningSync() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (projectName?: string) => api.togglePlaneSync(projectName),
+    mutationFn: (projectName?: string) => api.togglePlanningSync(projectName),
     onSuccess: (_data, projectName) => {
-      queryClient.invalidateQueries({ queryKey: ['plane-sync-status', projectName] })
-      queryClient.invalidateQueries({ queryKey: ['plane-config', projectName] })
+      queryClient.invalidateQueries({ queryKey: ['planning-sync-status', projectName] })
+      queryClient.invalidateQueries({ queryKey: ['planning-config', projectName] })
     },
   })
 }
@@ -420,7 +420,7 @@ export function useCompleteSprint() {
   return useMutation({
     mutationFn: (projectName: string) => api.completeSprint(projectName),
     onSuccess: (_data, projectName) => {
-      queryClient.invalidateQueries({ queryKey: ['plane-sync-status', projectName] })
+      queryClient.invalidateQueries({ queryKey: ['planning-sync-status', projectName] })
       queryClient.invalidateQueries({ queryKey: ['features', projectName] })
     },
   })

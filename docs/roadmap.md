@@ -4,7 +4,7 @@
 
 ## Strategische Wijziging
 
-De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **Plane** (open-source PM tool) en **Onboarding** (codebase analyse) is het kern-platform in **7 sprints** opgeleverd.
+De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **MQ Planning** (open-source PM tool) en **Onboarding** (codebase analyse) is het kern-platform in **7 sprints** opgeleverd.
 
 Fase 2 (Sprint 8+) bouwt de **Discovery-laag** en het **PM Dashboard**: een grafische, interactieve requirements-workflow die BMAD vervangt, plus een hiërarchisch overzicht voor product managers en stakeholders. Samen vormen deze componenten het **MarQed.ai platform**.
 
@@ -13,13 +13,13 @@ Zie [ADR-001](decisions/ADR-001-plane-integration.md) voor de rationale.
 ## Pipeline Overzicht
 
 ```
-Onboarding (Analyse) -> Discovery Tool (Requirements) -> Plane (Planning) -> MQ DevEngine (Executie)
-                                                              |
-                                                         PM Dashboard (Monitoring)
-                                                       [data uit Plane + MQ DevEngine + Onboarding]
+Onboarding (Analyse) -> Discovery Tool (Requirements) -> MQ Planning (Planning) -> MQ DevEngine (Executie)
+                                                                  |
+                                                             PM Dashboard (Monitoring)
+                                                           [data uit MQ Planning + MQ DevEngine + Onboarding]
 ```
 
-Onboarding levert codebase-kennis (kwaliteit, performance, security, IFPUG FP) die de Discovery-workflow voedt. Het PM Dashboard aggregeert data uit Plane, MQ DevEngine en Onboarding. Zie [platform-overview.md](platform-overview.md) voor het volledige platformdiagram en [architecture.md](architecture.md) voor de architectuur.
+Onboarding levert codebase-kennis (kwaliteit, performance, security, IFPUG FP) die de Discovery-workflow voedt. Het PM Dashboard aggregeert data uit MQ Planning, MQ DevEngine en Onboarding. Zie [platform-overview.md](platform-overview.md) voor het volledige platformdiagram en [architecture.md](architecture.md) voor de architectuur.
 
 ---
 
@@ -41,54 +41,54 @@ Per agent-type model selectie met OpenRouter support.
 
 ---
 
-## Sprint 2: Plane Integratie - Inbound Sync -- DONE
+## Sprint 2: MQ Planning Integratie - Inbound Sync -- DONE
 
 > Afgerond: 2026-02-10 | Commit: `cbd5953`
 
-Work items uit Plane importeren als MQ DevEngine Features.
+Work items uit MQ Planning importeren als MQ DevEngine Features.
 
 | # | Item | Status |
 |---|---|---|
-| 2.1 | PlaneApiClient met auth + rate limiting (`plane_sync/client.py`) | done |
-| 2.2 | Pydantic modellen voor Plane API entities (`plane_sync/models.py`) | done |
-| 2.3 | Feature tabel migratie: plane_work_item_id, plane_synced_at, plane_updated_at | done |
-| 2.4 | DataMapper: Plane WorkItem -> MQ DevEngine Feature (`plane_sync/mapper.py`) | done |
-| 2.5 | Import endpoint: `POST /api/plane/import-cycle` | done |
+| 2.1 | PlanningApiClient met auth + rate limiting (`planning_sync/client.py`) | done |
+| 2.2 | Pydantic modellen voor MQ Planning API entities (`planning_sync/models.py`) | done |
+| 2.3 | Feature tabel migratie: planning_work_item_id, planning_synced_at, planning_updated_at | done |
+| 2.4 | DataMapper: MQ Planning WorkItem -> MQ DevEngine Feature (`planning_sync/mapper.py`) | done |
+| 2.5 | Import endpoint: `POST /api/planning/import-cycle` | done |
 | 2.6 | API endpoints: config, test-connection, cycles | done |
-| 2.7 | Settings UI: Plane connectie configuratie in SettingsModal | done |
+| 2.7 | Settings UI: MQ Planning connectie configuratie in SettingsModal | done |
 | 2.8 | Test connection + cycles ophalen in UI | done |
 
 **Acceptatiecriteria:**
-1. Maak een Cycle in Plane met 3-5 work items
-2. Configureer Plane API credentials in MQ DevEngine settings
+1. Maak een Cycle in MQ Planning met 3-5 work items
+2. Configureer MQ Planning API credentials in MQ DevEngine settings
 3. Klik "Import Sprint" in MQ DevEngine UI
 4. Features verschijnen in MQ DevEngine's feature DB met juiste priority/category/dependencies
 5. Start de agent -- features worden opgepakt en geimplementeerd
 
-**Technische details:** Zie [plane-sync/api-design.md](plane-sync/api-design.md)
+**Technische details:** Zie [planning-sync/api-design.md](planning-sync/api-design.md)
 
 ---
 
-## Sprint 3: Plane Integratie - Bidirectionele Sync -- DONE
+## Sprint 3: MQ Planning Integratie - Bidirectionele Sync -- DONE
 
 > Afgerond: 2026-02-10
 
-Bidirectionele status sync: MQ DevEngine feature status wordt automatisch naar Plane gepusht, en Plane wijzigingen worden opgehaald via een achtergrond polling loop.
+Bidirectionele status sync: MQ DevEngine feature status wordt automatisch naar MQ Planning gepusht, en MQ Planning wijzigingen worden opgehaald via een achtergrond polling loop.
 
 | # | Item | Status |
 |---|---|---|
-| 3.1 | Outbound sync: Feature status -> Plane work item state | done |
+| 3.1 | Outbound sync: Feature status -> MQ Planning work item state | done |
 | 3.2 | Echo prevention via status hash + timestamp vergelijking | done |
 | 3.3 | Background polling loop (configurable interval) | done |
 | 3.4 | Mid-sprint sync (nieuwe/gewijzigde/verwijderde items) | done |
-| 3.5 | Plane sync status in MQ DevEngine UI | done |
+| 3.5 | MQ Planning sync status in MQ DevEngine UI | done |
 | 3.6 | Optionele webhook handler met HMAC-SHA256 verificatie | done (Sprint 5) |
 | 3.7 | Change document generatie (git diff + AI summary) | done (Sprint 4) |
 
 **Acceptatiecriteria:**
-1. Plane work items gaan automatisch naar "started" als MQ DevEngine ze oppakt
-2. Plane work items gaan naar "completed" als Features passing worden
-3. Edit een work item in Plane mid-sprint -- wijziging komt door in MQ DevEngine
+1. MQ Planning work items gaan automatisch naar "started" als MQ DevEngine ze oppakt
+2. MQ Planning work items gaan naar "completed" als Features passing worden
+3. Edit een work item in MQ Planning mid-sprint -- wijziging komt door in MQ DevEngine
 4. Echo prevention: MQ DevEngine's eigen updates triggeren geen onnodige re-sync
 
 **Technische details:** Zie [decisions/ADR-003-data-mapping.md](decisions/ADR-003-data-mapping.md)
@@ -99,21 +99,21 @@ Bidirectionele status sync: MQ DevEngine feature status wordt automatisch naar P
 
 > Afgerond: 2026-02-10
 
-Structured sprint completion met DoD verificatie, retrospective naar Plane, en git tagging.
+Structured sprint completion met DoD verificatie, retrospective naar MQ Planning, en git tagging.
 
 | # | Item | Status |
 |---|---|---|
-| 4.1 | Acceptance criteria uit Plane work item description parsen | done |
+| 4.1 | Acceptance criteria uit MQ Planning work item description parsen | done |
 | 4.2 | DoD checks per feature (acceptance criteria + regression) | done |
 | 4.3 | Sprint completion detectie (alle features passing) | done |
-| 4.4 | Retrospective data genereren (schrijf naar Plane als cycle comment) | done |
+| 4.4 | Retrospective data genereren (schrijf naar MQ Planning als cycle comment) | done |
 | 4.5 | Git tag per sprint | done |
 | 3.7 | Change document generatie (git log summary in retrospective) | done |
 
 **Acceptatiecriteria:**
-1. Import een Plane work item met "Acceptance Criteria:" sectie -- steps worden correct geextraheerd
+1. Import een MQ Planning work item met "Acceptance Criteria:" sectie -- steps worden correct geextraheerd
 2. Importeer cycle, markeer alle features als passing -- sync status toont `sprint_complete: true`
-3. Klik "Complete Sprint" in UI -- comments op Plane work items, git tag aangemaakt, resultaat in UI
+3. Klik "Complete Sprint" in UI -- comments op MQ Planning work items, git tag aangemaakt, resultaat in UI
 4. Change log: git log sinds laatste tag zit in retrospective
 5. Idempotentie: dubbel klikken maakt geen duplicate tags/comments
 
@@ -123,18 +123,18 @@ Structured sprint completion met DoD verificatie, retrospective naar Plane, en g
 
 > Afgerond: 2026-02-10
 
-Test history tracking, release notes generatie, en real-time Plane webhooks.
+Test history tracking, release notes generatie, en real-time MQ Planning webhooks.
 
 | # | Item | Status |
 |---|---|---|
 | 5.2 | Regression test reporting: TestRun DB model, recording in orchestrator, test-report API | done |
 | 5.1 | Release notes generatie uit voltooide features (markdown, per sprint) | done |
-| 3.6 | Plane webhooks: HMAC-SHA256 verificatie, event dedup, issue/cycle routing | done |
-| 5.3 | Self-hosting: MQ DevEngine eigen backlog in Plane | done (Sprint 6) |
-| 5.4 | Onboarding -> Plane importer (markdown -> Plane entities) | done (Sprint 6) |
+| 3.6 | MQ Planning webhooks: HMAC-SHA256 verificatie, event dedup, issue/cycle routing | done |
+| 5.3 | Self-hosting: MQ DevEngine eigen backlog in MQ Planning | done (Sprint 6) |
+| 5.4 | Onboarding -> MQ Planning importer (markdown -> MQ Planning entities) | done (Sprint 6) |
 
 **Acceptatiecriteria:**
-1. Start agents met `testing_agent_ratio >= 1`, wacht op completion, `GET /api/plane/test-report` -> runs geregistreerd
+1. Start agents met `testing_agent_ratio >= 1`, wacht op completion, `GET /api/planning/test-report` -> runs geregistreerd
 2. Sync status bevat `total_test_runs` en `overall_pass_rate`
 3. Complete sprint met alle features passing -> `releases/sprint-{name}.md` bevat features, test tabel, change log
 4. `curl` met geldige HMAC -> 200, ongeldige -> 403, webhook count stijgt in sync status
@@ -144,8 +144,8 @@ Test history tracking, release notes generatie, en real-time Plane webhooks.
 - `TestRun` DB model: per-feature per-agent test resultaten met batch info en timestamps
 - Orchestrator `running_testing_agents` uitgebreid naar 4-tuple: `(fid, proc, batch, start_time)`
 - `_record_test_runs()` helper schrijft na elke agent completion (testing + coding)
-- Release notes: `plane_sync/release_notes.py` met features per categorie, test tabel, change log
-- Webhooks: `POST /api/plane/webhooks` met HMAC-SHA256, 5s event dedup, routes naar `import_cycle()`
+- Release notes: `planning_sync/release_notes.py` met features per categorie, test tabel, change log
+- Webhooks: `POST /api/planning/webhooks` met HMAC-SHA256, 5s event dedup, routes naar `import_cycle()`
 - Webhook endpoint exempt van localhost middleware (HMAC is de auth)
 - Sprint stats uitgebreid met `total_test_runs`, `overall_pass_rate`
 
@@ -155,21 +155,21 @@ Test history tracking, release notes generatie, en real-time Plane webhooks.
 
 > Afgerond: 2026-02-10
 
-Self-hosting setup en Onboarding-to-Plane import pipeline.
+Self-hosting setup en Onboarding-to-MQ Planning import pipeline.
 
 | # | Item | Status |
 |---|---|---|
 | 6.1 | Fix `background.py` registry import bug (`get_all_projects` -> `list_registered_projects`) | done |
-| 6.2 | Self-hosting setup: `POST /api/plane/self-host-setup` registreert MQ DevEngine in eigen registry | done |
-| 6.3 | PlaneApiClient write operations: `create_work_item`, `create_module`, `add_work_items_to_module`, `add_work_items_to_cycle` | done |
+| 6.2 | Self-hosting setup: `POST /api/planning/self-host-setup` registreert MQ DevEngine in eigen registry | done |
+| 6.3 | PlanningApiClient write operations: `create_work_item`, `create_module`, `add_work_items_to_module`, `add_work_items_to_cycle` | done |
 | 6.4 | Onboarding markdown parser: `marqed_import/parser.py` met `parse_marqed_tree()` | done |
-| 6.5 | Onboarding-to-Plane importer: `POST /api/plane/marqed-import` creates modules + work items in Plane | done |
+| 6.5 | Onboarding-to-MQ Planning importer: `POST /api/planning/marqed-import` creates modules + work items in MQ Planning | done |
 | 6.6 | Documentatie update: roadmap, architecture, API design | done |
 
 **Acceptatiecriteria:**
-1. `POST /api/plane/self-host-setup` registreert "mq-devengine" in registry (idempotent)
+1. `POST /api/planning/self-host-setup` registreert "mq-devengine" in registry (idempotent)
 2. Onboarding parser: 1 epic + 2 features + 3 stories -> correct nested entity tree
-3. Onboarding import: creates 1 module + 5 work items in Plane met correcte parent relaties
+3. Onboarding import: creates 1 module + 5 work items in MQ Planning met correcte parent relaties
 4. Items in juiste module, optioneel in cycle
 5. Fouten per item stoppen niet de gehele import
 6. Server start zonder errors, alle endpoints bereikbaar
@@ -208,31 +208,31 @@ Analytics view als derde view-modus naast Kanban en Dependency Graph. Test repor
 
 ---
 
-## Sprint 7.1: Per-Project Plane Sync -- DONE
+## Sprint 7.1: Per-Project MQ Planning Sync -- DONE
 
 > Afgerond: 2026-02-12 | Commit: `0755248`
 
-Per-project Plane sync configuratie. Voorkomt cross-project data lekkage bij meerdere projecten.
+Per-project MQ Planning sync configuratie. Voorkomt cross-project data lekkage bij meerdere projecten.
 
 | # | Item | Status |
 |---|---|---|
-| 7.1.1 | Registry keys uitbreiden: `plane_*` settings met `:project_name` suffix + backward-compat fallback | done |
-| 7.1.2 | `PlaneSyncLoop._sync_iteration()` itereert per project, leest per-project config | done |
-| 7.1.3 | API endpoints: `GET/POST /api/plane/config?project_name=X` + alle sync endpoints | done |
-| 7.1.4 | UI: Plane config per geselecteerd project in SettingsModal | done |
-| 7.1.5 | Migratie: globale `plane_*` keys → eerste geregistreerde project bij startup | done |
+| 7.1.1 | Registry keys uitbreiden: `planning_*` settings met `:project_name` suffix + backward-compat fallback | done |
+| 7.1.2 | `PlanningSyncLoop._sync_iteration()` itereert per project, leest per-project config | done |
+| 7.1.3 | API endpoints: `GET/POST /api/planning/config?project_name=X` + alle sync endpoints | done |
+| 7.1.4 | UI: MQ Planning config per geselecteerd project in SettingsModal | done |
+| 7.1.5 | Migratie: globale `planning_*` keys → eerste geregistreerde project bij startup | done |
 
 **Acceptatiecriteria:**
-1. `klaverjas_app` en `mq-discovery` draaien tegelijk met elk hun eigen Plane cycle
+1. `klaverjas_app` en `mq-discovery` draaien tegelijk met elk hun eigen MQ Planning cycle
 2. Start sync → features verschijnen alleen in het juiste project
 3. Disable sync voor project A → project B sync draait door ongestoord
 4. Legacy single-project setup werkt zonder configuratie-wijzigingen
-5. UI toont per-project Plane configuratie
+5. UI toont per-project MQ Planning configuratie
 
 **Technische details:**
-- `registry.py`: `get_plane_setting()`, `set_plane_setting()`, `migrate_global_plane_settings()`
-- Per-project keys: `plane_project_id`, `plane_active_cycle_id`, `plane_sync_enabled`, `plane_poll_interval`
-- Shared keys: `plane_api_url`, `plane_api_key`, `plane_workspace_slug`, `plane_webhook_secret`
+- `registry.py`: `get_planning_setting()`, `set_planning_setting()`, `migrate_global_planning_settings()`
+- Per-project keys: `planning_project_id`, `planning_active_cycle_id`, `planning_sync_enabled`, `planning_poll_interval`
+- Shared keys: `planning_api_url`, `planning_api_key`, `planning_workspace_slug`, `planning_webhook_secret`
 - Registry key pattern: `{key}:{project_name}` met fallback naar global
 - Sync loop: `_get_project_config(project_name)` + `_per_project_status` dict
 - Webhook handler: iterates projects, imports only matching cycles
@@ -274,13 +274,13 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 
 ## Sprint 8a: Discovery Tool Foundation -- PLANNED
 
-> Doel: Project opzet en kern-backend voor de Discovery Tool. Database, Plane integratie, Claude API, en het gefaseerde prompt systeem.
+> Doel: Project opzet en kern-backend voor de Discovery Tool. Database, MQ Planning integratie, Claude API, en het gefaseerde prompt systeem.
 
 | # | Item | Status |
 |---|---|---|
 | 8a.1 | Project setup: React + assistant-ui + shadcn/ui frontend, FastAPI backend, PostgreSQL in Docker | planned |
 | 8a.2 | Database schema: sessions, entities, AC, messages, onboarding_context tabellen + Alembic migrations | planned |
-| 8a.3 | Plane SDK integratie: lees modules, work items, sub-work items, cycles uit geconfigureerd project | planned |
+| 8a.3 | MQ Planning SDK integratie: lees modules, work items, sub-work items, cycles uit geconfigureerd project | planned |
 | 8a.4 | Claude API backend: SDK setup, streaming endpoint, token tracking | planned |
 | 8a.5 | Phased prompt system: context gathering, scope, decomposition, refinement, validation, export | planned |
 | 8a.6 | Structured output schema: Claude `strict: true` voor Epic/Feature/Story generatie | planned |
@@ -288,7 +288,7 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 **Acceptatiecriteria:**
 1. `npm run dev` serves frontend, `uvicorn` serves backend, PostgreSQL runs in Docker
 2. Alembic migrations create all 5 tables
-3. Plane SDK reads modules, work items, and cycles from configured project
+3. MQ Planning SDK reads modules, work items, and cycles from configured project
 4. Claude API streaming endpoint delivers tokens via SSE
 5. Phase 1 prompt gathers project context through conversational questions
 6. Phases 2-6 prompts produce increasingly refined entity hierarchy
@@ -301,7 +301,7 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 
 ## Sprint 8b: Discovery Tool Completion -- PLANNED
 
-> Doel: UI-laag, validatie, confidence scoring, Plane write-back, en multi-sessie support.
+> Doel: UI-laag, validatie, confidence scoring, MQ Planning write-back, en multi-sessie support.
 
 | # | Item | Status |
 |---|---|---|
@@ -311,7 +311,7 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 | 8b.4 | Wizard progress indicator: phases 1-6 visualization, current phase highlight | planned |
 | 8b.5 | Micro feature validation: AI decomposition check -- max 2hr per story | planned |
 | 8b.6 | Confidence scoring: uncertain items highlighted orange/red | planned |
-| 8b.7 | Push to Plane: write modules, work items, sub-work items, cycle assignment | planned |
+| 8b.7 | Push to MQ Planning: write modules, work items, sub-work items, cycle assignment | planned |
 | 8b.8 | Multi-session support: PostgreSQL persistence, resume sessions | planned |
 
 **Acceptatiecriteria:**
@@ -321,7 +321,7 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 4. Phase indicator shows current phase with progress visualization
 5. AI flags stories estimated >2 hours for further decomposition
 6. Low-confidence entities shown with visual indicator (orange/red badges)
-7. "Push to Plane" creates modules, work items, sub-items in correct hierarchy
+7. "Push to MQ Planning" creates modules, work items, sub-items in correct hierarchy
 8. Sessions persist across browser refreshes and server restarts
 9. Non-technical PM can complete full requirements workflow without CLI
 10. Keyboard shortcuts: Enter send, Shift+Enter newline, Cmd+S manual save
@@ -334,14 +334,14 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 
 | # | Item | Status |
 |---|---|---|
-| 8c.1 | Aggregation API: data from Plane hierarchy + MQ DevEngine test results + Onboarding IFPUG FP | planned |
+| 8c.1 | Aggregation API: data from MQ Planning hierarchy + MQ DevEngine test results + Onboarding IFPUG FP | planned |
 | 8c.2 | Dashboard UI: 4-level drill-down (Application > Epic > Feature > Story) | planned |
 | 8c.3 | Breadcrumb navigation across all hierarchy levels | planned |
 | 8c.4 | Metrics per level: children count, FP sum, tests per category, phase status | planned |
 | 8c.5 | Configurable CRUD mode: read-only fase 1, add+view fase 2, full CRUD fase 3 | planned |
 
 **Acceptatiecriteria:**
-1. Aggregation API combines data from Plane, MQ DevEngine, and Onboarding sources
+1. Aggregation API combines data from MQ Planning, MQ DevEngine, and Onboarding sources
 2. Dashboard shows Application level with summary of all epics, features, stories
 3. Click epic drills down to show features with their metrics
 4. Click feature drills down to show stories with individual metrics
@@ -364,7 +364,7 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 | 9.2 | Tenant management API: create/list/configure tenants, admin endpoints | planned |
 | 9.3 | Per-application team profiles: AI model selection per app, prompt context per stack | planned |
 | 9.4 | Authentication & authorization: tenant-scoped login, role-based access (viewer/editor/admin) | planned |
-| 9.5 | Deployment automation: npm package, Docker Compose for Plane, setup CLI | planned |
+| 9.5 | Deployment automation: npm package, Docker Compose for MQ Planning, setup CLI | planned |
 | 9.6 | p920 production validation: fresh install test, reproducibility check | planned |
 
 **Acceptatiecriteria:**
@@ -373,7 +373,7 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 3. Team profiles specify AI models and prompt context per application
 4. Role-based access: viewer (read-only), editor (intake + modify), admin (full CRUD + team management)
 5. `npm install -g mq-devengine-ai` + `mq-devengine config` sets up a working instance
-6. Plane Docker Compose starts with correct configuration
+6. MQ Planning Docker Compose starts with correct configuration
 7. p920 production server runs complete pipeline from scratch
 8. Dev and prod environments are fully independent
 
@@ -390,9 +390,9 @@ Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specif
 | # | Item | Status |
 |---|---|---|
 | 10.1 | Intake formulier UI: type selectie (requirement / change / bug), titel, omschrijving, prioriteit, automatische koppeling aan parent item. Na formulier: AI FP-inschatting met budget-indicator (maandbudget, verbruikt, beschikbaar) en PM review stap (aanpassen, bevestigen, annuleren) | planned |
-| 10.2 | Intake API: Plane work items aanmaken met type labels (`intake:bug`, `intake:change`, `intake:requirement`), parent relatie, bron metadata (`source:pm-dashboard`, PM naam, timestamp) | planned |
-| 10.3 | Intake routing: requirements → Discovery Tool (brownpaper) voor decompositie; changes en bugs → direct naar Plane cycle | planned |
-| 10.4 | Audit trail: volledige event history per intake item als Plane work item comments (INTAKE → PLAN → BUILD → TEST → REVIEW → DONE) | planned |
+| 10.2 | Intake API: MQ Planning work items aanmaken met type labels (`intake:bug`, `intake:change`, `intake:requirement`), parent relatie, bron metadata (`source:pm-dashboard`, PM naam, timestamp) | planned |
+| 10.3 | Intake routing: requirements → Discovery Tool (brownpaper) voor decompositie; changes en bugs → direct naar MQ Planning cycle | planned |
+| 10.4 | Audit trail: volledige event history per intake item als MQ Planning work item comments (INTAKE → PLAN → BUILD → TEST → REVIEW → DONE) | planned |
 | 10.5 | Intake overzicht panel: lijst van alle intake items met status, type, prioriteit, FP, gekoppeld item, en laatste actie -- naast de bestaande hiërarchie-view. Inclusief FP-verbruik tracking per periode. | planned |
 | 10.6 | Prioriteit-escalatie: critical bugs gaan voor in de huidige cycle; low-prio requirements naar backlog | planned |
 | 10.7 | Intake metriek: aantal open/actief/afgerond per type, gemiddelde doorlooptijd per type, in sprint metrics | planned |
@@ -401,25 +401,25 @@ Zie [platform-overview.md](platform-overview.md) voor de volledige intake-specif
 | 10.10 | FP-budget dashboard: maandbudget meter (verbruikt/ingepland/beschikbaar), overschrijdingsbeveiliging (waarschuwing, blokkade, intake uitgeschakeld bij 0 FP). Integreert met FP-abonnementsmodel. | planned |
 
 **Acceptatiecriteria:**
-1. PM navigeert naar Feature "Data Export" in Dashboard, klikt [+], kiest "Bug", vult formulier in → Plane work item aangemaakt met label `intake:bug` en parent relatie
-2. Bug met prioriteit "High" verschijnt automatisch in actieve Plane cycle
-3. Nieuw requirement gaat via Discovery Tool (brownpaper) → gedecomponeerd tot micro features → terug in Plane
-4. Change request gaat direct naar Plane, MQ DevEngine pakt op, PM ziet resultaat in intake overzicht
+1. PM navigeert naar Feature "Data Export" in Dashboard, klikt [+], kiest "Bug", vult formulier in → MQ Planning work item aangemaakt met label `intake:bug` en parent relatie
+2. Bug met prioriteit "High" verschijnt automatisch in actieve MQ Planning cycle
+3. Nieuw requirement gaat via Discovery Tool (brownpaper) → gedecomponeerd tot micro features → terug in MQ Planning
+4. Change request gaat direct naar MQ Planning, MQ DevEngine pakt op, PM ziet resultaat in intake overzicht
 5. Audit trail toont volledige geschiedenis: wie, wanneer, welke fase, welke acties, test results
 6. Intake overzicht filtert op type, status, en prioriteit
 7. Sprint metrics tonen intake statistieken (open/actief/afgerond per type, doorlooptijd)
 8. Helpdesk connector design document beschrijft adapter-patroon, gemeenschappelijke IntakeEvent interface, en mapping voor minimaal 2 ITSM-platformen (bv. ServiceNow + Zendesk)
 9. PM vult intake in → ziet AI FP-inschatting + budget-impact (maandbudget, verbruikt, beschikbaar) → kan FP aanpassen → bevestigt of annuleert
-10. Bij requirement intake → Discovery decomposeert → PM ziet FP-breakdown per sub-item → bevestigt voordat items naar Plane gaan
+10. Bij requirement intake → Discovery decomposeert → PM ziet FP-breakdown per sub-item → bevestigt voordat items naar MQ Planning gaan
 11. Budget dashboard toont verbruikt/ingepland/beschikbaar FP; altijd zichtbaar in PM Dashboard
 12. Overschrijdingsbeveiliging: waarschuwing bij grenswaarde, intake geblokkeerd als maandbudget op is, blokkademelding bij overschrijding
 13. Admin-override: MarQed-admins kunnen elke FP-inschatting challengen, corrigeren en de gecorrigeerde waarde als definitief markeren
 
 **Technische details:**
 - CRUD fase 2 (toevoegen + bekijken) is prerequisite -- implementatie uit Sprint 8c.5
-- Plane labels voor type-classificatie: `intake:bug`, `intake:change`, `intake:requirement`, `source:pm-dashboard`
-- Routing beslissing op client-side: requirement → redirect naar Discovery Tool met pre-filled context; change/bug → direct Plane API call
-- Audit trail events geschreven als Plane work item comments met gestructureerd formaat (timestamp, fase, actor, actie)
+- MQ Planning labels voor type-classificatie: `intake:bug`, `intake:change`, `intake:requirement`, `source:pm-dashboard`
+- Routing beslissing op client-side: requirement → redirect naar Discovery Tool met pre-filled context; change/bug → direct MQ Planning API call
+- Audit trail events geschreven als MQ Planning work item comments met gestructureerd formaat (timestamp, fase, actor, actie)
 - Intake overzicht: React component naast hiërarchie, met filters en sorteer-opties
 - Helpdesk design: adapter-patroon met `IntakeEvent` interface, AI-classificatie voor type + item matching
 - FP-estimatie: drie bronnen (beschrijving NLP, historische data, Onboarding IFPUG), confidence score, greenpaper fallback met bredere range
@@ -436,18 +436,18 @@ De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien na
 
 | # | Item | Status |
 |---|---|---|
-| 11.1 | Feedback loop: MQ DevEngine test resultaten + change docs als Plane work item comments | planned |
-| 11.2 | Feedback loop: Discovery Tool kan afgewezen Plane items + feedback inladen als context voor verfijning | planned |
-| 11.3 | Feedback loop: notificatie naar PM bij feature completion (Plane notificatie of email/Slack) | planned |
+| 11.1 | Feedback loop: MQ DevEngine test resultaten + change docs als MQ Planning work item comments | planned |
+| 11.2 | Feedback loop: Discovery Tool kan afgewezen MQ Planning items + feedback inladen als context voor verfijning | planned |
+| 11.3 | Feedback loop: notificatie naar PM bij feature completion (MQ Planning notificatie of email/Slack) | planned |
 | 11.4 | **Analyse**: inventariseer alle kennis-artefacten die Onboarding oplevert (MD files, rapporten, metrics, IFPUG FP) | planned |
-| 11.5 | **Analyse**: bepaal optimale opslaglocatie(s) -- project-level `.knowledge/` folder, Plane wiki, of Discovery DB | planned |
+| 11.5 | **Analyse**: bepaal optimale opslaglocatie(s) -- project-level `.knowledge/` folder, MQ Planning wiki, of Discovery DB | planned |
 | 11.6 | **Analyse**: bepaal hoe Discovery Tool en PM Dashboard Onboarding-kennis consumeren (context injection, RAG, of directe file reads) | planned |
 | 11.7 | Implementatie: kennis-pipeline Onboarding → opslag → Discovery Tool + PM Dashboard context | planned |
 | 11.8 | Finetuning: evalueer of feedback loop en kennis-integratie werkt in de praktijk, pas aan waar nodig | planned |
 
 **Acceptatiecriteria:**
-1. Feature completion in MQ DevEngine → automatisch comment op Plane work item met test resultaten
-2. PM kan in Plane goedkeuren (Done) of afwijzen (comment met feedback)
+1. Feature completion in MQ DevEngine → automatisch comment op MQ Planning work item met test resultaten
+2. PM kan in MQ Planning goedkeuren (Done) of afwijzen (comment met feedback)
 3. Discovery Tool kan afgewezen items + feedback laden en requirements verfijnen
 4. Onboarding-kennis beschikbaar in Discovery chat (bv. "je huidige auth gebruikt JWT, wil je dat uitbreiden?")
 5. Geen merkbare vertraging door kennis-loading
@@ -457,7 +457,7 @@ De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien na
 
 ## Sprint 12: Twee-Sporen Review Workflow -- PLANNED
 
-> Doel: Implementeer business review (PM) + technisch review (Git PR) voordat Discovery output naar Plane gaat.
+> Doel: Implementeer business review (PM) + technisch review (Git PR) voordat Discovery output naar MQ Planning gaat.
 
 | # | Item | Status |
 |---|---|---|
@@ -466,13 +466,13 @@ De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien na
 | 12.3 | **Analyse**: wat is user-friendly voor niet-technische PM? (Discovery UI review vs. gedeelde link vs. export) | planned |
 | 12.4 | Business review: PM keurt hiërarchie goed in Discovery Tool UI (approve/reject per epic/feature) | planned |
 | 12.5 | Technisch review: Discovery output exporteren als markdown in Git branch + PR creatie | planned |
-| 12.6 | Na beide goedkeuringen: automatisch naar Plane pushen | planned |
+| 12.6 | Na beide goedkeuringen: automatisch naar MQ Planning pushen | planned |
 | 12.7 | Workflow documentatie: rolbeschrijvingen (wie doet wat wanneer) | planned |
 
 **Acceptatiecriteria:**
 1. PM kan in Discovery Tool de voorgestelde hiërarchie reviewen en goedkeuren/afwijzen
 2. Tech lead ontvangt Git PR met leesbare markdown samenvatting
-3. Items worden pas naar Plane gepusht na beide goedkeuringen
+3. Items worden pas naar MQ Planning gepusht na beide goedkeuringen
 4. Workflow is gedocumenteerd met duidelijke rolbeschrijvingen
 
 ---
@@ -495,14 +495,14 @@ De feedback loop zorgt ervoor dat test resultaten en PM-feedback terugvloeien na
 
 ---
 
-## Vervallen Sprints (overgenomen door Plane)
+## Vervallen Sprints (overgenomen door MQ Planning)
 
 | Originele Sprint | Onderwerp | Reden |
 |---|---|---|
-| Sprint 2 (oud) | Data Model (Epic, UserStory, Sprint tabellen) | Plane heeft Modules, Work Items, Cycles |
-| Sprint 3 (oud) | Analyse Workflow (analyse agent, sprint planning) | Planning gebeurt in Plane, analyse in Onboarding |
-| Sprint 5 (oud) | Dual Kanban Board UI | Plane IS het kanban board |
-| Sprint 6 (oud) | Velocity & Metrics | Plane heeft ingebouwde analytics |
+| Sprint 2 (oud) | Data Model (Epic, UserStory, Sprint tabellen) | MQ Planning heeft Modules, Work Items, Cycles |
+| Sprint 3 (oud) | Analyse Workflow (analyse agent, sprint planning) | Planning gebeurt in MQ Planning, analyse in Onboarding |
+| Sprint 5 (oud) | Dual Kanban Board UI | MQ Planning IS het kanban board |
+| Sprint 6 (oud) | Velocity & Metrics | MQ Planning heeft ingebouwde analytics |
 
 ---
 

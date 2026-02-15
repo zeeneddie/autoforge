@@ -6,21 +6,21 @@ from pydantic import BaseModel, Field
 
 
 class MarQedImportRequest(BaseModel):
-    """Request to import a MarQed directory tree to Plane."""
+    """Request to import a MarQed directory tree to MQ Planning."""
 
     marqed_dir: str  # Path to the MarQed project root
     cycle_id: str | None = None  # Optional: add all items to this cycle
-    project_name: str | None = None  # MQ DevEngine project for per-project Plane config
+    project_name: str | None = None  # MQ DevEngine project for per-project Planning config
 
 
 class MarQedImportEntityResult(BaseModel):
-    """Result of importing a single MarQed entity to Plane."""
+    """Result of importing a single MarQed entity to MQ Planning."""
 
     identifier: str
     name: str
     entity_type: str  # epic, feature, story, task
-    plane_type: str  # module, work_item, sub_work_item
-    plane_id: str = ""
+    planning_type: str  # module, work_item, sub_work_item
+    planning_id: str = ""
     action: str  # created, error
     error: str = ""
 

@@ -1,43 +1,43 @@
-# Plane Sync API Design
+# MQ Planning Sync API Design
 
 ## Overzicht
 
-Nieuwe API router `/api/plane/` voor alle Plane-gerelateerde operaties.
+Nieuwe API router `/api/planning/` voor alle MQ Planning-gerelateerde operaties.
 
 ## Endpoints
 
 ### Configuratie
 
-#### `GET /api/plane/config`
+#### `GET /api/planning/config`
 
-Huidige Plane configuratie ophalen. API key wordt gemaskeerd.
+Huidige MQ Planning configuratie ophalen. API key wordt gemaskeerd.
 
 **Response:**
 ```json
 {
-  "plane_api_url": "http://localhost:8080",
-  "plane_api_key_set": true,
-  "plane_api_key_masked": "plane_api_****xxxx",
-  "plane_workspace_slug": "my-workspace",
-  "plane_project_id": "550e8400-e29b-41d4-a716-446655440000",
-  "plane_sync_enabled": false,
-  "plane_poll_interval": 30,
-  "plane_active_cycle_id": null,
-  "plane_webhook_secret_set": false
+  "planning_api_url": "http://localhost:8080",
+  "planning_api_key_set": true,
+  "planning_api_key_masked": "planning_api_****xxxx",
+  "planning_workspace_slug": "my-workspace",
+  "planning_project_id": "550e8400-e29b-41d4-a716-446655440000",
+  "planning_sync_enabled": false,
+  "planning_poll_interval": 30,
+  "planning_active_cycle_id": null,
+  "planning_webhook_secret_set": false
 }
 ```
 
-#### `POST /api/plane/config`
+#### `POST /api/planning/config`
 
-Plane configuratie bijwerken.
+MQ Planning configuratie bijwerken.
 
 **Request:**
 ```json
 {
-  "plane_api_url": "http://localhost:8080",
-  "plane_api_key": "plane_api_xxxxxxxxxxxx",
-  "plane_workspace_slug": "my-workspace",
-  "plane_project_id": "550e8400-e29b-41d4-a716-446655440000"
+  "planning_api_url": "http://localhost:8080",
+  "planning_api_key": "plane_api_xxxxxxxxxxxx",
+  "planning_workspace_slug": "my-workspace",
+  "planning_project_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -45,9 +45,9 @@ Plane configuratie bijwerken.
 
 ### Verbinding
 
-#### `POST /api/plane/test-connection`
+#### `POST /api/planning/test-connection`
 
-Test de verbinding met Plane API. Verifieert API key, workspace en project.
+Test de verbinding met MQ Planning API. Verifieert API key, workspace en project.
 
 **Response (succes):**
 ```json
@@ -55,7 +55,7 @@ Test de verbinding met Plane API. Verifieert API key, workspace en project.
   "status": "ok",
   "workspace": "my-workspace",
   "project_name": "MQ DevEngine Project",
-  "plane_version": "0.23"
+  "planning_version": "0.23"
 }
 ```
 
@@ -64,15 +64,15 @@ Test de verbinding met Plane API. Verifieert API key, workspace en project.
 {
   "status": "error",
   "message": "Invalid API key",
-  "details": "HTTP 401 from Plane API"
+  "details": "HTTP 401 from MQ Planning API"
 }
 ```
 
 ### Cycles
 
-#### `GET /api/plane/cycles`
+#### `GET /api/planning/cycles`
 
-Beschikbare cycles (sprints) ophalen uit Plane.
+Beschikbare cycles (sprints) ophalen uit MQ Planning.
 
 **Response:**
 ```json
@@ -102,9 +102,9 @@ Beschikbare cycles (sprints) ophalen uit Plane.
 
 ### Import
 
-#### `POST /api/plane/import-cycle`
+#### `POST /api/planning/import-cycle`
 
-Importeer work items uit een Plane cycle als Features.
+Importeer work items uit een MQ Planning cycle als Features.
 
 **Request:**
 ```json
@@ -122,13 +122,13 @@ Importeer work items uit een Plane cycle als Features.
   "updated": 1,
   "details": [
     {
-      "plane_id": "work-item-uuid-1",
+      "planning_id": "work-item-uuid-1",
       "name": "Add OAuth2 login",
       "action": "created",
       "feature_id": 15
     },
     {
-      "plane_id": "work-item-uuid-2",
+      "planning_id": "work-item-uuid-2",
       "name": "Fix login bug",
       "action": "skipped",
       "reason": "already_imported"
@@ -138,17 +138,17 @@ Importeer work items uit een Plane cycle als Features.
 ```
 
 **Logica:**
-1. Haal alle work items op uit de cycle via Plane API
+1. Haal alle work items op uit de cycle via MQ Planning API
 2. Filter: skip cancelled items
 3. Voor elk work item:
-   - Als `plane_work_item_id` al bestaat in Feature DB -> update (als Plane nieuwer is)
+   - Als `planning_work_item_id` al bestaat in Feature DB -> update (als MQ Planning nieuwer is)
    - Als niet bestaat -> maak nieuwe Feature aan
 4. Map priority, state, category, dependencies
-5. Sla `plane_work_item_id` en `plane_synced_at` op
+5. Sla `planning_work_item_id` en `planning_synced_at` op
 
 ### Sync Status
 
-#### `GET /api/plane/sync-status`
+#### `GET /api/planning/sync-status`
 
 Status van de sync service.
 
@@ -176,17 +176,17 @@ Status van de sync service.
 
 ### Sync Control
 
-#### `POST /api/plane/sync/toggle`
+#### `POST /api/planning/sync/toggle`
 
 Toggle de background sync loop aan/uit.
 
-**Response:** Zelfde als `GET /api/plane/sync-status`.
+**Response:** Zelfde als `GET /api/planning/sync-status`.
 
 ### Sprint Completion
 
-#### `POST /api/plane/complete-sprint`
+#### `POST /api/planning/complete-sprint`
 
-Complete de huidige sprint: DoD verificatie, retrospective naar Plane, git tag, release notes.
+Complete de huidige sprint: DoD verificatie, retrospective naar MQ Planning, git tag, release notes.
 
 **Request:**
 ```json
@@ -210,9 +210,9 @@ Complete de huidige sprint: DoD verificatie, retrospective naar Plane, git tag, 
 
 ### Test Report
 
-#### `GET /api/plane/test-report?project_name=X&all_features=true`
+#### `GET /api/planning/test-report?project_name=X&all_features=true`
 
-Geaggregeerd test rapport voor features in een project. Standaard alleen Plane-gelinkte features; met `all_features=true` alle features.
+Geaggregeerd test rapport voor features in een project. Standaard alleen MQ Planning-gelinkte features; met `all_features=true` alle features.
 
 **Response:**
 ```json
@@ -239,7 +239,7 @@ Geaggregeerd test rapport voor features in een project. Standaard alleen Plane-g
 
 ### Test History
 
-#### `GET /api/plane/test-history?project_name=X&feature_id=N&limit=50`
+#### `GET /api/planning/test-history?project_name=X&feature_id=N&limit=50`
 
 Individuele TestRun records voor timeline/heatmap weergave. `feature_id` en `limit` zijn optioneel.
 
@@ -263,7 +263,7 @@ Individuele TestRun records voor timeline/heatmap weergave. `feature_id` en `lim
 
 ### Release Notes
 
-#### `GET /api/plane/release-notes?project_name=X`
+#### `GET /api/planning/release-notes?project_name=X`
 
 Lijst van beschikbare release notes bestanden in `{project}/releases/`.
 
@@ -281,7 +281,7 @@ Lijst van beschikbare release notes bestanden in `{project}/releases/`.
 }
 ```
 
-#### `GET /api/plane/release-notes/content?project_name=X&filename=Y`
+#### `GET /api/planning/release-notes/content?project_name=X&filename=Y`
 
 Inhoud van een specifiek release notes bestand. Beschermd tegen path traversal.
 
@@ -295,21 +295,21 @@ Inhoud van een specifiek release notes bestand. Beschermd tegen path traversal.
 
 ### Webhooks
 
-#### `POST /api/plane/webhooks`
+#### `POST /api/planning/webhooks`
 
-Ontvang webhook events van Plane. HMAC-SHA256 verificatie indien geconfigureerd.
+Ontvang webhook events van MQ Planning. HMAC-SHA256 verificatie indien geconfigureerd.
 
 **Beveiliging:**
 - Exempt van localhost middleware (HMAC is de authenticatie)
-- Als `plane_webhook_secret` is geconfigureerd, wordt de signature geverifieerd
+- Als `planning_webhook_secret` is geconfigureerd, wordt de signature geverifieerd
 - Event dedup: zelfde event key wordt 5 seconden genegeerd
 
 **Headers:**
 ```
-X-Plane-Signature: <hmac-sha256-hex>
+X-Planning-Signature: <hmac-sha256-hex>
 ```
 
-**Request body:** Plane webhook payload (JSON).
+**Request body:** MQ Planning webhook payload (JSON).
 
 **Response:**
 ```json
@@ -327,7 +327,7 @@ X-Plane-Signature: <hmac-sha256-hex>
 
 ### Self-Hosting
 
-#### `POST /api/plane/self-host-setup`
+#### `POST /api/planning/self-host-setup`
 
 Registreer MQ DevEngine als project in eigen registry (idempotent).
 
@@ -341,15 +341,15 @@ Registreer MQ DevEngine als project in eigen registry (idempotent).
 ```
 
 **Logica:**
-1. Detecteer MQ DevEngine project root via marker files (`server/main.py`, `parallel_orchestrator.py`, `plane_sync/__init__.py`)
+1. Detecteer MQ DevEngine project root via marker files (`server/main.py`, `parallel_orchestrator.py`, `planning_sync/__init__.py`)
 2. Registreer in `~/.mq-devengine/registry.db` via `register_project()`
 3. Idempotent: tweede call returnt `already_registered: true`
 
 ### MarQed Import
 
-#### `POST /api/plane/marqed-import`
+#### `POST /api/planning/marqed-import`
 
-Importeer een MarQed markdown directory tree als Plane modules en work items.
+Importeer een MarQed markdown directory tree als MQ Planning modules en work items.
 
 **Request:**
 ```json
@@ -374,8 +374,8 @@ Importeer een MarQed markdown directory tree als Plane modules en work items.
       "identifier": "EPIC-001",
       "name": "Authentication",
       "entity_type": "epic",
-      "plane_type": "module",
-      "plane_id": "module-uuid-1",
+      "planning_type": "module",
+      "planning_id": "module-uuid-1",
       "action": "created",
       "error": ""
     },
@@ -383,8 +383,8 @@ Importeer een MarQed markdown directory tree als Plane modules en work items.
       "identifier": "FEATURE-001",
       "name": "Login Form",
       "entity_type": "feature",
-      "plane_type": "work_item",
-      "plane_id": "work-item-uuid-1",
+      "planning_type": "work_item",
+      "planning_id": "work-item-uuid-1",
       "action": "created",
       "error": ""
     }
@@ -394,7 +394,7 @@ Importeer een MarQed markdown directory tree als Plane modules en work items.
 
 **Import algoritme:**
 1. `parse_marqed_tree(dir)` -> entity tree
-2. `list_states()` van Plane voor status mapping
+2. `list_states()` van MQ Planning voor status mapping
 3. Per epic: `create_module()` -> module_id
 4. Per feature: `create_work_item()` -> work_item_id, link to module
 5. Per story: `create_work_item(parent=feature_id)` -> sub_work_item_id
@@ -429,19 +429,19 @@ Hard stop (`POST /api/projects/{name}/agent/stop`) blijft beschikbaar als noodkn
 
 ## Per-Project Configuratie
 
-Sinds Sprint 7.1 ondersteunen alle config- en sync-endpoints een optionele `project_name` parameter voor per-project Plane configuratie.
+Sinds Sprint 7.1 ondersteunen alle config- en sync-endpoints een optionele `project_name` parameter voor per-project MQ Planning configuratie.
 
-**Per-project settings:** `plane_project_id`, `plane_active_cycle_id`, `plane_sync_enabled`, `plane_poll_interval`
-**Gedeelde settings:** `plane_api_url`, `plane_api_key`, `plane_workspace_slug`, `plane_webhook_secret`
+**Per-project settings:** `planning_project_id`, `planning_active_cycle_id`, `planning_sync_enabled`, `planning_poll_interval`
+**Gedeelde settings:** `planning_api_url`, `planning_api_key`, `planning_workspace_slug`, `planning_webhook_secret`
 
 | Endpoint | Parameter | Methode |
 |---|---|---|
-| `GET /api/plane/config` | `?project_name=X` | Query param |
-| `POST /api/plane/config` | `project_name` in body | Body field |
-| `POST /api/plane/test-connection` | `?project_name=X` | Query param |
-| `GET /api/plane/cycles` | `?project_name=X` | Query param |
-| `GET /api/plane/sync-status` | `?project_name=X` | Query param |
-| `POST /api/plane/sync/toggle` | `?project_name=X` | Query param |
+| `GET /api/planning/config` | `?project_name=X` | Query param |
+| `POST /api/planning/config` | `project_name` in body | Body field |
+| `POST /api/planning/test-connection` | `?project_name=X` | Query param |
+| `GET /api/planning/cycles` | `?project_name=X` | Query param |
+| `GET /api/planning/sync-status` | `?project_name=X` | Query param |
+| `POST /api/planning/sync/toggle` | `?project_name=X` | Query param |
 
 Zonder `project_name` parameter: fallback naar globale config (backward compatible).
 
@@ -449,7 +449,7 @@ Zie [ADR-004](../decisions/ADR-004-per-project-plane-sync.md).
 
 ## Authenticatie
 
-Plane API endpoints in MQ DevEngine zijn beschermd door dezelfde auth als de rest van de server (indien geconfigureerd). De Plane API key wordt alleen server-side gebruikt en nooit naar de frontend gestuurd (alleen gemaskeerde versie).
+MQ Planning API endpoints in MQ DevEngine zijn beschermd door dezelfde auth als de rest van de server (indien geconfigureerd). De MQ Planning API key wordt alleen server-side gebruikt en nooit naar de frontend gestuurd (alleen gemaskeerde versie).
 
 ## Error Handling
 
@@ -457,14 +457,14 @@ Plane API endpoints in MQ DevEngine zijn beschermd door dezelfde auth als de res
 |---|---|
 | 200 | Succes |
 | 400 | Ongeldige request (missing fields, invalid cycle_id) |
-| 401 | Plane API key ongeldig of niet geconfigureerd |
-| 404 | Cycle of project niet gevonden in Plane |
-| 429 | Plane rate limit bereikt |
-| 502 | Plane API niet bereikbaar |
+| 401 | MQ Planning API key ongeldig of niet geconfigureerd |
+| 404 | Cycle of project niet gevonden in MQ Planning |
+| 429 | MQ Planning rate limit bereikt |
+| 502 | MQ Planning API niet bereikbaar |
 
 ## Rate Limiting
 
-- Plane API: 60 req/min
+- MQ Planning API: 60 req/min
 - Polling budget: ~14 req/min (30s interval, 2-3 calls per poll)
 - Import burst: max 50 req/min bij grote import (laat 10 req/min over)
 - Backoff: exponential bij 429 responses

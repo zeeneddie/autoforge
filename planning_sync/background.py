@@ -24,7 +24,7 @@ def _ensure_registry():
         _registry_imported = True
 
 
-class PlaneSyncLoop:
+class PlanningSyncLoop:
     """Asyncio-based background loop for Plane sync.
 
     Runs outbound (push status to Plane) and inbound (pull changes from Plane)
@@ -52,38 +52,38 @@ class PlaneSyncLoop:
 
         Shared settings (url, key, workspace, webhook_secret) from global registry.
         Per-project settings (project_id, cycle_id, sync_enabled, poll_interval)
-        via get_plane_setting() with project_name fallback.
+        via get_planning_setting() with project_name fallback.
         """
         _ensure_registry()
-        from registry import get_plane_setting, get_setting
+        from registry import get_planning_setting, get_setting
 
         return {
-            "enabled": (get_plane_setting("plane_sync_enabled", project_name, "false") or "false").lower() == "true",
-            "poll_interval": int(get_plane_setting("plane_poll_interval", project_name, "30") or "30"),
-            "active_cycle_id": get_plane_setting("plane_active_cycle_id", project_name) or None,
-            "plane_api_url": get_setting("plane_api_url") or "",
-            "plane_api_key": get_setting("plane_api_key") or "",
-            "plane_workspace_slug": get_setting("plane_workspace_slug") or "",
-            "plane_project_id": get_plane_setting("plane_project_id", project_name) or "",
+            "enabled": (get_planning_setting("planning_sync_enabled", project_name, "false") or "false").lower() == "true",
+            "poll_interval": int(get_planning_setting("planning_poll_interval", project_name, "30") or "30"),
+            "active_cycle_id": get_planning_setting("planning_active_cycle_id", project_name) or None,
+            "planning_api_url": get_setting("planning_api_url") or "",
+            "planning_api_key": get_setting("planning_api_key") or "",
+            "planning_workspace_slug": get_setting("planning_workspace_slug") or "",
+            "planning_project_id": get_planning_setting("planning_project_id", project_name) or "",
         }
 
     def _build_client(self, config: dict[str, Any]):
-        """Build a PlaneApiClient from config. Returns None if not configured."""
-        from .client import PlaneApiClient
+        """Build a PlanningApiClient from config. Returns None if not configured."""
+        from .client import PlanningApiClient
 
         if not all([
-            config["plane_api_url"],
-            config["plane_api_key"],
-            config["plane_workspace_slug"],
-            config["plane_project_id"],
+            config["planning_api_url"],
+            config["planning_api_key"],
+            config["planning_workspace_slug"],
+            config["planning_project_id"],
         ]):
             return None
 
-        return PlaneApiClient(
-            base_url=config["plane_api_url"],
-            api_key=config["plane_api_key"],
-            workspace_slug=config["plane_workspace_slug"],
-            project_id=config["plane_project_id"],
+        return PlanningApiClient(
+            base_url=config["planning_api_url"],
+            api_key=config["planning_api_key"],
+            workspace_slug=config["planning_workspace_slug"],
+            project_id=config["planning_project_id"],
         )
 
     def _get_registered_projects(self) -> dict[str, dict]:
@@ -111,7 +111,7 @@ class PlaneSyncLoop:
             session = SessionLocal()
             try:
                 linked = session.query(Feature).filter(
-                    Feature.plane_work_item_id.isnot(None)
+                    Feature.planning_work_item_id.isnot(None)
                 ).all()
                 linked_ids = []
                 for f in linked:
@@ -354,12 +354,12 @@ class PlaneSyncLoop:
 
 
 # Singleton instance
-_sync_loop: PlaneSyncLoop | None = None
+_sync_loop: PlanningSyncLoop | None = None
 
 
-def get_sync_loop() -> PlaneSyncLoop:
-    """Get or create the singleton PlaneSyncLoop."""
+def get_sync_loop() -> PlanningSyncLoop:
+    """Get or create the singleton PlanningSyncLoop."""
     global _sync_loop
     if _sync_loop is None:
-        _sync_loop = PlaneSyncLoop()
+        _sync_loop = PlanningSyncLoop()
     return _sync_loop

@@ -7,7 +7,7 @@ import logging
 import re
 from typing import Any
 
-from .models import PlaneState, PlaneWorkItem
+from .models import PlanningState, PlanningWorkItem
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ def _extract_acceptance_criteria(description: str) -> list[str]:
 
 
 def state_group_for_id(
-    state_id: str, states: list[PlaneState]
+    state_id: str, states: list[PlanningState]
 ) -> str:
     """Look up the state group (backlog/unstarted/started/completed/cancelled)
     for a given state ID."""
@@ -157,7 +157,7 @@ def state_group_for_id(
 
 
 def find_state_id_for_group(
-    target_group: str, states: list[PlaneState]
+    target_group: str, states: list[PlanningState]
 ) -> str | None:
     """Find the first state ID that belongs to the target group."""
     for state in states:
@@ -167,8 +167,8 @@ def find_state_id_for_group(
 
 
 def work_item_to_feature_dict(
-    item: PlaneWorkItem,
-    states: list[PlaneState],
+    item: PlanningWorkItem,
+    states: list[PlanningState],
     modules: dict[str, str] | None = None,
     parent_feature_ids: dict[str, int] | None = None,
 ) -> dict[str, Any]:
@@ -178,7 +178,7 @@ def work_item_to_feature_dict(
         item: The Plane work item.
         states: All project states (for state group lookup).
         modules: Optional dict of module_id -> module_name (for category).
-        parent_feature_ids: Optional dict of plane_work_item_id -> feature_id
+        parent_feature_ids: Optional dict of planning_work_item_id -> feature_id
             (for resolving parent -> dependency).
 
     Returns:
@@ -217,15 +217,15 @@ def work_item_to_feature_dict(
         "passes": passes,
         "in_progress": in_progress,
         "dependencies": dependencies,
-        "plane_work_item_id": item.id,
-        "plane_updated_at": item.updated_at,
+        "planning_work_item_id": item.id,
+        "planning_updated_at": item.updated_at,
     }
 
 
-def feature_status_to_plane_update(
+def feature_status_to_planning_update(
     passes: bool,
     in_progress: bool,
-    states: list[PlaneState],
+    states: list[PlanningState],
 ) -> dict | None:
     """Convert MQ DevEngine feature status to a Plane work item update dict.
 

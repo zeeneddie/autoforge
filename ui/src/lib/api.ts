@@ -32,12 +32,12 @@ import type {
   ScheduleUpdate,
   ScheduleListResponse,
   NextRunResponse,
-  PlaneConfig,
-  PlaneConfigUpdate,
-  PlaneConnectionResult,
-  PlaneCycleSummary,
-  PlaneImportResult,
-  PlaneSyncStatus,
+  PlanningConfig,
+  PlanningConfigUpdate,
+  PlanningConnectionResult,
+  PlanningCycleSummary,
+  PlanningImportResult,
+  PlanningSyncStatus,
   SprintCompletionResult,
   TestReport,
   TestHistoryResponse,
@@ -545,57 +545,57 @@ export async function getNextScheduledRun(projectName: string): Promise<NextRunR
 }
 
 // ============================================================================
-// Plane Integration API
+// MQ Planning Integration API
 // ============================================================================
 
-export async function getPlaneConfig(projectName?: string): Promise<PlaneConfig> {
+export async function getPlanningConfig(projectName?: string): Promise<PlanningConfig> {
   const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
-  return fetchJSON(`/plane/config${params}`)
+  return fetchJSON(`/planning/config${params}`)
 }
 
-export async function updatePlaneConfig(config: PlaneConfigUpdate): Promise<PlaneConfig> {
-  return fetchJSON('/plane/config', {
+export async function updatePlanningConfig(config: PlanningConfigUpdate): Promise<PlanningConfig> {
+  return fetchJSON('/planning/config', {
     method: 'POST',
     body: JSON.stringify(config),
   })
 }
 
-export async function testPlaneConnection(projectName?: string): Promise<PlaneConnectionResult> {
+export async function testPlanningConnection(projectName?: string): Promise<PlanningConnectionResult> {
   const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
-  return fetchJSON(`/plane/test-connection${params}`, {
+  return fetchJSON(`/planning/test-connection${params}`, {
     method: 'POST',
   })
 }
 
-export async function getPlaneCycles(projectName?: string): Promise<PlaneCycleSummary[]> {
+export async function getPlanningCycles(projectName?: string): Promise<PlanningCycleSummary[]> {
   const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
-  return fetchJSON(`/plane/cycles${params}`)
+  return fetchJSON(`/planning/cycles${params}`)
 }
 
-export async function importPlaneCycle(
+export async function importPlanningCycle(
   cycleId: string,
   projectName: string
-): Promise<PlaneImportResult> {
-  return fetchJSON('/plane/import-cycle', {
+): Promise<PlanningImportResult> {
+  return fetchJSON('/planning/import-cycle', {
     method: 'POST',
     body: JSON.stringify({ cycle_id: cycleId, project_name: projectName }),
   })
 }
 
-export async function getPlaneSyncStatus(projectName?: string): Promise<PlaneSyncStatus> {
+export async function getPlanningSyncStatus(projectName?: string): Promise<PlanningSyncStatus> {
   const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
-  return fetchJSON(`/plane/sync-status${params}`)
+  return fetchJSON(`/planning/sync-status${params}`)
 }
 
-export async function togglePlaneSync(projectName?: string): Promise<PlaneSyncStatus> {
+export async function togglePlanningSync(projectName?: string): Promise<PlanningSyncStatus> {
   const params = projectName ? `?project_name=${encodeURIComponent(projectName)}` : ''
-  return fetchJSON(`/plane/sync/toggle${params}`, {
+  return fetchJSON(`/planning/sync/toggle${params}`, {
     method: 'POST',
   })
 }
 
 export async function completeSprint(projectName: string): Promise<SprintCompletionResult> {
-  return fetchJSON('/plane/complete-sprint', {
+  return fetchJSON('/planning/complete-sprint', {
     method: 'POST',
     body: JSON.stringify({ project_name: projectName }),
   })
@@ -604,7 +604,7 @@ export async function completeSprint(projectName: string): Promise<SprintComplet
 export async function getTestReport(projectName: string, allFeatures: boolean = false): Promise<TestReport> {
   const params = new URLSearchParams({ project_name: projectName })
   if (allFeatures) params.set('all_features', 'true')
-  return fetchJSON(`/plane/test-report?${params}`)
+  return fetchJSON(`/planning/test-report?${params}`)
 }
 
 export async function getTestHistory(
@@ -615,11 +615,11 @@ export async function getTestHistory(
   const params = new URLSearchParams({ project_name: projectName })
   if (featureId !== undefined) params.set('feature_id', String(featureId))
   if (limit !== undefined) params.set('limit', String(limit))
-  return fetchJSON(`/plane/test-history?${params}`)
+  return fetchJSON(`/planning/test-history?${params}`)
 }
 
 export async function listReleaseNotes(projectName: string): Promise<ReleaseNotesList> {
-  return fetchJSON(`/plane/release-notes?project_name=${encodeURIComponent(projectName)}`)
+  return fetchJSON(`/planning/release-notes?project_name=${encodeURIComponent(projectName)}`)
 }
 
 export async function getReleaseNotesContent(
@@ -627,5 +627,5 @@ export async function getReleaseNotesContent(
   filename: string
 ): Promise<ReleaseNotesContent> {
   const params = new URLSearchParams({ project_name: projectName, filename })
-  return fetchJSON(`/plane/release-notes/content?${params}`)
+  return fetchJSON(`/planning/release-notes/content?${params}`)
 }

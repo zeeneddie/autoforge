@@ -1,4 +1,4 @@
-"""Pydantic models for Plane API entities."""
+"""Pydantic models for Planning API entities."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
-# --- Plane API Response Models ---
+# --- Planning API Response Models ---
 
 
-class PlaneState(BaseModel):
-    """A project state in Plane."""
+class PlanningState(BaseModel):
+    """A project state in the planning tool."""
 
     id: str
     name: str
@@ -22,8 +22,8 @@ class PlaneState(BaseModel):
         extra = "allow"
 
 
-class PlaneCycle(BaseModel):
-    """A cycle (sprint) in Plane."""
+class PlanningCycle(BaseModel):
+    """A cycle (sprint) in the planning tool."""
 
     id: str
     name: str
@@ -46,8 +46,8 @@ class PlaneCycle(BaseModel):
         extra = "allow"
 
 
-class PlaneWorkItem(BaseModel):
-    """A work item (issue) in Plane."""
+class PlanningWorkItem(BaseModel):
+    """A work item (issue) in the planning tool."""
 
     id: str
     name: str
@@ -78,8 +78,8 @@ class PlaneWorkItem(BaseModel):
         extra = "allow"
 
 
-class PlaneModule(BaseModel):
-    """A module in Plane."""
+class PlanningModule(BaseModel):
+    """A module in the planning tool."""
 
     id: str
     name: str
@@ -92,11 +92,11 @@ class PlaneModule(BaseModel):
         extra = "allow"
 
 
-# --- Plane API List Response Wrappers ---
+# --- Planning API List Response Wrappers ---
 
 
-class PlanePaginatedResponse(BaseModel):
-    """Paginated response from Plane API."""
+class PlanningPaginatedResponse(BaseModel):
+    """Paginated response from Planning API."""
 
     results: list[dict] = Field(default_factory=list)
     total_count: int = 0
@@ -108,40 +108,40 @@ class PlanePaginatedResponse(BaseModel):
         extra = "allow"
 
 
-# --- MQ DevEngine API Models (for the /api/plane/ router) ---
+# --- MQ DevEngine API Models (for the /api/planning/ router) ---
 
 
-class PlaneConfig(BaseModel):
-    """Plane configuration for display (API key masked)."""
+class PlanningConfig(BaseModel):
+    """Planning configuration for display (API key masked)."""
 
-    plane_api_url: str = ""
-    plane_api_key_set: bool = False
-    plane_api_key_masked: str = ""
-    plane_workspace_slug: str = ""
-    plane_project_id: str = ""
-    plane_sync_enabled: bool = False
-    plane_poll_interval: int = 30
-    plane_active_cycle_id: str | None = None
-    plane_webhook_secret_set: bool = False
+    planning_api_url: str = ""
+    planning_api_key_set: bool = False
+    planning_api_key_masked: str = ""
+    planning_workspace_slug: str = ""
+    planning_project_id: str = ""
+    planning_sync_enabled: bool = False
+    planning_poll_interval: int = 30
+    planning_active_cycle_id: str | None = None
+    planning_webhook_secret_set: bool = False
     project_name: str | None = None
 
 
-class PlaneConfigUpdate(BaseModel):
-    """Request to update Plane configuration."""
+class PlanningConfigUpdate(BaseModel):
+    """Request to update planning configuration."""
 
-    plane_api_url: str | None = None
-    plane_api_key: str | None = None
-    plane_workspace_slug: str | None = None
-    plane_project_id: str | None = None
-    plane_sync_enabled: bool | None = None
-    plane_poll_interval: int | None = None
-    plane_active_cycle_id: str | None = None
-    plane_webhook_secret: str | None = None
+    planning_api_url: str | None = None
+    planning_api_key: str | None = None
+    planning_workspace_slug: str | None = None
+    planning_project_id: str | None = None
+    planning_sync_enabled: bool | None = None
+    planning_poll_interval: int | None = None
+    planning_active_cycle_id: str | None = None
+    planning_webhook_secret: str | None = None
     project_name: str | None = None
 
 
-class PlaneConnectionResult(BaseModel):
-    """Result of a Plane connection test."""
+class PlanningConnectionResult(BaseModel):
+    """Result of a planning tool connection test."""
 
     status: str  # "ok" or "error"
     message: str = ""
@@ -149,8 +149,8 @@ class PlaneConnectionResult(BaseModel):
     project_name: str = ""
 
 
-class PlaneCycleSummary(BaseModel):
-    """Summary of a Plane cycle for the UI."""
+class PlanningCycleSummary(BaseModel):
+    """Summary of a planning cycle for the UI."""
 
     id: str
     name: str
@@ -161,27 +161,27 @@ class PlaneCycleSummary(BaseModel):
     completed_issues: int = 0
 
 
-class PlaneImportResult(BaseModel):
+class PlanningImportResult(BaseModel):
     """Result of importing a cycle's work items."""
 
     imported: int = 0
     skipped: int = 0
     updated: int = 0
-    details: list[PlaneImportDetail] = Field(default_factory=list)
+    details: list[PlanningImportDetail] = Field(default_factory=list)
 
 
-class PlaneImportDetail(BaseModel):
+class PlanningImportDetail(BaseModel):
     """Detail of a single imported/skipped work item."""
 
-    plane_id: str
+    planning_id: str
     name: str
     action: str  # "created", "updated", "skipped"
     reason: str = ""
     feature_id: int | None = None
 
 
-class PlaneOutboundResult(BaseModel):
-    """Result of outbound sync (pushing feature status to Plane)."""
+class PlanningOutboundResult(BaseModel):
+    """Result of outbound sync (pushing feature status to planning tool)."""
 
     pushed: int = 0
     skipped: int = 0
@@ -222,7 +222,7 @@ class SprintStats(BaseModel):
     overall_pass_rate: float = 0.0
 
 
-class PlaneSyncStatus(BaseModel):
+class PlanningSyncStatus(BaseModel):
     """Current state of the background sync loop."""
 
     enabled: bool = False
@@ -258,7 +258,7 @@ class SelfHostSetupResult(BaseModel):
     already_registered: bool = False
 
 
-class PlaneImportRequest(BaseModel):
+class PlanningImportRequest(BaseModel):
     """Request to import a cycle."""
 
     cycle_id: str

@@ -22,9 +22,9 @@ Elke stap heeft een duidelijke eigenaar:
 |------|------|-----------|
 | **Analyse** | MarQed | Gebouwd voor codebase analyse, 11 AI agents, gestructureerde markdown output |
 | **Review** | Git PR | Markdown is diffable, inline review comments, approval workflow, audit trail |
-| **Planning** | Plane | Gebouwd voor PM, drag & drop, cycles, burndown charts |
+| **Planning** | MQ Planning | Gebouwd voor PM, drag & drop, cycles, burndown charts |
 | **Executie** | MQ DevEngine | Gebouwd voor autonome code-uitvoering, parallel agents |
-| **Documentatie** | MQ DevEngine -> MarQed + Plane | MQ DevEngine heeft de git diffs, pusht change docs naar beide systemen |
+| **Documentatie** | MQ DevEngine -> MarQed + MQ Planning | MQ DevEngine heeft de git diffs, pusht change docs naar beide systemen |
 
 ## Waarom MarQed voor Analyse (niet MQ DevEngine of Plane)
 
@@ -42,9 +42,9 @@ Elke stap heeft een duidelijke eigenaar:
 - De initializer agent creëert features uit een app_spec, maar doet geen diepe codebase-analyse
 - Analyse toevoegen aan MQ DevEngine zou scope creep zijn
 
-### Plane heeft geen analyse-capability
+### MQ Planning heeft geen analyse-capability
 
-- Plane is puur planning en tracking
+- MQ Planning is puur planning en tracking
 - Geen codebase scanning of AI-gestuurde decompositie
 
 ## Waarom Git PR voor Review (niet direct in Plane)
@@ -68,9 +68,9 @@ Elke stap heeft een duidelijke eigenaar:
 - **Versionable:** Wijzigingshistorie in git
 - **Approachable:** Iedereen kan markdown lezen
 
-### Plane review is complementair, niet primair
+### MQ Planning review is complementair, niet primair
 
-- In Plane kun je herschikken, reprioriteren, toewijzen
+- In MQ Planning kun je herschikken, reprioriteren, toewijzen
 - Maar de inhoudelijke review (is deze epic correct? mist er een feature?) is beter in markdown/git
 
 ## Analyse Output Format
@@ -94,9 +94,9 @@ project/
                 TASK-002.md
 ```
 
-### Mapping naar Plane
+### Mapping naar MQ Planning
 
-| MarQed | Plane Entity | Relatie |
+| MarQed | MQ Planning Entity | Relatie |
 |--------|-------------|---------|
 | project.md | Project | 1:1 |
 | epic.md | Epic | Title, priority, goals -> description |
@@ -139,7 +139,7 @@ Session-based authenticatie vervangen door JWT tokens met refresh flow.
 
 Dit document wordt:
 1. Opgeslagen als `change-doc.md` in de MarQed story directory
-2. Gepusht als comment naar het Plane work item
+2. Gepusht als comment naar het MQ Planning work item
 
 ## Gevolgen
 
@@ -148,13 +148,13 @@ Dit document wordt:
 | Component | Wat te bouwen |
 |-----------|---------------|
 | MarQed | Analyse is bestaande functionaliteit |
-| md-to-plane importer | Nieuw: parsed markdown, creëert Plane entities via API |
-| Plane Sync Service | Sprint 2: inbound sync (Plane -> MQ DevEngine) |
+| md-to-planning importer | Nieuw: parsed markdown, creëert MQ Planning entities via API |
+| Planning Sync Service | Sprint 2: inbound sync (MQ Planning -> MQ DevEngine) |
 | Change doc generator | Sprint 3: na feature completion, git diff + AI summary |
 
 ### Workflow-impact
 
-- Ontwikkelaar moet 3 tools kennen: MarQed (analyse), Plane (planning), MQ DevEngine (monitoring)
+- Ontwikkelaar moet 3 tools kennen: MarQed (analyse), MQ Planning (planning), MQ DevEngine (monitoring)
 - Git is de centrale bron van waarheid voor analyse-output
-- Plane is de centrale bron van waarheid voor planning
+- MQ Planning is de centrale bron van waarheid voor planning
 - MQ DevEngine Feature DB is de executie-bron

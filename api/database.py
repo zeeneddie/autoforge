@@ -60,11 +60,11 @@ class Feature(Base):
     # Dependencies: list of feature IDs that must be completed before this feature
     # NULL/empty = no dependencies (backwards compatible)
     dependencies = Column(JSON, nullable=True, default=None)
-    # Plane sync fields
-    plane_work_item_id = Column(String(36), nullable=True, unique=True, index=True)
-    plane_synced_at = Column(DateTime, nullable=True)
-    plane_updated_at = Column(DateTime, nullable=True)
-    plane_last_status_hash = Column(String(20), nullable=True)
+    # Planning sync fields
+    planning_work_item_id = Column(String(36), nullable=True, unique=True, index=True)
+    planning_synced_at = Column(DateTime, nullable=True)
+    planning_updated_at = Column(DateTime, nullable=True)
+    planning_last_status_hash = Column(String(20), nullable=True)
 
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
@@ -80,9 +80,9 @@ class Feature(Base):
             "in_progress": self.in_progress if self.in_progress is not None else False,
             # Dependencies: NULL/empty treated as empty list for backwards compat
             "dependencies": self.dependencies if self.dependencies else [],
-            "plane_work_item_id": self.plane_work_item_id,
-            "plane_synced_at": self.plane_synced_at.isoformat() if self.plane_synced_at else None,
-            "plane_updated_at": self.plane_updated_at.isoformat() if self.plane_updated_at else None,
+            "planning_work_item_id": self.planning_work_item_id,
+            "planning_synced_at": self.planning_synced_at.isoformat() if self.planning_synced_at else None,
+            "planning_updated_at": self.planning_updated_at.isoformat() if self.planning_updated_at else None,
         }
 
     def get_dependencies_safe(self) -> list[int]:
@@ -331,47 +331,76 @@ def _is_network_path(path: Path) -> bool:
     return False
 
 
-def _migrate_add_plane_sync_columns(engine) -> None:
-    """Add Plane sync columns to existing databases that don't have them."""
+def _migrate_add_planning_sync_columns(engine) -> None:
+    """Add Planning sync columns to existing databases that don't have them.
+
+    Also renames legacy plane_* columns to planning_* if they exist.
+    """
     with engine.connect() as conn:
         result = conn.execute(text("PRAGMA table_info(features)"))
         columns = [row[1] for row in result.fetchall()]
 
-        if "plane_work_item_id" not in columns:
+        # Rename legacy plane_* columns to planning_* if they exist
+        if "plane_work_item_id" in columns and "planning_work_item_id" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN plane_work_item_id VARCHAR(36) DEFAULT NULL"
+                "ALTER TABLE features RENAME COLUMN plane_work_item_id TO planning_work_item_id"
             ))
-        if "plane_synced_at" not in columns:
+        if "plane_synced_at" in columns and "planning_synced_at" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN plane_synced_at DATETIME DEFAULT NULL"
+                "ALTER TABLE features RENAME COLUMN plane_synced_at TO planning_synced_at"
             ))
-        if "plane_updated_at" not in columns:
+        if "plane_updated_at" in columns and "planning_updated_at" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN plane_updated_at DATETIME DEFAULT NULL"
+                "ALTER TABLE features RENAME COLUMN plane_updated_at TO planning_updated_at"
+            ))
+        if "plane_last_status_hash" in columns and "planning_last_status_hash" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features RENAME COLUMN plane_last_status_hash TO planning_last_status_hash"
+            ))
+
+        # Re-read columns after renames
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        # Add columns if they don't exist (fresh databases)
+        if "planning_work_item_id" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN planning_work_item_id VARCHAR(36) DEFAULT NULL"
+            ))
+        if "planning_synced_at" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN planning_synced_at DATETIME DEFAULT NULL"
+            ))
+        if "planning_updated_at" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN planning_updated_at DATETIME DEFAULT NULL"
             ))
         conn.commit()
 
-    # Create unique index on plane_work_item_id if it doesn't exist
+    # Drop legacy index and create new unique index on planning_work_item_id
     with engine.connect() as conn:
         try:
             conn.execute(text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS ix_feature_plane_work_item_id "
-                "ON features (plane_work_item_id)"
+                "DROP INDEX IF EXISTS ix_feature_plane_work_item_id"
+            ))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_feature_planning_work_item_id "
+                "ON features (planning_work_item_id)"
             ))
             conn.commit()
         except Exception:
             pass  # Index may already exist
 
 
-def _migrate_add_plane_status_hash(engine) -> None:
-    """Add plane_last_status_hash column to existing databases."""
+def _migrate_add_planning_status_hash(engine) -> None:
+    """Add planning_last_status_hash column to existing databases."""
     with engine.connect() as conn:
         result = conn.execute(text("PRAGMA table_info(features)"))
         columns = [row[1] for row in result.fetchall()]
 
-        if "plane_last_status_hash" not in columns:
+        if "planning_last_status_hash" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN plane_last_status_hash VARCHAR(20) DEFAULT NULL"
+                "ALTER TABLE features ADD COLUMN planning_last_status_hash VARCHAR(20) DEFAULT NULL"
             ))
             conn.commit()
 
@@ -511,11 +540,11 @@ def create_database(project_dir: Path) -> tuple:
     _migrate_add_dependencies_column(engine)
     _migrate_add_testing_columns(engine)
 
-    # Migrate to add Plane sync columns
-    _migrate_add_plane_sync_columns(engine)
+    # Migrate to add Planning sync columns (also renames legacy plane_* columns)
+    _migrate_add_planning_sync_columns(engine)
 
-    # Migrate to add plane_last_status_hash column
-    _migrate_add_plane_status_hash(engine)
+    # Migrate to add planning_last_status_hash column
+    _migrate_add_planning_status_hash(engine)
 
     # Migrate to add schedules tables
     _migrate_add_schedules_tables(engine)

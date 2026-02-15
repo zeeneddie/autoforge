@@ -1,4 +1,4 @@
-"""Plane integration API router."""
+"""MQ Planning integration API router."""
 
 from __future__ import annotations
 
@@ -18,20 +18,20 @@ _root = Path(__file__).parent.parent.parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-from plane_sync.client import PlaneApiClient, PlaneApiError
-from plane_sync.background import get_sync_loop
+from planning_sync.client import PlanningApiClient, PlanningApiError
+from planning_sync.background import get_sync_loop
 from marqed_import.models import (
     MarQedImportRequest,
     MarQedImportResult,
 )
-from plane_sync.models import (
-    PlaneConfig,
-    PlaneConfigUpdate,
-    PlaneConnectionResult,
-    PlaneCycleSummary,
-    PlaneImportRequest,
-    PlaneImportResult,
-    PlaneSyncStatus,
+from planning_sync.models import (
+    PlanningConfig,
+    PlanningConfigUpdate,
+    PlanningConnectionResult,
+    PlanningCycleSummary,
+    PlanningImportRequest,
+    PlanningImportResult,
+    PlanningSyncStatus,
     ReleaseNotesContent,
     ReleaseNotesItem,
     ReleaseNotesList,
@@ -43,15 +43,15 @@ from plane_sync.models import (
     TestRunDetail,
     TestRunSummary,
 )
-from plane_sync.sync_service import import_cycle
-from plane_sync.webhook_handler import verify_signature, parse_webhook_event
-from registry import get_all_settings, get_setting, set_setting, get_plane_setting, set_plane_setting, list_registered_projects
+from planning_sync.sync_service import import_cycle
+from planning_sync.webhook_handler import verify_signature, parse_webhook_event
+from registry import get_all_settings, get_setting, set_setting, get_planning_setting, set_planning_setting, list_registered_projects
 
 from ..utils.project_helpers import get_project_path
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/plane", tags=["plane"])
+router = APIRouter(prefix="/api/planning", tags=["Planning"])
 
 
 def _mask_api_key(key: str) -> str:
@@ -61,106 +61,106 @@ def _mask_api_key(key: str) -> str:
     return key[:8] + "****" + key[-4:]
 
 
-def _get_plane_env() -> dict[str, str]:
-    """Read Plane config from environment variables."""
+def _get_planning_env() -> dict[str, str]:
+    """Read MQ Planning config from environment variables."""
     return {
-        "plane_api_url": os.environ.get("PLANE_API_URL", ""),
-        "plane_api_key": os.environ.get("PLANE_API_KEY", ""),
-        "plane_workspace_slug": os.environ.get("PLANE_WORKSPACE_SLUG", ""),
-        "plane_project_id": os.environ.get("PLANE_PROJECT_ID", ""),
+        "planning_api_url": os.environ.get("PLANNING_API_URL", ""),
+        "planning_api_key": os.environ.get("PLANNING_API_KEY", ""),
+        "planning_workspace_slug": os.environ.get("PLANNING_WORKSPACE_SLUG", ""),
+        "planning_project_id": os.environ.get("PLANNING_PROJECT_ID", ""),
     }
 
 
-def _get_plane_config(project_name: str | None = None) -> dict[str, str]:
-    """Get Plane config from env vars, with registry settings as overrides.
+def _get_planning_config(project_name: str | None = None) -> dict[str, str]:
+    """Get MQ Planning config from env vars, with registry settings as overrides.
 
     Shared settings (url, key, workspace, webhook_secret) are always global.
     Per-project settings (project_id, cycle_id, sync_enabled, poll_interval)
-    use get_plane_setting() which falls back to global when no per-project key.
+    use get_planning_setting() which falls back to global when no per-project key.
     """
-    env = _get_plane_env()
+    env = _get_planning_env()
     settings = get_all_settings()
 
     return {
-        "plane_api_url": settings.get("plane_api_url") or env["plane_api_url"],
-        "plane_api_key": settings.get("plane_api_key") or env["plane_api_key"],
-        "plane_workspace_slug": settings.get("plane_workspace_slug") or env["plane_workspace_slug"],
-        "plane_project_id": get_plane_setting("plane_project_id", project_name) or env["plane_project_id"],
-        "plane_sync_enabled": get_plane_setting("plane_sync_enabled", project_name, "false") or "false",
-        "plane_poll_interval": get_plane_setting("plane_poll_interval", project_name, "30") or "30",
-        "plane_active_cycle_id": get_plane_setting("plane_active_cycle_id", project_name) or None,
-        "plane_webhook_secret": settings.get("plane_webhook_secret") or None,
+        "planning_api_url": settings.get("planning_api_url") or env["planning_api_url"],
+        "planning_api_key": settings.get("planning_api_key") or env["planning_api_key"],
+        "planning_workspace_slug": settings.get("planning_workspace_slug") or env["planning_workspace_slug"],
+        "planning_project_id": get_planning_setting("planning_project_id", project_name) or env["planning_project_id"],
+        "planning_sync_enabled": get_planning_setting("planning_sync_enabled", project_name, "false") or "false",
+        "planning_poll_interval": get_planning_setting("planning_poll_interval", project_name, "30") or "30",
+        "planning_active_cycle_id": get_planning_setting("planning_active_cycle_id", project_name) or None,
+        "planning_webhook_secret": settings.get("planning_webhook_secret") or None,
     }
 
 
-def _build_client(project_name: str | None = None) -> PlaneApiClient:
-    """Build a PlaneApiClient from current config. Raises HTTPException if not configured."""
-    config = _get_plane_config(project_name)
+def _build_client(project_name: str | None = None) -> PlanningApiClient:
+    """Build a PlanningApiClient from current config. Raises HTTPException if not configured."""
+    config = _get_planning_config(project_name)
 
-    if not config["plane_api_url"]:
-        raise HTTPException(status_code=400, detail="Plane API URL not configured")
-    if not config["plane_api_key"]:
-        raise HTTPException(status_code=400, detail="Plane API key not configured")
-    if not config["plane_workspace_slug"]:
-        raise HTTPException(status_code=400, detail="Plane workspace slug not configured")
-    if not config["plane_project_id"]:
-        raise HTTPException(status_code=400, detail="Plane project ID not configured")
+    if not config["planning_api_url"]:
+        raise HTTPException(status_code=400, detail="MQ Planning API URL not configured")
+    if not config["planning_api_key"]:
+        raise HTTPException(status_code=400, detail="MQ Planning API key not configured")
+    if not config["planning_workspace_slug"]:
+        raise HTTPException(status_code=400, detail="MQ Planning workspace slug not configured")
+    if not config["planning_project_id"]:
+        raise HTTPException(status_code=400, detail="MQ Planning project ID not configured")
 
-    return PlaneApiClient(
-        base_url=config["plane_api_url"],
-        api_key=config["plane_api_key"],
-        workspace_slug=config["plane_workspace_slug"],
-        project_id=config["plane_project_id"],
+    return PlanningApiClient(
+        base_url=config["planning_api_url"],
+        api_key=config["planning_api_key"],
+        workspace_slug=config["planning_workspace_slug"],
+        project_id=config["planning_project_id"],
     )
 
 
 # --- Config endpoints ---
 
 
-@router.get("/config", response_model=PlaneConfig)
+@router.get("/config", response_model=PlanningConfig)
 async def get_config(project_name: Optional[str] = Query(None)):
-    """Get current Plane configuration (API key masked)."""
-    config = _get_plane_config(project_name)
-    api_key = config["plane_api_key"]
+    """Get current MQ Planning configuration (API key masked)."""
+    config = _get_planning_config(project_name)
+    api_key = config["planning_api_key"]
 
-    return PlaneConfig(
-        plane_api_url=config["plane_api_url"],
-        plane_api_key_set=bool(api_key),
-        plane_api_key_masked=_mask_api_key(api_key) if api_key else "",
-        plane_workspace_slug=config["plane_workspace_slug"],
-        plane_project_id=config["plane_project_id"],
-        plane_sync_enabled=config["plane_sync_enabled"].lower() == "true",
-        plane_poll_interval=int(config["plane_poll_interval"]),
-        plane_active_cycle_id=config["plane_active_cycle_id"],
-        plane_webhook_secret_set=bool(config.get("plane_webhook_secret")),
+    return PlanningConfig(
+        planning_api_url=config["planning_api_url"],
+        planning_api_key_set=bool(api_key),
+        planning_api_key_masked=_mask_api_key(api_key) if api_key else "",
+        planning_workspace_slug=config["planning_workspace_slug"],
+        planning_project_id=config["planning_project_id"],
+        planning_sync_enabled=config["planning_sync_enabled"].lower() == "true",
+        planning_poll_interval=int(config["planning_poll_interval"]),
+        planning_active_cycle_id=config["planning_active_cycle_id"],
+        planning_webhook_secret_set=bool(config.get("planning_webhook_secret")),
         project_name=project_name,
     )
 
 
-@router.post("/config", response_model=PlaneConfig)
-async def update_config(update: PlaneConfigUpdate):
-    """Update Plane configuration."""
+@router.post("/config", response_model=PlanningConfig)
+async def update_config(update: PlanningConfigUpdate):
+    """Update MQ Planning configuration."""
     pn = update.project_name
 
     # Shared (global) settings
-    if update.plane_api_url is not None:
-        set_setting("plane_api_url", update.plane_api_url)
-    if update.plane_api_key is not None:
-        set_setting("plane_api_key", update.plane_api_key)
-    if update.plane_workspace_slug is not None:
-        set_setting("plane_workspace_slug", update.plane_workspace_slug)
-    if update.plane_webhook_secret is not None:
-        set_setting("plane_webhook_secret", update.plane_webhook_secret)
+    if update.planning_api_url is not None:
+        set_setting("planning_api_url", update.planning_api_url)
+    if update.planning_api_key is not None:
+        set_setting("planning_api_key", update.planning_api_key)
+    if update.planning_workspace_slug is not None:
+        set_setting("planning_workspace_slug", update.planning_workspace_slug)
+    if update.planning_webhook_secret is not None:
+        set_setting("planning_webhook_secret", update.planning_webhook_secret)
 
-    # Per-project settings (uses set_plane_setting for scoped storage)
-    if update.plane_project_id is not None:
-        set_plane_setting("plane_project_id", update.plane_project_id, pn)
-    if update.plane_sync_enabled is not None:
-        set_plane_setting("plane_sync_enabled", "true" if update.plane_sync_enabled else "false", pn)
-    if update.plane_poll_interval is not None:
-        set_plane_setting("plane_poll_interval", str(update.plane_poll_interval), pn)
-    if update.plane_active_cycle_id is not None:
-        set_plane_setting("plane_active_cycle_id", update.plane_active_cycle_id, pn)
+    # Per-project settings (uses set_planning_setting for scoped storage)
+    if update.planning_project_id is not None:
+        set_planning_setting("planning_project_id", update.planning_project_id, pn)
+    if update.planning_sync_enabled is not None:
+        set_planning_setting("planning_sync_enabled", "true" if update.planning_sync_enabled else "false", pn)
+    if update.planning_poll_interval is not None:
+        set_planning_setting("planning_poll_interval", str(update.planning_poll_interval), pn)
+    if update.planning_active_cycle_id is not None:
+        set_planning_setting("planning_active_cycle_id", update.planning_active_cycle_id, pn)
 
     return await get_config(project_name=pn)
 
@@ -168,28 +168,28 @@ async def update_config(update: PlaneConfigUpdate):
 # --- Connection test ---
 
 
-@router.post("/test-connection", response_model=PlaneConnectionResult)
+@router.post("/test-connection", response_model=PlanningConnectionResult)
 async def test_connection(project_name: Optional[str] = Query(None)):
-    """Test the connection to Plane API."""
+    """Test the connection to MQ Planning API."""
     try:
         client = _build_client(project_name)
     except HTTPException as e:
-        return PlaneConnectionResult(status="error", message=e.detail)
+        return PlanningConnectionResult(status="error", message=e.detail)
 
     try:
         project_info = client.test_connection()
-        return PlaneConnectionResult(
+        return PlanningConnectionResult(
             status="ok",
             workspace=client.workspace_slug,
             project_name=project_info.get("name", ""),
         )
-    except PlaneApiError as e:
-        return PlaneConnectionResult(
+    except PlanningApiError as e:
+        return PlanningConnectionResult(
             status="error",
             message=f"HTTP {e.status_code}: {e.message}",
         )
     except Exception as e:
-        return PlaneConnectionResult(
+        return PlanningConnectionResult(
             status="error",
             message=str(e),
         )
@@ -200,14 +200,14 @@ async def test_connection(project_name: Optional[str] = Query(None)):
 # --- Cycles ---
 
 
-@router.get("/cycles", response_model=list[PlaneCycleSummary])
+@router.get("/cycles", response_model=list[PlanningCycleSummary])
 async def list_cycles(project_name: Optional[str] = Query(None)):
-    """List available cycles from Plane."""
+    """List available cycles from MQ Planning."""
     client = _build_client(project_name)
     try:
         cycles = client.list_cycles()
         return [
-            PlaneCycleSummary(
+            PlanningCycleSummary(
                 id=c.id,
                 name=c.name,
                 start_date=c.start_date,
@@ -218,7 +218,7 @@ async def list_cycles(project_name: Optional[str] = Query(None)):
             )
             for c in cycles
         ]
-    except PlaneApiError as e:
+    except PlanningApiError as e:
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
     finally:
         client.close()
@@ -227,9 +227,9 @@ async def list_cycles(project_name: Optional[str] = Query(None)):
 # --- Import ---
 
 
-@router.post("/import-cycle", response_model=PlaneImportResult)
-async def import_cycle_endpoint(request: PlaneImportRequest):
-    """Import work items from a Plane cycle as MQ DevEngine Features."""
+@router.post("/import-cycle", response_model=PlanningImportResult)
+async def import_cycle_endpoint(request: PlanningImportRequest):
+    """Import work items from an MQ Planning cycle as MQ DevEngine Features."""
     project_dir = get_project_path(request.project_name)
     if not project_dir:
         raise HTTPException(
@@ -244,10 +244,10 @@ async def import_cycle_endpoint(request: PlaneImportRequest):
         result = import_cycle(client, project_dir, request.cycle_id)
 
         # Save active cycle ID per-project
-        set_plane_setting("plane_active_cycle_id", request.cycle_id, request.project_name)
+        set_planning_setting("planning_active_cycle_id", request.cycle_id, request.project_name)
 
         return result
-    except PlaneApiError as e:
+    except PlanningApiError as e:
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
     finally:
         client.close()
@@ -256,15 +256,15 @@ async def import_cycle_endpoint(request: PlaneImportRequest):
 # --- Sync status ---
 
 
-@router.get("/sync-status", response_model=PlaneSyncStatus)
+@router.get("/sync-status", response_model=PlanningSyncStatus)
 async def get_sync_status(project_name: Optional[str] = Query(None)):
-    """Get current Plane sync loop status."""
+    """Get current MQ Planning sync loop status."""
     sync_loop = get_sync_loop()
     status = sync_loop.get_status(project_name)
 
     # Try to get active cycle name
     active_cycle_name = None
-    cycle_id = _get_plane_config(project_name).get("plane_active_cycle_id")
+    cycle_id = _get_planning_config(project_name).get("planning_active_cycle_id")
     if cycle_id:
         try:
             client = _build_client(project_name)
@@ -279,7 +279,7 @@ async def get_sync_status(project_name: Optional[str] = Query(None)):
     sprint_stats_raw = status.get("sprint_stats")
     sprint_stats = SprintStats(**sprint_stats_raw) if sprint_stats_raw else None
 
-    return PlaneSyncStatus(
+    return PlanningSyncStatus(
         enabled=status["enabled"],
         running=status["running"],
         last_sync_at=status["last_sync_at"],
@@ -294,14 +294,14 @@ async def get_sync_status(project_name: Optional[str] = Query(None)):
     )
 
 
-@router.post("/sync/toggle", response_model=PlaneSyncStatus)
+@router.post("/sync/toggle", response_model=PlanningSyncStatus)
 async def toggle_sync(project_name: Optional[str] = Query(None)):
-    """Toggle the Plane sync loop on/off."""
-    config = _get_plane_config(project_name)
-    currently_enabled = config["plane_sync_enabled"].lower() == "true"
+    """Toggle the MQ Planning sync loop on/off."""
+    config = _get_planning_config(project_name)
+    currently_enabled = config["planning_sync_enabled"].lower() == "true"
 
     new_state = not currently_enabled
-    set_plane_setting("plane_sync_enabled", "true" if new_state else "false", project_name)
+    set_planning_setting("planning_sync_enabled", "true" if new_state else "false", project_name)
 
     return await get_sync_status(project_name)
 
@@ -327,8 +327,8 @@ async def complete_sprint_endpoint(request: CompleteSprintRequest):
     if not project_dir.exists():
         raise HTTPException(status_code=404, detail="Project directory not found")
 
-    config = _get_plane_config(request.project_name)
-    cycle_id = config.get("plane_active_cycle_id")
+    config = _get_planning_config(request.project_name)
+    cycle_id = config.get("planning_active_cycle_id")
     if not cycle_id:
         return SprintCompletionResult(
             success=False,
@@ -337,10 +337,10 @@ async def complete_sprint_endpoint(request: CompleteSprintRequest):
 
     client = _build_client(request.project_name)
     try:
-        from plane_sync.completion import complete_sprint
+        from planning_sync.completion import complete_sprint
         result = complete_sprint(client, project_dir, cycle_id, request.project_name)
         return result
-    except PlaneApiError as e:
+    except PlanningApiError as e:
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
     finally:
         client.close()
@@ -371,7 +371,7 @@ async def get_test_report(project_name: str, all_features: bool = False):
             linked = session.query(Feature).all()
         else:
             linked = session.query(Feature).filter(
-                Feature.plane_work_item_id.isnot(None)
+                Feature.planning_work_item_id.isnot(None)
             ).all()
 
         if not linked:
@@ -553,11 +553,11 @@ _WEBHOOK_DEDUP_COOLDOWN = 5.0
 
 @router.post("/webhooks")
 async def receive_webhook(request: Request):
-    """Receive a webhook from Plane. Verifies HMAC if secret is configured."""
+    """Receive a webhook from MQ Planning. Verifies HMAC if secret is configured."""
     body = await request.body()
 
-    config = _get_plane_config()
-    secret = config.get("plane_webhook_secret")
+    config = _get_planning_config()
+    secret = config.get("planning_webhook_secret")
     if secret:
         signature = request.headers.get("x-plane-signature", "") or request.headers.get("x-signature", "")
         if not signature or not verify_signature(body, signature, secret):
@@ -590,7 +590,7 @@ async def receive_webhook(request: Request):
     try:
         projects = list_registered_projects()
         for pn, pinfo in projects.items():
-            cycle_id = get_plane_setting("plane_active_cycle_id", pn)
+            cycle_id = get_planning_setting("planning_active_cycle_id", pn)
             if not cycle_id:
                 continue
 
@@ -598,14 +598,14 @@ async def receive_webhook(request: Request):
             if not project_dir.exists():
                 continue
 
-            # Filter by source Plane project — skip if event is for a different project
-            project_plane_id = get_plane_setting("plane_project_id", pn)
+            # Filter by source planning project -- skip if event is for a different project
+            project_planning_id = get_planning_setting("planning_project_id", pn)
             event_project_id = data.get("project") or data.get("project_id")
 
             should_import = False
             if event_type in ("issue", "work_item") and action == "update":
-                # Only import if the event belongs to this project's Plane project
-                if event_project_id and project_plane_id and event_project_id != project_plane_id:
+                # Only import if the event belongs to this project's planning project
+                if event_project_id and project_planning_id and event_project_id != project_planning_id:
                     continue
                 should_import = True
             elif event_type == "cycle" and action == "update" and data.get("id") == cycle_id:
@@ -635,7 +635,7 @@ async def receive_webhook(request: Request):
 async def self_host_setup():
     """Register MQ DevEngine as a project in its own registry (idempotent)."""
     try:
-        from plane_sync.self_host import setup_self_host
+        from planning_sync.self_host import setup_self_host
         result = setup_self_host()
         return SelfHostSetupResult(**result)
     except RuntimeError as e:
@@ -647,7 +647,7 @@ async def self_host_setup():
 
 @router.post("/marqed-import", response_model=MarQedImportResult)
 async def marqed_import_endpoint(request: MarQedImportRequest):
-    """Import a MarQed directory tree into Plane as modules and work items."""
+    """Import a MarQed directory tree into MQ Planning as modules and work items."""
     from pathlib import Path as _Path
 
     marqed_dir = _Path(request.marqed_dir)
@@ -659,10 +659,10 @@ async def marqed_import_endpoint(request: MarQedImportRequest):
 
     client = _build_client(request.project_name)
     try:
-        from marqed_import.importer import import_to_plane
-        result = import_to_plane(client, marqed_dir, request.cycle_id)
+        from marqed_import.importer import import_to_planning
+        result = import_to_planning(client, marqed_dir, request.cycle_id)
         return result
-    except PlaneApiError as e:
+    except PlanningApiError as e:
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
     finally:
         client.close()

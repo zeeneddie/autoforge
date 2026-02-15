@@ -40,7 +40,7 @@ from .routers import (
     settings_router,
     spec_creation_router,
     terminal_router,
-    plane_router,
+    planning_router,
 )
 from .schemas import SetupStatus
 from .services.assistant_chat_session import cleanup_all_sessions as cleanup_assistant_sessions
@@ -53,7 +53,7 @@ from .services.expand_chat_session import cleanup_all_expand_sessions
 from .services.process_manager import cleanup_all_managers, cleanup_orphaned_locks
 from .services.scheduler_service import cleanup_scheduler, get_scheduler
 from .services.terminal_manager import cleanup_all_terminals
-from plane_sync.background import get_sync_loop
+from planning_sync.background import get_sync_loop
 from .websocket import project_websocket
 
 # Paths
@@ -71,17 +71,17 @@ async def lifespan(app: FastAPI):
     scheduler = get_scheduler()
     await scheduler.start()
 
-    # Migrate global Plane settings to per-project keys (one-time)
-    from registry import migrate_global_plane_settings
-    migrate_global_plane_settings()
+    # Migrate global planning settings to per-project keys (one-time)
+    from registry import migrate_global_planning_settings
+    migrate_global_planning_settings()
 
-    # Start the Plane sync background loop
+    # Start the MQ Planning sync background loop
     sync_loop = get_sync_loop()
     await sync_loop.start()
 
     yield
 
-    # Shutdown - stop Plane sync loop
+    # Shutdown - stop MQ Planning sync loop
     await sync_loop.stop()
     # Cleanup scheduler to stop triggering new starts
     await cleanup_scheduler()
@@ -147,10 +147,10 @@ if not ALLOW_REMOTE:
     async def require_localhost(request: Request, call_next):
         """Only allow requests from localhost (disabled when AUTOFORGE_ALLOW_REMOTE=1).
 
-        Exempts /api/plane/webhooks which uses HMAC-SHA256 for authentication.
+        Exempts /api/planning/webhooks which uses HMAC-SHA256 for authentication.
         """
         # Webhook endpoint is secured by HMAC, not localhost restriction
-        if request.url.path == "/api/plane/webhooks":
+        if request.url.path == "/api/planning/webhooks":
             return await call_next(request)
 
         client_host = request.client.host if request.client else None
@@ -177,7 +177,7 @@ app.include_router(filesystem_router)
 app.include_router(assistant_chat_router)
 app.include_router(settings_router)
 app.include_router(terminal_router)
-app.include_router(plane_router)
+app.include_router(planning_router)
 
 
 # ============================================================================
