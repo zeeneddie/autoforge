@@ -266,7 +266,7 @@ echo "UI:       $(curl -s -o /dev/null -w '%{http_code}' http://localhost:5175/)
 ```bash
 #!/bin/bash
 echo "=== Stopping Agents ==="
-for project in klaverjas_app marqed-discovery; do
+for project in klaverjas_app mq-discovery; do
     STATUS=$(curl -s http://localhost:8888/api/projects/$project/agent/status 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','unknown'))" 2>/dev/null)
     if [ "$STATUS" = "running" ] || [ "$STATUS" = "finishing" ]; then
         curl -s -X POST http://localhost:8888/api/projects/$project/agent/stop
@@ -329,7 +329,7 @@ echo "UI:        HTTP $UI_STATUS (PID: ${UI_PID:-none})"
 
 echo ""
 echo "=== Agent Status ==="
-for project in klaverjas_app marqed-discovery; do
+for project in klaverjas_app mq-discovery; do
     AGENT=$(curl -s http://localhost:8888/api/projects/$project/agent/status 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','unavailable'))" 2>/dev/null || echo "unavailable")
     echo "  $project: $AGENT"
 done

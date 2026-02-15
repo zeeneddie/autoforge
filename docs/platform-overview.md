@@ -703,13 +703,13 @@ DEV (huidige machine)                    PROD (p920 / marqed003)
 2. `autoforge config` (stel .env in: Claude API key, Plane URL)
 3. Plane Docker Compose opzetten op p920
 4. MarQed import tree importeren in Plane
-5. AutoForge agents starten op marqed-discovery project
+5. AutoForge agents starten op mq-discovery project
 6. Validatie: volledige pipeline draait vanaf scratch
 
 **Vereisten:**
 - `AUTOFORGE_ALLOW_REMOTE=1` in .env op p920
 - Firewall: poort 8888 (AutoForge) + 8080 (Plane) open binnen intern netwerk
 - SSH toegang voor deployment en monitoring
-- Git repo voor marqed-discovery project
+- Git repo voor mq-discovery project
 
 De p920 deployment valideert dat het platform reproduceerbaar is: als alles op een verse machine draait, is het platform klaar voor klant-deployments.

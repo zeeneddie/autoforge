@@ -223,7 +223,7 @@ Per-project Plane sync configuratie. Voorkomt cross-project data lekkage bij mee
 | 7.1.5 | Migratie: globale `plane_*` keys → eerste geregistreerde project bij startup | done |
 
 **Acceptatiecriteria:**
-1. `klaverjas_app` en `marqed-discovery` draaien tegelijk met elk hun eigen Plane cycle
+1. `klaverjas_app` en `mq-discovery` draaien tegelijk met elk hun eigen Plane cycle
 2. Start sync → features verschijnen alleen in het juiste project
 3. Disable sync voor project A → project B sync draait door ongestoord
 4. Legacy single-project setup werkt zonder configuratie-wijzigingen

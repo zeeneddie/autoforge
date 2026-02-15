@@ -216,7 +216,7 @@ curl -X PATCH http://localhost:8888/api/settings \
 
 > **WAARSCHUWING: Globale sync bij meerdere projecten**
 >
-> De Plane sync configuratie is momenteel **globaal** — niet per project. Als je meerdere projecten hebt geregistreerd (bijv. `klaverjas_app` en `marqed-discovery`), importeert de sync loop work items uit de geconfigureerde Plane cycle naar **alle** projecten. Dit veroorzaakt cross-project data lekkage.
+> De Plane sync configuratie is momenteel **globaal** — niet per project. Als je meerdere projecten hebt geregistreerd (bijv. `klaverjas_app` en `mq-discovery`), importeert de sync loop work items uit de geconfigureerde Plane cycle naar **alle** projecten. Dit veroorzaakt cross-project data lekkage.
 >
 > **Workaround:** Disable sync (`plane_sync_enabled=false`) wanneer meerdere projecten geregistreerd zijn. Gebruik handmatige import via `POST /api/plane/import-cycle` per project.
 >

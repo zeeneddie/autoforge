@@ -6,9 +6,9 @@
 
 ## Context
 
-AutoForge ondersteunt meerdere projecten tegelijk (bijv. `klaverjas_app` en `marqed-discovery`). De Plane sync configuratie (cycle_id, project_id, workspace, sync_enabled) wordt momenteel **globaal** opgeslagen in de registry (`~/.autoforge/registry.db` via `set_setting()`/`get_setting()`).
+AutoForge ondersteunt meerdere projecten tegelijk (bijv. `klaverjas_app` en `mq-discovery`). De Plane sync configuratie (cycle_id, project_id, workspace, sync_enabled) wordt momenteel **globaal** opgeslagen in de registry (`~/.autoforge/registry.db` via `set_setting()`/`get_setting()`).
 
-Dit veroorzaakt een kritiek probleem: de background sync loop importeert work items uit één Plane cycle naar **alle** projecten. In de praktijk lekte de klaverjas "Sprint A: Auth + Teams" cycle (34 features) herhaaldelijk in de `marqed-discovery` features database.
+Dit veroorzaakt een kritiek probleem: de background sync loop importeert work items uit één Plane cycle naar **alle** projecten. In de praktijk lekte de klaverjas "Sprint A: Auth + Teams" cycle (34 features) herhaaldelijk in de `mq-discovery` features database.
 
 ### Huidige architectuur (gebroken)
 
@@ -40,9 +40,9 @@ registry.db
   plane_sync_enabled:klaverjas_app = "true"
   plane_project_id:klaverjas_app = "abc123"
 
-  plane_cycle_id:marqed-discovery = "..."
-  plane_sync_enabled:marqed-discovery = "false"
-  plane_project_id:marqed-discovery = "def456"
+  plane_cycle_id:mq-discovery = "..."
+  plane_sync_enabled:mq-discovery = "false"
+  plane_project_id:mq-discovery = "def456"
 
 background.py: PlaneSyncLoop
   → voor elk geregistreerd project:
