@@ -198,6 +198,7 @@ export async function createFeaturesBulk(
 
 export interface AgentLogEntry {
   id: number
+  run_id: number
   line: string
   log_type: string
   agent_type: string | null
@@ -205,10 +206,19 @@ export interface AgentLogEntry {
   timestamp: string
 }
 
+export interface AgentRunSummary {
+  run_id: number
+  log_count: number
+  started_at: string
+  ended_at: string
+}
+
 export interface AgentLogsListResponse {
   feature_id: number
+  runs: AgentRunSummary[]
   logs: AgentLogEntry[]
   total: number
+  total_runs: number
 }
 
 export async function fetchFeatureLogs(

@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException
 from ..schemas import (
     AgentLogResponse,
     AgentLogsListResponse,
+    AgentRunSummary,
     DependencyGraphEdge,
     DependencyGraphNode,
     DependencyGraphResponse,
@@ -771,6 +772,8 @@ async def get_feature_logs(project_name: str, feature_id: int):
 
     try:
         with get_db_session(project_dir) as session:
+            from sqlalchemy import func
+
             # Verify feature exists
             feature = session.query(Feature).filter(Feature.id == feature_id).first()
             if not feature:
@@ -783,11 +786,37 @@ async def get_feature_logs(project_name: str, feature_id: int):
                 .all()
             )
 
+            # Build run summaries
+            run_stats = (
+                session.query(
+                    AgentLog.run_id,
+                    func.count(AgentLog.id).label("log_count"),
+                    func.min(AgentLog.timestamp).label("started_at"),
+                    func.max(AgentLog.timestamp).label("ended_at"),
+                )
+                .filter(AgentLog.feature_id == feature_id)
+                .group_by(AgentLog.run_id)
+                .order_by(AgentLog.run_id.asc())
+                .all()
+            )
+
+            runs = [
+                AgentRunSummary(
+                    run_id=r.run_id,
+                    log_count=r.log_count,
+                    started_at=r.started_at,
+                    ended_at=r.ended_at,
+                )
+                for r in run_stats
+            ]
+
             return AgentLogsListResponse(
                 feature_id=feature_id,
+                runs=runs,
                 logs=[
                     AgentLogResponse(
                         id=log.id,
+                        run_id=log.run_id,
                         line=log.line,
                         log_type=log.log_type,
                         agent_type=log.agent_type,
@@ -797,6 +826,7 @@ async def get_feature_logs(project_name: str, feature_id: int):
                     for log in logs
                 ],
                 total=len(logs),
+                total_runs=len(runs),
             )
     except HTTPException:
         raise

@@ -633,6 +633,7 @@ class NextRunResponse(BaseModel):
 class AgentLogResponse(BaseModel):
     """Single agent log entry."""
     id: int
+    run_id: int = 1
     line: str
     log_type: str
     agent_type: str | None = None
@@ -640,8 +641,18 @@ class AgentLogResponse(BaseModel):
     timestamp: datetime
 
 
+class AgentRunSummary(BaseModel):
+    """Summary of a single agent run/attempt for a feature."""
+    run_id: int
+    log_count: int
+    started_at: datetime
+    ended_at: datetime
+
+
 class AgentLogsListResponse(BaseModel):
     """Response for feature agent logs."""
     feature_id: int
+    runs: list[AgentRunSummary]
     logs: list[AgentLogResponse]
     total: int
+    total_runs: int

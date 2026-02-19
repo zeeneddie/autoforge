@@ -185,10 +185,12 @@ class AgentLog(Base):
     __tablename__ = "agent_logs"
     __table_args__ = (
         Index('ix_agent_log_feature', 'feature_id'),
+        Index('ix_agent_log_feature_run', 'feature_id', 'run_id'),
     )
 
     id = Column(Integer, primary_key=True)
     feature_id = Column(Integer, ForeignKey("features.id", ondelete="CASCADE"), nullable=False)
+    run_id = Column(Integer, nullable=False, default=1)  # Groups logs per agent session/attempt
     line = Column(Text, nullable=False)
     log_type = Column(String(20), nullable=False, default="output")  # "output", "error", "state_change"
     agent_type = Column(String(20), nullable=True)  # "coding" or "testing"
@@ -468,7 +470,7 @@ def _migrate_add_test_runs_table(engine) -> None:
 
 
 def _migrate_add_agent_logs_table(engine) -> None:
-    """Create agent_logs table if it doesn't exist."""
+    """Create agent_logs table if it doesn't exist, add run_id column if missing."""
     from sqlalchemy import inspect
 
     inspector = inspect(engine)
@@ -476,6 +478,13 @@ def _migrate_add_agent_logs_table(engine) -> None:
 
     if "agent_logs" not in existing_tables:
         AgentLog.__table__.create(bind=engine)  # type: ignore[attr-defined]
+    else:
+        # Add run_id column if missing (upgrade from v1)
+        columns = [c["name"] for c in inspector.get_columns("agent_logs")]
+        if "run_id" not in columns:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE agent_logs ADD COLUMN run_id INTEGER DEFAULT 1"))
+                conn.commit()
 
 
 def _configure_sqlite_immediate_transactions(engine) -> None:

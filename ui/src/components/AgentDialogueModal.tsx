@@ -169,18 +169,44 @@ function getAgentTypeBadge(agentType: AgentType): { label: string; className: st
   }
 }
 
+interface RunInfo {
+  run_id: number
+  log_count: number
+  started_at: string
+  ended_at: string
+}
+
 interface AgentDialogueModalProps {
   agent: ActiveAgent
   logs: AgentLogEntry[]
+  runs?: RunInfo[]
   onClose: () => void
 }
 
-export function AgentDialogueModal({ agent, logs, onClose }: AgentDialogueModalProps) {
+export function AgentDialogueModal({ agent, logs, runs = [], onClose }: AgentDialogueModalProps) {
   const [copied, setCopied] = useState(false)
   const [expandedThinking, setExpandedThinking] = useState<Set<number>>(new Set())
+  // When multiple runs exist, default to the latest run
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(
+    runs.length > 1 ? runs[runs.length - 1].run_id : null
+  )
   const typeBadge = getAgentTypeBadge(agent.agentType || 'coding')
 
-  const dialogue = useMemo(() => parseLogsToDialogue(logs), [logs])
+  // Filter logs by selected run if applicable
+  const filteredLogs = useMemo(() => {
+    if (selectedRunId === null || runs.length <= 1) return logs
+    // Persisted logs have run_id info encoded — filter by matching run
+    // The logs come from the API with run_id as part of the timestamp ordering
+    // Since in-memory logs don't have run_id, we use the run boundaries
+    const run = runs.find(r => r.run_id === selectedRunId)
+    if (!run) return logs
+    return logs.filter(log => {
+      const logTime = new Date(log.timestamp).getTime()
+      return logTime >= new Date(run.started_at).getTime() && logTime <= new Date(run.ended_at).getTime() + 1000
+    })
+  }, [logs, selectedRunId, runs])
+
+  const dialogue = useMemo(() => parseLogsToDialogue(filteredLogs), [filteredLogs])
 
   const handleCopy = async () => {
     const text = dialogue
@@ -255,6 +281,33 @@ export function AgentDialogueModal({ agent, logs, onClose }: AgentDialogueModalP
             </Button>
           </div>
         </div>
+
+        {/* Run selector — shown when multiple attempts exist */}
+        {runs.length > 1 && (
+          <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30">
+            <span className="text-xs font-semibold text-muted-foreground">
+              {runs.length} attempts:
+            </span>
+            <div className="flex gap-1 flex-wrap">
+              {runs.map((run, idx) => (
+                <button
+                  key={run.run_id}
+                  onClick={() => setSelectedRunId(run.run_id)}
+                  className={`
+                    px-2 py-0.5 rounded text-xs font-mono transition-colors
+                    ${(selectedRunId === run.run_id) || (selectedRunId === null && idx === runs.length - 1)
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted hover:bg-muted-foreground/20 text-muted-foreground'
+                    }
+                  `}
+                  title={`${run.log_count} lines, ${new Date(run.started_at).toLocaleTimeString()}`}
+                >
+                  #{idx + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Dialogue content */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">

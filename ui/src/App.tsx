@@ -71,6 +71,8 @@ function App() {
   const [dialogueFeatureId, setDialogueFeatureId] = useState<number | null>(null)
   // Persisted logs fetched from the database (fallback when in-memory WebSocket logs are unavailable)
   const [persistedLogs, setPersistedLogs] = useState<AgentLogEntry[] | null>(null)
+  const [persistedRuns, setPersistedRuns] = useState<Array<{ run_id: number; log_count: number; started_at: string; ended_at: string }>>([])
+
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
       const stored = localStorage.getItem(VIEW_MODE_KEY)
@@ -120,6 +122,7 @@ function App() {
   useEffect(() => {
     if (dialogueFeatureId === null || !selectedProject) {
       setPersistedLogs(null)
+      setPersistedRuns([])
       return
     }
 
@@ -127,6 +130,7 @@ function App() {
     const inMemoryLogs = wsState.getFeatureLogs(dialogueFeatureId)
     if (inMemoryLogs && inMemoryLogs.length > 0) {
       setPersistedLogs(null)
+      setPersistedRuns([])
       return
     }
 
@@ -143,12 +147,17 @@ function App() {
             type: log.log_type as AgentLogEntry['type'],
           }))
           setPersistedLogs(entries)
+          setPersistedRuns(response.runs || [])
         } else {
           setPersistedLogs(null)
+          setPersistedRuns([])
         }
       })
       .catch(() => {
-        if (!cancelled) setPersistedLogs(null)
+        if (!cancelled) {
+          setPersistedLogs(null)
+          setPersistedRuns([])
+        }
       })
 
     return () => { cancelled = true }
@@ -589,7 +598,8 @@ function App() {
           <AgentDialogueModal
             agent={syntheticAgent}
             logs={logs}
-            onClose={() => { setDialogueFeatureId(null); setPersistedLogs(null) }}
+            runs={persistedRuns}
+            onClose={() => { setDialogueFeatureId(null); setPersistedLogs(null); setPersistedRuns([]) }}
           />
         )
       })()}
