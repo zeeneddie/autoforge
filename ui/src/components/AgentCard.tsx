@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 interface AgentCardProps {
   agent: ActiveAgent
   onShowLogs?: (agentIndex: number) => void
+  onShowDialogue?: (agentIndex: number) => void
 }
 
 // Get a friendly state description
@@ -18,7 +19,7 @@ function getStateText(state: ActiveAgent['state']): string {
     case 'idle':
       return 'Standing by...'
     case 'thinking':
-      return 'Pondering...'
+      return 'Thinking...'
     case 'working':
       return 'Coding away...'
     case 'testing':
@@ -69,14 +70,16 @@ function getAgentTypeBadge(agentType: AgentType): { label: string; className: st
   }
 }
 
-export function AgentCard({ agent, onShowLogs }: AgentCardProps) {
-  const isActive = ['thinking', 'working', 'testing'].includes(agent.state)
+export function AgentCard({ agent, onShowLogs, onShowDialogue }: AgentCardProps) {
   const hasLogs = agent.logs && agent.logs.length > 0
   const typeBadge = getAgentTypeBadge(agent.agentType || 'coding')
   const TypeIcon = typeBadge.icon
 
   return (
-    <Card className={`min-w-[180px] max-w-[220px] py-3 ${isActive ? 'animate-pulse' : ''}`}>
+    <Card
+      className={`min-w-[180px] max-w-[220px] py-3 ${onShowDialogue ? 'cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow' : ''}`}
+      onClick={() => onShowDialogue?.(agent.agentIndex)}
+    >
       <CardContent className="p-3 space-y-2">
         {/* Agent type badge */}
         <div className="flex justify-end">
@@ -102,7 +105,7 @@ export function AgentCard({ agent, onShowLogs }: AgentCardProps) {
             <Button
               variant="ghost"
               size="icon-xs"
-              onClick={() => onShowLogs(agent.agentIndex)}
+              onClick={(e) => { e.stopPropagation(); onShowLogs(agent.agentIndex) }}
               title={`View logs (${agent.logs?.length || 0} entries)`}
             >
               <ScrollText size={14} className="text-muted-foreground" />

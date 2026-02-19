@@ -47,6 +47,8 @@ interface WebSocketState {
   recentActivity: ActivityItem[]
   // Per-agent logs for debugging (indexed by agentIndex)
   agentLogs: Map<number, AgentLogEntry[]>
+  // Feature → agent mapping (persists after agent completion for dialogue viewer)
+  featureAgentMap: Map<number, { agentIndex: number; agentName: AgentMascot | 'Unknown'; agentType: 'coding' | 'testing'; featureName: string }>
   // Celebration queue to handle rapid successes without race conditions
   celebrationQueue: CelebrationTrigger[]
   celebration: CelebrationTrigger | null
@@ -70,6 +72,7 @@ export function useProjectWebSocket(projectName: string | null) {
     activeAgents: [],
     recentActivity: [],
     agentLogs: new Map(),
+    featureAgentMap: new Map(),
     celebrationQueue: [],
     celebration: null,
     orchestratorStatus: null,
@@ -81,6 +84,18 @@ export function useProjectWebSocket(projectName: string | null) {
 
   const connect = useCallback(() => {
     if (!projectName) return
+
+    // Guard: close any existing connection before creating a new one
+    // This prevents orphaned connections from StrictMode double-mount or reconnect races
+    if (wsRef.current) {
+      const existing = wsRef.current
+      wsRef.current = null
+      // Null out handlers to prevent stale onclose from scheduling phantom reconnects
+      existing.onclose = null
+      existing.onerror = null
+      existing.onmessage = null
+      existing.close()
+    }
 
     // Build WebSocket URL
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -236,6 +251,18 @@ export function useProjectWebSocket(projectName: string | null) {
                   ]
                 }
 
+                // Update featureId → agent mapping (persists after completion)
+                const newFeatureAgentMap = new Map(prev.featureAgentMap)
+                const featureIds = message.featureIds || [message.featureId]
+                for (const fid of featureIds) {
+                  newFeatureAgentMap.set(fid, {
+                    agentIndex: message.agentIndex,
+                    agentName: message.agentName,
+                    agentType: message.agentType || 'coding',
+                    featureName: message.featureName,
+                  })
+                }
+
                 // Add to activity feed if there's a thought
                 let newActivity = prev.recentActivity
                 if (message.thought) {
@@ -274,6 +301,7 @@ export function useProjectWebSocket(projectName: string | null) {
                   ...prev,
                   activeAgents: newAgents,
                   agentLogs: newAgentLogs,
+                  featureAgentMap: newFeatureAgentMap,
                   recentActivity: newActivity,
                   celebrationQueue: newCelebrationQueue,
                   celebration: newCelebration,
@@ -336,6 +364,13 @@ export function useProjectWebSocket(projectName: string | null) {
       }
 
       ws.onclose = () => {
+        // Stale-close guard: only reconnect if THIS websocket is still the current one.
+        // If wsRef.current points to a different (newer) connection, this is an orphaned
+        // close event and we must NOT schedule a reconnect or clobber the ref.
+        if (wsRef.current !== ws) {
+          return
+        }
+
         setState(prev => ({ ...prev, isConnected: false }))
         wsRef.current = null
 
@@ -349,7 +384,10 @@ export function useProjectWebSocket(projectName: string | null) {
       }
 
       ws.onerror = () => {
-        ws.close()
+        // Only close if this is still the active connection
+        if (wsRef.current === ws) {
+          ws.close()
+        }
       }
     } catch {
       // Failed to connect, will retry via onclose
@@ -391,6 +429,7 @@ export function useProjectWebSocket(projectName: string | null) {
       activeAgents: [],
       recentActivity: [],
       agentLogs: new Map(),
+      featureAgentMap: new Map(),
       celebrationQueue: [],
       celebration: null,
       orchestratorStatus: null,
@@ -458,6 +497,18 @@ export function useProjectWebSocket(projectName: string | null) {
     return state.agentLogs.get(agentIndex) || []
   }, [state.agentLogs])
 
+  // Get logs for a feature (looks up the agent that worked on it)
+  const getFeatureLogs = useCallback((featureId: number): AgentLogEntry[] | null => {
+    const agentInfo = state.featureAgentMap.get(featureId)
+    if (!agentInfo) return null
+    return state.agentLogs.get(agentInfo.agentIndex) || null
+  }, [state.featureAgentMap, state.agentLogs])
+
+  // Get agent info for a feature (for constructing dialogue modal props)
+  const getFeatureAgentInfo = useCallback((featureId: number) => {
+    return state.featureAgentMap.get(featureId) || null
+  }, [state.featureAgentMap])
+
   // Clear logs for a specific agent
   const clearAgentLogs = useCallback((agentIndex: number) => {
     setState(prev => {
@@ -473,6 +524,8 @@ export function useProjectWebSocket(projectName: string | null) {
     clearDevLogs,
     clearCelebration,
     getAgentLogs,
+    getFeatureLogs,
+    getFeatureAgentInfo,
     clearAgentLogs,
   }
 }

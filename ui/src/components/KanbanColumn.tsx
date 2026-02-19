@@ -18,6 +18,8 @@ interface KanbanColumnProps {
   showExpandButton?: boolean
   onCreateSpec?: () => void
   showCreateSpec?: boolean
+  onShowDialogue?: (featureId: number) => void
+  featureHasLogs?: (featureId: number) => boolean
 }
 
 const colorMap = {
@@ -39,6 +41,8 @@ export function KanbanColumn({
   showExpandButton,
   onCreateSpec,
   showCreateSpec,
+  onShowDialogue,
+  featureHasLogs,
 }: KanbanColumnProps) {
   // Create a map of feature ID to active agent for quick lookup
   // Maps ALL batch feature IDs to the same agent
@@ -114,6 +118,8 @@ export function KanbanColumn({
                     isInProgress={color === 'progress'}
                     allFeatures={allFeatures}
                     activeAgent={agentByFeatureId.get(feature.id)}
+                    hasDialogueLogs={featureHasLogs?.(feature.id) ?? false}
+                    onShowDialogue={onShowDialogue}
                   />
                 </div>
               ))

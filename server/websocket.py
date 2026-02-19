@@ -49,6 +49,9 @@ BATCH_FEATURES_COMPLETE_PATTERN = re.compile(r'Features (#\d+(?:,\s*#\d+)*)\s+(c
 
 # Patterns for detecting agent activity and thoughts
 THOUGHT_PATTERNS = [
+    # Claude SDK ThinkingBlock and StreamEvent patterns
+    (re.compile(r'\[Thinking\]\s*(.+)', re.I), 'thinking'),
+    (re.compile(r'\[Stream\]\s*thinking\s+started', re.I), 'thinking'),
     # Claude's tool usage patterns (actual format: [Tool: name])
     (re.compile(r'\[Tool:\s*Read\]', re.I), 'thinking'),
     (re.compile(r'\[Tool:\s*(?:Write|Edit|NotebookEdit)\]', re.I), 'working'),

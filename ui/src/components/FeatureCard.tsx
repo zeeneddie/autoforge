@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, Loader2, MessageCircle } from 'lucide-react'
+import { CheckCircle2, Circle, Loader2, MessageCircle, ScrollText } from 'lucide-react'
 import type { Feature, ActiveAgent } from '../lib/types'
 import { DependencyBadge } from './DependencyBadge'
 import { AgentAvatar } from './AgentAvatar'
@@ -11,6 +11,8 @@ interface FeatureCardProps {
   isInProgress?: boolean
   allFeatures?: Feature[]
   activeAgent?: ActiveAgent
+  hasDialogueLogs?: boolean
+  onShowDialogue?: (featureId: number) => void
 }
 
 // Generate consistent color for category
@@ -33,7 +35,7 @@ function getCategoryColor(category: string): string {
   return colors[Math.abs(hash) % colors.length]
 }
 
-export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], activeAgent }: FeatureCardProps) {
+export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], activeAgent, hasDialogueLogs, onShowDialogue }: FeatureCardProps) {
   const categoryColor = getCategoryColor(feature.category)
   const isBlocked = feature.blocked || (feature.blocking_dependencies && feature.blocking_dependencies.length > 0)
   const hasActiveAgent = !!activeAgent
@@ -43,7 +45,6 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
       onClick={onClick}
       className={`
         cursor-pointer transition-all hover:border-primary py-3
-        ${isInProgress ? 'animate-pulse' : ''}
         ${feature.passes ? 'border-primary/50' : ''}
         ${isBlocked && !feature.passes ? 'border-destructive/50 opacity-80' : ''}
         ${hasActiveAgent ? 'ring-2 ring-primary ring-offset-2' : ''}
@@ -94,27 +95,38 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
         )}
 
         {/* Status */}
-        <div className="flex items-center gap-2 text-sm">
-          {isInProgress ? (
-            <>
-              <Loader2 size={16} className="animate-spin text-primary" />
-              <span className="text-primary font-medium">Processing...</span>
-            </>
-          ) : feature.passes ? (
-            <>
-              <CheckCircle2 size={16} className="text-primary" />
-              <span className="text-primary font-medium">Complete</span>
-            </>
-          ) : isBlocked ? (
-            <>
-              <Circle size={16} className="text-destructive" />
-              <span className="text-destructive">Blocked</span>
-            </>
-          ) : (
-            <>
-              <Circle size={16} className="text-muted-foreground" />
-              <span className="text-muted-foreground">Pending</span>
-            </>
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-2">
+            {isInProgress ? (
+              <>
+                <Loader2 size={16} className="animate-spin text-primary" />
+                <span className="text-primary font-medium">Processing...</span>
+              </>
+            ) : feature.passes ? (
+              <>
+                <CheckCircle2 size={16} className="text-primary" />
+                <span className="text-primary font-medium">Complete</span>
+              </>
+            ) : isBlocked ? (
+              <>
+                <Circle size={16} className="text-destructive" />
+                <span className="text-destructive">Blocked</span>
+              </>
+            ) : (
+              <>
+                <Circle size={16} className="text-muted-foreground" />
+                <span className="text-muted-foreground">Pending</span>
+              </>
+            )}
+          </div>
+          {hasDialogueLogs && onShowDialogue && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onShowDialogue(feature.id) }}
+              className="p-1 rounded hover:bg-muted transition-colors"
+              title="View agent dialogue"
+            >
+              <ScrollText size={14} className="text-muted-foreground hover:text-foreground" />
+            </button>
           )}
         </div>
       </CardContent>

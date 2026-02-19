@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Literal
 
+import psutil
 from sqlalchemy import text
 
 from api.database import Feature, TestRun, create_database
@@ -207,6 +208,13 @@ class ParallelOrchestrator:
 
         # Track feature failures to prevent infinite retry loops
         self._failure_counts: dict[int, int] = {}
+
+        # Features currently in the completion pipeline (between removal from
+        # running_coding_agents and the DB in_progress clear).  Prevents the
+        # TOCTOU race where get_resumable_features() sees a feature as
+        # in_progress (not yet cleared in DB) but not in running_coding_agents
+        # (already removed), causing a duplicate agent spawn.
+        self._completing_features: set[int] = set()
 
         # Track recently tested feature IDs to avoid redundant re-testing.
         # Cleared when all passing features have been covered at least once.
@@ -491,17 +499,20 @@ class ParallelOrchestrator:
             finally:
                 session.close()
 
-        # Snapshot running IDs once (include all batch feature IDs)
+        # Snapshot running IDs once (include all batch feature IDs and features
+        # whose agents are in the completion pipeline but haven't cleared
+        # in_progress in the DB yet).
         with self._lock:
             running_ids = set(self.running_coding_agents.keys())
             for batch_ids in self._batch_features.values():
                 running_ids.update(batch_ids)
+            running_ids.update(self._completing_features)
 
         resumable = []
         for fd in feature_dicts:
             if not fd.get("in_progress") or fd.get("passes"):
                 continue
-            # Skip if already running in this orchestrator instance
+            # Skip if already running or completing in this orchestrator instance
             if fd["id"] in running_ids:
                 continue
             # Skip if feature has failed too many times
@@ -538,11 +549,13 @@ class ParallelOrchestrator:
         # Pre-compute passing_ids once to avoid O(n^2) in the loop
         passing_ids = {fd["id"] for fd in feature_dicts if fd.get("passes")}
 
-        # Snapshot running IDs once (include all batch feature IDs)
+        # Snapshot running IDs once (include all batch feature IDs and features
+        # whose agents are in the completion pipeline).
         with self._lock:
             running_ids = set(self.running_coding_agents.keys())
             for batch_ids in self._batch_features.values():
                 running_ids.update(batch_ids)
+            running_ids.update(self._completing_features)
 
         ready = []
         skipped_reasons = {"passes": 0, "in_progress": 0, "running": 0, "failed": 0, "deps": 0}
@@ -702,6 +715,30 @@ class ParallelOrchestrator:
                 debug_log.log("TESTING", f"Spawn failed, stopping: {msg}")
                 return
 
+    def _find_orphaned_agent(self, feature_id: int) -> psutil.Process | None:
+        """Scan for an existing agent process working on this feature.
+
+        Detects orphaned agent processes that survived a previous orchestrator
+        crash or unclean shutdown.  Matching is done by inspecting the command
+        line of all running processes for the ``--feature-id <id>`` flag
+        together with ``autonomous_agent_demo`` (to avoid false positives).
+
+        Returns:
+            The orphaned ``psutil.Process`` if found, otherwise ``None``.
+        """
+        target = f"--feature-id {feature_id}"
+        for proc in psutil.process_iter(['pid', 'cmdline']):
+            try:
+                cmdline = proc.info.get('cmdline') or []
+                cmd_str = ' '.join(cmdline)
+                if target in cmd_str and 'autonomous_agent_demo' in cmd_str:
+                    # Don't match ourselves
+                    if proc.pid != os.getpid():
+                        return proc
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return None
+
     def start_feature(self, feature_id: int, resume: bool = False) -> tuple[bool, str]:
         """Start a single coding agent for a feature.
 
@@ -721,6 +758,36 @@ class ParallelOrchestrator:
             total_agents = len(self.running_coding_agents) + len(self.running_testing_agents)
             if total_agents >= MAX_TOTAL_AGENTS:
                 return False, f"At max total agents ({total_agents}/{MAX_TOTAL_AGENTS})"
+
+        # Detect orphaned agent processes from a previous session before spawning
+        # a new one.  If an orphan is found, kill it to avoid two agents working
+        # on the same feature simultaneously.
+        orphan = self._find_orphaned_agent(feature_id)
+        if orphan is not None:
+            debug_log.log("ORPHAN", f"Found orphaned agent for feature #{feature_id}",
+                pid=orphan.pid)
+            try:
+                # Kill the orphan's entire process tree via psutil
+                children = orphan.children(recursive=True)
+                for child in children:
+                    try:
+                        child.terminate()
+                    except psutil.NoSuchProcess:
+                        pass
+                orphan.terminate()
+                # Wait briefly, then force-kill any survivors
+                gone, alive = psutil.wait_procs([orphan] + children, timeout=5.0)
+                for p in alive:
+                    try:
+                        p.kill()
+                    except psutil.NoSuchProcess:
+                        pass
+                debug_log.log("ORPHAN", f"Killed orphaned agent PID {orphan.pid}",
+                    children_found=len(children))
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                debug_log.log("ORPHAN", f"Orphan PID {orphan.pid} already gone or inaccessible: {e}")
+            except Exception as e:
+                debug_log.log("ORPHAN", f"Failed to kill orphan PID {orphan.pid}: {e}")
 
         # Mark as in_progress in database (or verify it's resumable)
         session = self.get_session()
@@ -1272,6 +1339,15 @@ class ParallelOrchestrator:
                 # Clean up reverse mapping
                 for fid in batch_ids:
                     self._feature_to_primary.pop(fid, None)
+
+            # Mark all feature IDs as "completing" BEFORE removing from
+            # running_coding_agents.  This closes the TOCTOU window where
+            # get_resumable_features() could see a feature that is no longer in
+            # running_coding_agents but whose in_progress flag has not yet been
+            # cleared in the database.
+            completing_ids = set(batch_ids) if batch_ids else {feature_id}
+            self._completing_features.update(completing_ids)
+
             self.running_coding_agents.pop(feature_id, None)
             self.abort_events.pop(feature_id, None)
 
@@ -1299,6 +1375,13 @@ class ParallelOrchestrator:
                     debug_log.log("DB", f"Cleared in_progress for feature #{fid} (agent failed)")
         finally:
             session.close()
+
+        # DB updates are done -- remove from the completing set so these IDs
+        # are no longer shielded from get_resumable_features / get_ready_features.
+        with self._lock:
+            self._completing_features.discard(feature_id)
+            if batch_ids:
+                self._completing_features.difference_update(batch_ids)
 
         # Record TestRun rows for coding agent (tests run implicitly)
         self._record_test_runs(

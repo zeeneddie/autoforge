@@ -329,6 +329,16 @@ class AgentProcessManager:
         if not self._check_lock():
             return False, "Another agent instance is already running for this project"
 
+        # Fill in per-type models from provider profile when not explicitly set
+        from provider_config import get_provider_models
+        provider_models = get_provider_models()
+        if model_initializer is None and provider_models.get("initializer"):
+            model_initializer = provider_models["initializer"]
+        if model_coding is None and provider_models.get("coding"):
+            model_coding = provider_models["coding"]
+        if model_testing is None and provider_models.get("testing"):
+            model_testing = provider_models["testing"]
+
         # Store for status queries
         self.yolo_mode = yolo_mode
         self.model = model
@@ -378,12 +388,25 @@ class AgentProcessManager:
             # stdin=DEVNULL prevents blocking if Claude CLI or child process tries to read stdin
             # CREATE_NO_WINDOW on Windows prevents console window pop-ups
             # PYTHONUNBUFFERED ensures output isn't delayed
+            agent_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+            agent_env["PYTHONUNBUFFERED"] = "1"
+            agent_env["PLAYWRIGHT_HEADLESS"] = "true" if playwright_headless else "false"
+
+            # Apply provider env overrides: replace stale .env vars with active profile
+            from provider_config import get_provider_env
+            from env_constants import API_ENV_VARS
+            provider_env = get_provider_env()
+            # First remove all API vars inherited from server process env
+            for var in API_ENV_VARS:
+                agent_env.pop(var, None)
+            # Then set only the ones from the active provider
+            agent_env.update(provider_env)
             popen_kwargs: dict[str, Any] = {
                 "stdin": subprocess.DEVNULL,
                 "stdout": subprocess.PIPE,
                 "stderr": subprocess.STDOUT,
                 "cwd": str(self.project_dir),
-                "env": {**os.environ, "PYTHONUNBUFFERED": "1", "PLAYWRIGHT_HEADLESS": "true" if playwright_headless else "false"},
+                "env": agent_env,
             }
             if sys.platform == "win32":
                 popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
@@ -694,4 +717,81 @@ def cleanup_orphaned_locks() -> int:
     if cleaned:
         logger.info("Cleaned up %d orphaned lock file(s)", cleaned)
 
+    # Scan for orphaned autonomous_agent_demo.py coding agent processes
+    # that survived a previous server/orchestrator crash.  These processes
+    # have no parent orchestrator and will run indefinitely, wasting API
+    # credits and potentially conflicting with new agent spawns.
+    orphan_count = _kill_orphaned_coding_agents()
+    cleaned += orphan_count
+
     return cleaned
+
+
+def _kill_orphaned_coding_agents() -> int:
+    """Kill orphaned coding agent processes from previous sessions.
+
+    Scans all running processes for ``autonomous_agent_demo.py --agent-type coding``
+    that have no live orchestrator parent.  An orchestrator parent is identified by
+    having ``parallel_orchestrator`` or ``autonomous_agent_demo.py`` with
+    ``--concurrency`` in its command line (the top-level entry point).
+
+    Returns:
+        Number of orphaned coding agent processes killed.
+    """
+    killed = 0
+    our_pid = os.getpid()
+
+    for proc in psutil.process_iter(['pid', 'cmdline']):
+        try:
+            cmdline = proc.info.get('cmdline') or []
+            cmd_str = ' '.join(cmdline)
+
+            # Only target coding agent subprocesses
+            if 'autonomous_agent_demo' not in cmd_str:
+                continue
+            if '--agent-type' not in cmd_str or 'coding' not in cmd_str:
+                continue
+
+            # Don't kill ourselves
+            if proc.pid == our_pid:
+                continue
+
+            # Check if the parent process is a live orchestrator.
+            # If the parent is PID 1 (init/systemd) or dead, the agent is orphaned.
+            try:
+                parent = proc.parent()
+                if parent is not None and parent.pid != 1:
+                    parent_cmd = ' '.join(parent.cmdline())
+                    # Parent is a live orchestrator -- not orphaned
+                    if 'parallel_orchestrator' in parent_cmd or (
+                        'autonomous_agent_demo' in parent_cmd and '--concurrency' in parent_cmd
+                    ):
+                        continue
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass  # Parent gone -- this process is orphaned
+
+            logger.info("Killing orphaned coding agent PID %d: %s", proc.pid, cmd_str[:120])
+            try:
+                children = proc.children(recursive=True)
+                for child in children:
+                    try:
+                        child.terminate()
+                    except psutil.NoSuchProcess:
+                        pass
+                proc.terminate()
+                gone, alive = psutil.wait_procs([proc] + children, timeout=5.0)
+                for p in alive:
+                    try:
+                        p.kill()
+                    except psutil.NoSuchProcess:
+                        pass
+                killed += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass  # Process disappeared while we were killing it
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+    if killed:
+        logger.info("Killed %d orphaned coding agent process(es)", killed)
+
+    return killed

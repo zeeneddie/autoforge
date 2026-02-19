@@ -1,6 +1,7 @@
 import { Rocket, ChevronDown, ChevronUp, Activity } from 'lucide-react'
 import { useState } from 'react'
 import { AgentCard, AgentLogModal } from './AgentCard'
+import { AgentDialogueModal } from './AgentDialogueModal'
 import { ActivityFeed } from './ActivityFeed'
 import { OrchestratorStatusCard } from './OrchestratorStatusCard'
 import type { ActiveAgent, AgentLogEntry, OrchestratorStatus } from '../lib/types'
@@ -21,6 +22,7 @@ interface AgentMissionControlProps {
   }>
   isExpanded?: boolean
   getAgentLogs?: (agentIndex: number) => AgentLogEntry[]
+  progress?: { passing: number; total: number; percentage: number }
 }
 
 export function AgentMissionControl({
@@ -29,6 +31,7 @@ export function AgentMissionControl({
   recentActivity,
   isExpanded: defaultExpanded = true,
   getAgentLogs,
+  progress,
 }: AgentMissionControlProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [activityCollapsed, setActivityCollapsed] = useState(() => {
@@ -39,6 +42,7 @@ export function AgentMissionControl({
     }
   })
   const [selectedAgentForLogs, setSelectedAgentForLogs] = useState<ActiveAgent | null>(null)
+  const [selectedAgentForDialogue, setSelectedAgentForDialogue] = useState<ActiveAgent | null>(null)
 
   const toggleActivityCollapsed = () => {
     const newValue = !activityCollapsed
@@ -77,6 +81,11 @@ export function AgentMissionControl({
                   : 'Orchestrating'
             }
           </Badge>
+          {progress && progress.total > 0 && (
+            <Badge variant="outline" className="ml-1 bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30">
+              {progress.passing}/{progress.total} ({progress.percentage}%)
+            </Badge>
+          )}
         </div>
         {isExpanded ? (
           <ChevronUp size={20} className="text-primary-foreground" />
@@ -109,6 +118,12 @@ export function AgentMissionControl({
                     const agentToShow = agents.find(a => a.agentIndex === agentIndex)
                     if (agentToShow) {
                       setSelectedAgentForLogs(agentToShow)
+                    }
+                  }}
+                  onShowDialogue={(agentIndex) => {
+                    const agentToShow = agents.find(a => a.agentIndex === agentIndex)
+                    if (agentToShow) {
+                      setSelectedAgentForDialogue(agentToShow)
                     }
                   }}
                 />
@@ -157,6 +172,15 @@ export function AgentMissionControl({
           agent={selectedAgentForLogs}
           logs={getAgentLogs(selectedAgentForLogs.agentIndex)}
           onClose={() => setSelectedAgentForLogs(null)}
+        />
+      )}
+
+      {/* Dialogue Modal */}
+      {selectedAgentForDialogue && getAgentLogs && (
+        <AgentDialogueModal
+          agent={selectedAgentForDialogue}
+          logs={getAgentLogs(selectedAgentForDialogue.agentIndex)}
+          onClose={() => setSelectedAgentForDialogue(null)}
         />
       )}
     </Card>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Loader2, AlertCircle, Check, Moon, Sun, ChevronDown, ChevronRight } from 'lucide-react'
-import { useSettings, useUpdateSettings, useAvailableModels, usePlanningConfig, useUpdatePlanningConfig, useTestPlanningConnection, usePlanningCycles, useImportPlanningCycle, usePlanningSyncStatus, useTogglePlanningSync, useCompleteSprint } from '../hooks/useProjects'
+import { useSettings, useUpdateSettings, useAvailableModels, useProviders, usePlanningConfig, useUpdatePlanningConfig, useTestPlanningConnection, usePlanningCycles, useImportPlanningCycle, usePlanningSyncStatus, useTogglePlanningSync, useCompleteSprint } from '../hooks/useProjects'
 import { useTheme, THEMES } from '../hooks/useTheme'
 import {
   Dialog,
@@ -135,6 +135,7 @@ function ModelSelector({
 export function SettingsModal({ isOpen, onClose, selectedProject }: SettingsModalProps) {
   const { data: settings, isLoading, isError, refetch } = useSettings()
   const { data: modelsData } = useAvailableModels()
+  const { data: providersData } = useProviders()
   const updateSettings = useUpdateSettings()
   const { theme, setTheme, darkMode, toggleDarkMode } = useTheme()
 
@@ -162,7 +163,16 @@ export function SettingsModal({ isOpen, onClose, selectedProject }: SettingsModa
     }
   }
 
+  const handleProviderChange = (providerName: string | null) => {
+    if (!updateSettings.isPending) {
+      updateSettings.mutate({ active_provider: providerName ?? 'none' })
+    }
+  }
+
   const models = modelsData?.models ?? []
+  const providers = providersData?.providers ?? []
+  const activeProvider = settings?.active_provider ?? null
+  const activeProviderProfile = providers.find((p) => p.name === activeProvider)
   const isSaving = updateSettings.isPending
 
   return (
@@ -271,6 +281,82 @@ export function SettingsModal({ isOpen, onClose, selectedProject }: SettingsModa
                 {darkMode ? 'Light' : 'Dark'}
               </Button>
             </div>
+
+            <hr className="border-border" />
+
+            {/* Provider Selector */}
+            {providers.length > 0 && (
+              <div className="space-y-3">
+                <Label className="font-medium">Provider</Label>
+                <p className="text-sm text-muted-foreground">
+                  API backend for running agents
+                </p>
+                <div className="flex rounded-lg border overflow-hidden">
+                  {providers.map((provider) => (
+                    <button
+                      key={provider.name}
+                      onClick={() => handleProviderChange(
+                        provider.name === activeProvider ? null : provider.name
+                      )}
+                      disabled={isSaving}
+                      className={`flex-1 py-2 px-2 text-xs font-medium transition-colors ${
+                        provider.name === activeProvider
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-background text-foreground hover:bg-muted'
+                      } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''} ${
+                        !provider.has_credentials ? 'opacity-60' : ''
+                      }`}
+                      title={provider.description}
+                    >
+                      {provider.name === 'claude-sub' ? 'Claude Sub' :
+                       provider.name === 'claude-api' ? 'Claude API' :
+                       provider.name === 'openrouter' ? 'OpenRouter' :
+                       provider.name === 'ollama' ? 'Ollama' :
+                       provider.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Active provider info */}
+                {activeProviderProfile && (
+                  <div className="space-y-2 rounded-lg border p-3 bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{activeProviderProfile.description}</span>
+                      {!activeProviderProfile.has_credentials && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600">
+                          No credentials
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Show per-type model mapping for providers with models */}
+                    {Object.values(activeProviderProfile.models).some(Boolean) && (
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        {activeProviderProfile.models.initializer && (
+                          <div>Initializer: <code className="bg-muted px-1 rounded">{activeProviderProfile.models.initializer}</code></div>
+                        )}
+                        {activeProviderProfile.models.coding && (
+                          <div>Coding: <code className="bg-muted px-1 rounded">{activeProviderProfile.models.coding}</code></div>
+                        )}
+                        {activeProviderProfile.models.testing && (
+                          <div>Testing: <code className="bg-muted px-1 rounded">{activeProviderProfile.models.testing}</code></div>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground/70">
+                      Running agents keep their previous provider until restarted.
+                    </p>
+                  </div>
+                )}
+
+                {!activeProvider && (
+                  <p className="text-xs text-muted-foreground/70">
+                    No provider selected — using legacy .env configuration.
+                  </p>
+                )}
+              </div>
+            )}
 
             <hr className="border-border" />
 

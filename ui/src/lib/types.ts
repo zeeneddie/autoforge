@@ -181,6 +181,18 @@ export const AGENT_MASCOTS = [
 ] as const
 export type AgentMascot = typeof AGENT_MASCOTS[number]
 
+// Dialogue viewer types (parsed from agent logs)
+export type DialogueEntryType = 'prompt' | 'text' | 'tool_use' | 'tool_result' | 'thinking'
+
+export interface DialogueEntry {
+  type: DialogueEntryType
+  content: string
+  toolName?: string
+  toolInput?: string
+  toolStatus?: 'done' | 'error' | 'blocked'
+  timestamp: string
+}
+
 // Agent state for Mission Control
 export type AgentState = 'idle' | 'thinking' | 'working' | 'testing' | 'success' | 'error' | 'struggling'
 
@@ -533,6 +545,7 @@ export interface Settings {
   model_testing?: string | null
   glm_mode: boolean
   ollama_mode: boolean
+  active_provider?: string | null
   testing_agent_ratio: number  // Regression testing agents (0-3)
   playwright_headless: boolean
   batch_size: number  // Features per coding agent batch (1-3)
@@ -544,9 +557,25 @@ export interface SettingsUpdate {
   model_initializer?: string | null
   model_coding?: string | null
   model_testing?: string | null
+  active_provider?: string | null
   testing_agent_ratio?: number
   playwright_headless?: boolean
   batch_size?: number
+}
+
+// Provider types
+export interface ProviderProfile {
+  name: string
+  description: string
+  active: boolean
+  has_credentials: boolean
+  models: Record<string, string | null>
+  env_masked: Record<string, string>
+}
+
+export interface ProvidersListResponse {
+  providers: ProviderProfile[]
+  active: string | null
 }
 
 export interface ProjectSettingsUpdate {

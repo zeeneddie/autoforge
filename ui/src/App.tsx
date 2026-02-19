@@ -14,6 +14,7 @@ import { AddFeatureForm } from './components/AddFeatureForm'
 import { FeatureModal } from './components/FeatureModal'
 import { DebugLogViewer, type TabType } from './components/DebugLogViewer'
 import { AgentMissionControl } from './components/AgentMissionControl'
+import { AgentDialogueModal } from './components/AgentDialogueModal'
 import { CelebrationOverlay } from './components/CelebrationOverlay'
 import { AssistantFAB } from './components/AssistantFAB'
 import { AssistantPanel } from './components/AssistantPanel'
@@ -30,7 +31,7 @@ import { ResetProjectModal } from './components/ResetProjectModal'
 import { ProjectSetupRequired } from './components/ProjectSetupRequired'
 import { getDependencyGraph, startAgent } from './lib/api'
 import { Loader2, Settings, Moon, Sun, RotateCcw, BookOpen } from 'lucide-react'
-import type { Feature } from './lib/types'
+import type { ActiveAgent, Feature } from './lib/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -67,6 +68,7 @@ function App() {
   const [showSpecChat, setShowSpecChat] = useState(false)  // For "Create Spec" button in empty kanban
   const [specInitializerStatus, setSpecInitializerStatus] = useState<InitializerStatus>('idle')
   const [specInitializerError, setSpecInitializerError] = useState<string | null>(null)
+  const [dialogueFeatureId, setDialogueFeatureId] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
       const stored = localStorage.getItem(VIEW_MODE_KEY)
@@ -421,6 +423,7 @@ function App() {
               orchestratorStatus={wsState.orchestratorStatus}
               recentActivity={wsState.recentActivity}
               getAgentLogs={wsState.getAgentLogs}
+              progress={progress}
             />
 
 
@@ -454,12 +457,21 @@ function App() {
             {viewMode === 'kanban' ? (
               <KanbanBoard
                 features={features}
-                onFeatureClick={setSelectedFeature}
+                onFeatureClick={(feature) => {
+                  // If this feature has agent logs, show dialogue; otherwise show feature detail
+                  if (wsState.getFeatureLogs(feature.id) !== null) {
+                    setDialogueFeatureId(feature.id)
+                  } else {
+                    setSelectedFeature(feature)
+                  }
+                }}
                 onAddFeature={() => setShowAddFeature(true)}
                 onExpandProject={() => setShowExpandProject(true)}
                 activeAgents={wsState.activeAgents}
                 onCreateSpec={() => setShowSpecChat(true)}
                 hasSpec={hasSpec}
+                onShowDialogue={(featureId) => setDialogueFeatureId(featureId)}
+                featureHasLogs={(featureId) => wsState.getFeatureLogs(featureId) !== null}
               />
             ) : viewMode === 'graph' ? (
               <Card className="overflow-hidden" style={{ height: '600px' }}>
@@ -498,6 +510,30 @@ function App() {
           onClose={() => setSelectedFeature(null)}
         />
       )}
+
+      {/* Agent Dialogue Modal - view agent conversation for a feature */}
+      {dialogueFeatureId !== null && (() => {
+        const agentInfo = wsState.getFeatureAgentInfo(dialogueFeatureId)
+        const logs = wsState.getFeatureLogs(dialogueFeatureId)
+        if (!agentInfo || !logs) return null
+        const syntheticAgent: ActiveAgent = {
+          agentIndex: agentInfo.agentIndex,
+          agentName: agentInfo.agentName,
+          agentType: agentInfo.agentType,
+          featureId: dialogueFeatureId,
+          featureIds: [dialogueFeatureId],
+          featureName: agentInfo.featureName,
+          state: 'idle',
+          timestamp: new Date().toISOString(),
+        }
+        return (
+          <AgentDialogueModal
+            agent={syntheticAgent}
+            logs={logs}
+            onClose={() => setDialogueFeatureId(null)}
+          />
+        )
+      })()}
 
       {/* Expand Project Modal - AI-powered bulk feature creation */}
       {showExpandProject && selectedProject && (

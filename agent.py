@@ -67,6 +67,12 @@ async def run_agent_session(
         - "continue" if agent should continue working
         - "error" if an error occurred
     """
+    # Log prompt summary for dialogue viewer
+    prompt_summary = message[:500].replace('\n', ' ').strip()
+    if len(message) > 500:
+        prompt_summary += f"... ({len(message)} chars total)"
+    print(f"@@PROMPT:{prompt_summary}", flush=True)
+
     print("Sending prompt to Claude Agent SDK...\n")
 
     try:
@@ -75,6 +81,7 @@ async def run_agent_session(
 
         # Collect response text and show tool use
         response_text = ""
+        mcp_calls = []  # Track MCP feature tool calls for session summary
         async for msg in client.receive_response():
             msg_type = type(msg).__name__
 
@@ -87,13 +94,22 @@ async def run_agent_session(
                         response_text += block.text
                         print(block.text, end="", flush=True)
                     elif block_type == "ToolUseBlock" and hasattr(block, "name"):
-                        print(f"\n[Tool: {block.name}]", flush=True)
-                        if hasattr(block, "input"):
+                        tool_name = block.name
+                        print(f"\n[Tool: {tool_name}]", flush=True)
+                        # Highlight feature MCP calls for debugging
+                        if "feature_" in tool_name:
+                            input_str = str(getattr(block, "input", ""))
+                            print(f"   >>> [MCP] {tool_name}({input_str})", flush=True)
+                            mcp_calls.append(tool_name)
+                        elif hasattr(block, "input"):
                             input_str = str(block.input)
                             if len(input_str) > 200:
                                 print(f"   Input: {input_str[:200]}...", flush=True)
                             else:
                                 print(f"   Input: {input_str}", flush=True)
+                    elif block_type == "ThinkingBlock" and hasattr(block, "thinking"):
+                        preview = block.thinking[:200].replace('\n', ' ').strip()
+                        print(f"\n[Thinking] {preview}", flush=True)
 
             # Handle UserMessage (tool results)
             elif msg_type == "UserMessage" and hasattr(msg, "content"):
@@ -114,6 +130,25 @@ async def run_agent_session(
                         else:
                             # Tool succeeded - just show brief confirmation
                             print("   [Done]", flush=True)
+
+            # Handle SystemMessage
+            elif msg_type == "SystemMessage":
+                subtype = getattr(msg, "subtype", "")
+                print(f"[System] {subtype}", flush=True)
+
+            # Handle StreamEvent (only log meaningful events, not every delta)
+            elif msg_type == "StreamEvent":
+                event = getattr(msg, "event", {})
+                event_type = event.get("type", "")
+                if event_type == "content_block_start":
+                    block_type = event.get("content_block", {}).get("type", "")
+                    print(f"[Stream] {block_type} started", flush=True)
+
+        # Session summary: show MCP feature calls (or warn if none)
+        if mcp_calls:
+            print(f"\n[Session Summary] MCP calls: {', '.join(mcp_calls)}")
+        else:
+            print(f"\n[Session Summary] WARNING: No feature MCP calls made this session!")
 
         print("\n" + "-" * 70 + "\n")
         return "continue", response_text

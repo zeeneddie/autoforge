@@ -10,9 +10,11 @@ interface KanbanBoardProps {
   activeAgents?: ActiveAgent[]
   onCreateSpec?: () => void
   hasSpec?: boolean
+  onShowDialogue?: (featureId: number) => void
+  featureHasLogs?: (featureId: number) => boolean
 }
 
-export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandProject, activeAgents = [], onCreateSpec, hasSpec = true }: KanbanBoardProps) {
+export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandProject, activeAgents = [], onCreateSpec, hasSpec = true, onShowDialogue, featureHasLogs }: KanbanBoardProps) {
   const hasFeatures = features && (features.pending.length + features.in_progress.length + features.done.length) > 0
 
   // Combine all features for dependency status calculation
@@ -54,6 +56,8 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
         showExpandButton={hasFeatures}
         onCreateSpec={onCreateSpec}
         showCreateSpec={!hasSpec && !hasFeatures}
+        onShowDialogue={onShowDialogue}
+        featureHasLogs={featureHasLogs}
       />
       <KanbanColumn
         title="In Progress"
@@ -63,6 +67,8 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
         activeAgents={activeAgents}
         color="progress"
         onFeatureClick={onFeatureClick}
+        onShowDialogue={onShowDialogue}
+        featureHasLogs={featureHasLogs}
       />
       <KanbanColumn
         title="Done"
@@ -72,6 +78,8 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
         activeAgents={activeAgents}
         color="done"
         onFeatureClick={onFeatureClick}
+        onShowDialogue={onShowDialogue}
+        featureHasLogs={featureHasLogs}
       />
     </div>
   )
