@@ -76,10 +76,7 @@ export function AgentCard({ agent, onShowLogs, onShowDialogue }: AgentCardProps)
   const TypeIcon = typeBadge.icon
 
   return (
-    <Card
-      className={`min-w-[180px] max-w-[220px] py-3 ${onShowDialogue ? 'cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow' : ''}`}
-      onClick={() => onShowDialogue?.(agent.agentIndex)}
-    >
+    <Card className="min-w-[180px] max-w-[220px] py-3">
       <CardContent className="p-3 space-y-2">
         {/* Agent type badge */}
         <div className="flex justify-end">
@@ -100,12 +97,23 @@ export function AgentCard({ agent, onShowLogs, onShowDialogue }: AgentCardProps)
               {getStateText(agent.state)}
             </div>
           </div>
+          {/* Dialogue button */}
+          {hasLogs && onShowDialogue && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => onShowDialogue(agent.agentIndex)}
+              title="View agent dialogue"
+            >
+              <MessageCircle size={14} className="text-muted-foreground" />
+            </Button>
+          )}
           {/* Log button */}
           {hasLogs && onShowLogs && (
             <Button
               variant="ghost"
               size="icon-xs"
-              onClick={(e) => { e.stopPropagation(); onShowLogs(agent.agentIndex) }}
+              onClick={() => onShowLogs(agent.agentIndex)}
               title={`View logs (${agent.logs?.length || 0} entries)`}
             >
               <ScrollText size={14} className="text-muted-foreground" />
