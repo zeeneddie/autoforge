@@ -78,10 +78,10 @@ function MaestroSVG({ size, state }: { size: number; state: OrchestratorState })
       {/* Subtle music notes when active */}
       {(state === 'spawning' || state === 'monitoring') && (
         <>
-          <text x="4" y="20" fontSize="8" fill={MAESTRO_COLORS.secondary} className="animate-pulse">
+          <text x="4" y="20" fontSize="8" fill={MAESTRO_COLORS.secondary}>
             &#9834;
           </text>
-          <text x="58" y="48" fontSize="8" fill={MAESTRO_COLORS.secondary} className="animate-pulse" style={{ animationDelay: '0.3s' }}>
+          <text x="58" y="48" fontSize="8" fill={MAESTRO_COLORS.secondary}>
             &#9835;
           </text>
         </>
@@ -90,24 +90,9 @@ function MaestroSVG({ size, state }: { size: number; state: OrchestratorState })
   )
 }
 
-// Animation classes based on orchestrator state
-function getStateAnimation(state: OrchestratorState): string {
-  switch (state) {
-    case 'idle':
-      return 'animate-bounce-gentle'
-    case 'initializing':
-      return 'animate-thinking'
-    case 'scheduling':
-      return 'animate-thinking'
-    case 'spawning':
-      return 'animate-working'
-    case 'monitoring':
-      return 'animate-bounce-gentle'
-    case 'complete':
-      return 'animate-celebrate'
-    default:
-      return ''
-  }
+// Animation classes based on orchestrator state — disabled to keep icons still
+function getStateAnimation(_state: OrchestratorState): string {
+  return ''
 }
 
 // Glow effect based on state
