@@ -179,6 +179,23 @@ class TestRun(Base):
     feature = relationship("Feature", backref="test_runs")
 
 
+class AgentLog(Base):
+    """Persistent log entry for agent activity on a feature."""
+
+    __tablename__ = "agent_logs"
+    __table_args__ = (
+        Index('ix_agent_log_feature', 'feature_id'),
+    )
+
+    id = Column(Integer, primary_key=True)
+    feature_id = Column(Integer, ForeignKey("features.id", ondelete="CASCADE"), nullable=False)
+    line = Column(Text, nullable=False)
+    log_type = Column(String(20), nullable=False, default="output")  # "output", "error", "state_change"
+    agent_type = Column(String(20), nullable=True)  # "coding" or "testing"
+    agent_index = Column(Integer, nullable=True)
+    timestamp = Column(DateTime, nullable=False, default=_utc_now)
+
+
 class ScheduleOverride(Base):
     """Persisted manual override for a schedule window."""
 
@@ -450,6 +467,17 @@ def _migrate_add_test_runs_table(engine) -> None:
         TestRun.__table__.create(bind=engine)  # type: ignore[attr-defined]
 
 
+def _migrate_add_agent_logs_table(engine) -> None:
+    """Create agent_logs table if it doesn't exist."""
+    from sqlalchemy import inspect
+
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    if "agent_logs" not in existing_tables:
+        AgentLog.__table__.create(bind=engine)  # type: ignore[attr-defined]
+
+
 def _configure_sqlite_immediate_transactions(engine) -> None:
     """Configure engine for IMMEDIATE transactions via event hooks.
 
@@ -551,6 +579,9 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add test_runs table
     _migrate_add_test_runs_table(engine)
+
+    # Migrate to add agent_logs table
+    _migrate_add_agent_logs_table(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

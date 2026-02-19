@@ -29,9 +29,9 @@ import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp'
 import { ThemeSelector } from './components/ThemeSelector'
 import { ResetProjectModal } from './components/ResetProjectModal'
 import { ProjectSetupRequired } from './components/ProjectSetupRequired'
-import { getDependencyGraph, startAgent } from './lib/api'
+import { getDependencyGraph, startAgent, fetchFeatureLogs } from './lib/api'
 import { Loader2, Settings, Moon, Sun, RotateCcw, BookOpen } from 'lucide-react'
-import type { ActiveAgent, Feature } from './lib/types'
+import type { ActiveAgent, AgentLogEntry, Feature } from './lib/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -69,6 +69,8 @@ function App() {
   const [specInitializerStatus, setSpecInitializerStatus] = useState<InitializerStatus>('idle')
   const [specInitializerError, setSpecInitializerError] = useState<string | null>(null)
   const [dialogueFeatureId, setDialogueFeatureId] = useState<number | null>(null)
+  // Persisted logs fetched from the database (fallback when in-memory WebSocket logs are unavailable)
+  const [persistedLogs, setPersistedLogs] = useState<AgentLogEntry[] | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
       const stored = localStorage.getItem(VIEW_MODE_KEY)
@@ -113,6 +115,44 @@ function App() {
 
   // Celebrate when all features are complete
   useCelebration(features, selectedProject)
+
+  // Fetch persisted logs from database when dialogue modal opens and no in-memory logs exist
+  useEffect(() => {
+    if (dialogueFeatureId === null || !selectedProject) {
+      setPersistedLogs(null)
+      return
+    }
+
+    // If we already have in-memory logs from the WebSocket, no need to fetch
+    const inMemoryLogs = wsState.getFeatureLogs(dialogueFeatureId)
+    if (inMemoryLogs && inMemoryLogs.length > 0) {
+      setPersistedLogs(null)
+      return
+    }
+
+    // Fetch from the API
+    let cancelled = false
+    fetchFeatureLogs(selectedProject, dialogueFeatureId)
+      .then((response) => {
+        if (cancelled) return
+        if (response.logs.length > 0) {
+          // Convert API response to AgentLogEntry format
+          const entries: AgentLogEntry[] = response.logs.map((log) => ({
+            line: log.line,
+            timestamp: log.timestamp,
+            type: log.log_type as AgentLogEntry['type'],
+          }))
+          setPersistedLogs(entries)
+        } else {
+          setPersistedLogs(null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPersistedLogs(null)
+      })
+
+    return () => { cancelled = true }
+  }, [dialogueFeatureId, selectedProject, wsState])
 
   // Persist selected project to localStorage
   const handleSelectProject = useCallback((project: string | null) => {
@@ -458,8 +498,9 @@ function App() {
               <KanbanBoard
                 features={features}
                 onFeatureClick={(feature) => {
-                  // If this feature has agent logs, show dialogue; otherwise show feature detail
-                  if (wsState.getFeatureLogs(feature.id) !== null) {
+                  // If this feature has in-memory logs or is completed (may have persisted logs),
+                  // show dialogue; otherwise show feature detail
+                  if (wsState.getFeatureLogs(feature.id) !== null || feature.passes) {
                     setDialogueFeatureId(feature.id)
                   } else {
                     setSelectedFeature(feature)
@@ -471,7 +512,13 @@ function App() {
                 onCreateSpec={() => setShowSpecChat(true)}
                 hasSpec={hasSpec}
                 onShowDialogue={(featureId) => setDialogueFeatureId(featureId)}
-                featureHasLogs={(featureId) => wsState.getFeatureLogs(featureId) !== null}
+                featureHasLogs={(featureId) => {
+                  // Check for in-memory logs first, then assume completed features have persisted logs
+                  if (wsState.getFeatureLogs(featureId) !== null) return true
+                  const allF = [...(features?.pending ?? []), ...(features?.in_progress ?? []), ...(features?.done ?? [])]
+                  const f = allF.find(feat => feat.id === featureId)
+                  return f?.passes ?? false
+                }}
               />
             ) : viewMode === 'graph' ? (
               <Card className="overflow-hidden" style={{ height: '600px' }}>
@@ -514,15 +561,27 @@ function App() {
       {/* Agent Dialogue Modal - view agent conversation for a feature */}
       {dialogueFeatureId !== null && (() => {
         const agentInfo = wsState.getFeatureAgentInfo(dialogueFeatureId)
-        const logs = wsState.getFeatureLogs(dialogueFeatureId)
-        if (!agentInfo || !logs) return null
+        const inMemoryLogs = wsState.getFeatureLogs(dialogueFeatureId)
+        // Use in-memory logs if available, otherwise fall back to persisted logs from DB
+        const logs = (inMemoryLogs && inMemoryLogs.length > 0) ? inMemoryLogs : persistedLogs
+        if (!logs) return null
+
+        // Find the feature name from current features data
+        const allFeatures = [
+          ...(features?.pending ?? []),
+          ...(features?.in_progress ?? []),
+          ...(features?.done ?? []),
+        ]
+        const featureData = allFeatures.find(f => f.id === dialogueFeatureId)
+        const featureName = agentInfo?.featureName ?? featureData?.name ?? `Feature #${dialogueFeatureId}`
+
         const syntheticAgent: ActiveAgent = {
-          agentIndex: agentInfo.agentIndex,
-          agentName: agentInfo.agentName,
-          agentType: agentInfo.agentType,
+          agentIndex: agentInfo?.agentIndex ?? 0,
+          agentName: agentInfo?.agentName ?? 'Spark',
+          agentType: agentInfo?.agentType ?? 'coding',
           featureId: dialogueFeatureId,
           featureIds: [dialogueFeatureId],
-          featureName: agentInfo.featureName,
+          featureName,
           state: 'idle',
           timestamp: new Date().toISOString(),
         }
@@ -530,7 +589,7 @@ function App() {
           <AgentDialogueModal
             agent={syntheticAgent}
             logs={logs}
-            onClose={() => setDialogueFeatureId(null)}
+            onClose={() => { setDialogueFeatureId(null); setPersistedLogs(null) }}
           />
         )
       })()}

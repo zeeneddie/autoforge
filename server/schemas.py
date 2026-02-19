@@ -409,6 +409,7 @@ class SettingsResponse(BaseModel):
     model_testing: str | None = None
     glm_mode: bool = False  # True if GLM API is configured via .env
     ollama_mode: bool = False  # True if Ollama API is configured via .env
+    active_provider: str | None = None  # Active provider profile name
     testing_agent_ratio: int = 1  # Regression testing agents (0-3)
     playwright_headless: bool = True
     batch_size: int = 3  # Features per coding agent batch (1-3)
@@ -427,6 +428,7 @@ class SettingsUpdate(BaseModel):
     model_initializer: str | None = None
     model_coding: str | None = None
     model_testing: str | None = None
+    active_provider: str | None = None  # Provider profile name or "none" to clear
     testing_agent_ratio: int | None = None  # 0-3
     playwright_headless: bool | None = None
     batch_size: int | None = None  # Features per agent batch (1-3)
@@ -449,6 +451,27 @@ class SettingsUpdate(BaseModel):
         if v is not None and (v < 1 or v > 3):
             raise ValueError("batch_size must be between 1 and 3")
         return v
+
+
+# ============================================================================
+# Provider Schemas
+# ============================================================================
+
+
+class ProviderProfile(BaseModel):
+    """Summary of a provider profile for the UI."""
+    name: str
+    description: str
+    active: bool = False
+    has_credentials: bool = False
+    models: dict[str, str | None] = {}  # per-agent-type model mapping
+    env_masked: dict[str, str] = {}  # env vars with masked secrets
+
+
+class ProvidersListResponse(BaseModel):
+    """Response schema for provider profiles list."""
+    providers: list[ProviderProfile]
+    active: str | None = None
 
 
 # ============================================================================
@@ -600,3 +623,25 @@ class NextRunResponse(BaseModel):
     next_end: datetime | None  # UTC (latest end if overlapping)
     is_currently_running: bool
     active_schedule_count: int
+
+
+# ============================================================================
+# Agent Log Schemas
+# ============================================================================
+
+
+class AgentLogResponse(BaseModel):
+    """Single agent log entry."""
+    id: int
+    line: str
+    log_type: str
+    agent_type: str | None = None
+    agent_index: int | None = None
+    timestamp: datetime
+
+
+class AgentLogsListResponse(BaseModel):
+    """Response for feature agent logs."""
+    feature_id: int
+    logs: list[AgentLogResponse]
+    total: int

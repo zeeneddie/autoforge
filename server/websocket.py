@@ -754,6 +754,48 @@ async def project_websocket(websocket: WebSocket, project_name: str):
     # Create orchestrator tracker for observability
     orchestrator_tracker = OrchestratorTracker()
 
+    # Persistent log writer - stores agent output to database for later retrieval
+    _db_classes_loaded = False
+    _AgentLog = None
+    _db_create = None
+
+    def _ensure_db_classes():
+        nonlocal _db_classes_loaded, _AgentLog, _db_create
+        if not _db_classes_loaded:
+            import sys
+            root = Path(__file__).parent.parent
+            if str(root) not in sys.path:
+                sys.path.insert(0, str(root))
+            from api.database import AgentLog, create_database
+            _AgentLog = AgentLog
+            _db_create = create_database
+            _db_classes_loaded = True
+
+    def _persist_log(feature_id: int, line: str, agent_index: int | None):
+        """Write a log entry to the database (fire-and-forget).
+
+        Failures are silently ignored to avoid breaking the WebSocket stream.
+        """
+        try:
+            _ensure_db_classes()
+            _, SessionLocal = _db_create(project_dir)
+            session = SessionLocal()
+            try:
+                log_type = "error" if "[Error]" in line or "[BLOCKED]" in line else "output"
+                entry = _AgentLog(
+                    feature_id=feature_id,
+                    line=line,
+                    log_type=log_type,
+                    agent_index=agent_index,
+                    timestamp=datetime.now(),
+                )
+                session.add(entry)
+                session.commit()
+            finally:
+                session.close()
+        except Exception:
+            pass  # Don't let log persistence failures break the WebSocket stream
+
     async def on_output(line: str):
         """Handle agent output - broadcast to this WebSocket."""
         try:
@@ -777,6 +819,10 @@ async def project_websocket(websocket: WebSocket, project_name: str):
                 log_msg["agentIndex"] = agent_index
 
             await websocket.send_json(log_msg)
+
+            # Persist to database for later retrieval (survives page refresh)
+            if feature_id is not None:
+                _persist_log(feature_id, line, agent_index)
 
             # Check if this line indicates agent activity (parallel mode)
             # and emit agent_update messages if so

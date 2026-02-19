@@ -43,6 +43,7 @@ import type {
   TestHistoryResponse,
   ReleaseNotesList,
   ReleaseNotesContent,
+  ProvidersListResponse,
 } from './types'
 
 const API_BASE = '/api'
@@ -189,6 +190,34 @@ export async function createFeaturesBulk(
     method: 'POST',
     body: JSON.stringify(bulk),
   })
+}
+
+// ============================================================================
+// Agent Logs API
+// ============================================================================
+
+export interface AgentLogEntry {
+  id: number
+  line: string
+  log_type: string
+  agent_type: string | null
+  agent_index: number | null
+  timestamp: string
+}
+
+export interface AgentLogsListResponse {
+  feature_id: number
+  logs: AgentLogEntry[]
+  total: number
+}
+
+export async function fetchFeatureLogs(
+  projectName: string,
+  featureId: number
+): Promise<AgentLogsListResponse> {
+  return fetchJSON(
+    `/projects/${encodeURIComponent(projectName)}/features/${featureId}/logs`
+  )
 }
 
 // ============================================================================
@@ -425,6 +454,10 @@ export async function updateSettings(settings: SettingsUpdate): Promise<Settings
     method: 'PATCH',
     body: JSON.stringify(settings),
   })
+}
+
+export async function getProviders(): Promise<ProvidersListResponse> {
+  return fetchJSON('/settings/providers')
 }
 
 // ============================================================================

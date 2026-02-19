@@ -13,6 +13,8 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 
 from ..schemas import (
+    AgentLogResponse,
+    AgentLogsListResponse,
     DependencyGraphEdge,
     DependencyGraphNode,
     DependencyGraphResponse,
@@ -732,3 +734,72 @@ async def set_dependencies(project_name: str, feature_id: int, update: Dependenc
     except Exception:
         logger.exception("Failed to set dependencies")
         raise HTTPException(status_code=500, detail="Failed to set dependencies")
+
+
+# ============================================================================
+# Agent Logs Endpoint
+# ============================================================================
+
+# Lazy import for AgentLog to avoid circular dependencies
+_AgentLog = None
+
+
+def _get_agent_log_class():
+    """Lazy import of AgentLog database class."""
+    global _AgentLog
+    if _AgentLog is None:
+        import sys
+        root = Path(__file__).parent.parent.parent
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from api.database import AgentLog
+        _AgentLog = AgentLog
+    return _AgentLog
+
+
+@router.get("/{feature_id}/logs", response_model=AgentLogsListResponse)
+async def get_feature_logs(project_name: str, feature_id: int):
+    """Get persistent agent logs for a feature."""
+    project_name = validate_project_name(project_name)
+    project_dir = _get_project_path(project_name)
+
+    if not project_dir or not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    _, Feature = _get_db_classes()
+    AgentLog = _get_agent_log_class()
+
+    try:
+        with get_db_session(project_dir) as session:
+            # Verify feature exists
+            feature = session.query(Feature).filter(Feature.id == feature_id).first()
+            if not feature:
+                raise HTTPException(status_code=404, detail=f"Feature #{feature_id} not found")
+
+            logs = (
+                session.query(AgentLog)
+                .filter(AgentLog.feature_id == feature_id)
+                .order_by(AgentLog.timestamp.asc())
+                .all()
+            )
+
+            return AgentLogsListResponse(
+                feature_id=feature_id,
+                logs=[
+                    AgentLogResponse(
+                        id=log.id,
+                        line=log.line,
+                        log_type=log.log_type,
+                        agent_type=log.agent_type,
+                        agent_index=log.agent_index,
+                        timestamp=log.timestamp,
+                    )
+                    for log in logs
+                ],
+                total=len(logs),
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Database error fetching agent logs")
+        raise HTTPException(status_code=500, detail="Database error occurred")
