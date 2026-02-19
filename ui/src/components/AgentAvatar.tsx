@@ -19,25 +19,9 @@ const SIZES = {
   lg: { svg: 64, font: 'text-base' },
 }
 
-// Animation classes based on state
-function getStateAnimation(state: AgentState): string {
-  switch (state) {
-    case 'idle':
-      return 'animate-bounce-gentle'
-    case 'thinking':
-      return 'animate-thinking'
-    case 'working':
-      return 'animate-working'
-    case 'testing':
-      return 'animate-testing'
-    case 'success':
-      return 'animate-celebrate'
-    case 'error':
-    case 'struggling':
-      return 'animate-shake-gentle'
-    default:
-      return ''
-  }
+// Animation classes based on state — disabled to keep icons still
+function getStateAnimation(_state: AgentState): string {
+  return ''
 }
 
 // Glow effect based on state

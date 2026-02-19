@@ -70,7 +70,7 @@ function SparkSVG({ colors, size }: MascotSVGProps) {
       {/* Robot head */}
       <rect x="12" y="8" width="40" height="24" rx="4" fill={colors.secondary} />
       {/* Antenna */}
-      <circle cx="32" cy="4" r="4" fill={colors.primary} className="animate-pulse" />
+      <circle cx="32" cy="4" r="4" fill={colors.primary} className="" />
       <rect x="30" y="4" width="4" height="8" fill={colors.primary} />
       {/* Eyes */}
       <circle cx="24" cy="18" r="4" fill="white" />
@@ -166,8 +166,8 @@ function BuzzSVG({ colors, size }: MascotSVGProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
       {/* Wings */}
-      <ellipse cx="14" cy="32" rx="10" ry="14" fill={colors.accent} opacity="0.8" className="animate-pulse" />
-      <ellipse cx="50" cy="32" rx="10" ry="14" fill={colors.accent} opacity="0.8" className="animate-pulse" />
+      <ellipse cx="14" cy="32" rx="10" ry="14" fill={colors.accent} opacity="0.8" className="" />
+      <ellipse cx="50" cy="32" rx="10" ry="14" fill={colors.accent} opacity="0.8" className="" />
       {/* Body stripes */}
       <ellipse cx="32" cy="36" rx="14" ry="20" fill={colors.primary} />
       <ellipse cx="32" cy="30" rx="12" ry="6" fill="#1a1a1a" />
@@ -303,8 +303,8 @@ function ZapSVG({ colors, size }: MascotSVGProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
       {/* Electric sparks */}
-      <path d="M12,32 L20,28 L16,32 L22,30" stroke={colors.secondary} strokeWidth="2" className="animate-pulse" />
-      <path d="M52,32 L44,28 L48,32 L42,30" stroke={colors.secondary} strokeWidth="2" className="animate-pulse" />
+      <path d="M12,32 L20,28 L16,32 L22,30" stroke={colors.secondary} strokeWidth="2" className="" />
+      <path d="M52,32 L44,28 L48,32 L42,30" stroke={colors.secondary} strokeWidth="2" className="" />
       {/* Orb */}
       <circle cx="32" cy="32" r="18" fill={colors.primary} />
       <circle cx="32" cy="32" r="14" fill={colors.secondary} />
@@ -343,7 +343,7 @@ function TurboSVG({ colors, size }: MascotSVGProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
       {/* Flames */}
-      <ellipse cx="32" cy="58" rx="8" ry="6" fill="#FBBF24" className="animate-pulse" />
+      <ellipse cx="32" cy="58" rx="8" ry="6" fill="#FBBF24" className="" />
       <ellipse cx="32" cy="56" rx="5" ry="4" fill="#FCD34D" />
       {/* Rocket body */}
       <ellipse cx="32" cy="32" rx="14" ry="24" fill={colors.primary} />
@@ -473,8 +473,8 @@ function FluxSVG({ colors, size }: MascotSVGProps) {
       <circle cx="29" cy="29" r="2" fill="#1a1a1a" />
       <circle cx="41" cy="37" r="2" fill="#1a1a1a" />
       {/* Sparkles */}
-      <circle cx="16" cy="24" r="2" fill={colors.accent} className="animate-pulse" />
-      <circle cx="48" cy="40" r="2" fill={colors.accent} className="animate-pulse" />
+      <circle cx="16" cy="24" r="2" fill={colors.accent} className="" />
+      <circle cx="48" cy="40" r="2" fill={colors.accent} className="" />
     </svg>
   )
 }

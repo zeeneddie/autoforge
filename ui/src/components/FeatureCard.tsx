@@ -38,7 +38,8 @@ function getCategoryColor(category: string): string {
 export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], activeAgent, hasDialogueLogs, onShowDialogue }: FeatureCardProps) {
   const categoryColor = getCategoryColor(feature.category)
   const isBlocked = feature.blocked || (feature.blocking_dependencies && feature.blocking_dependencies.length > 0)
-  const hasActiveAgent = !!activeAgent
+  // Don't show agent overlay on completed features (agent may linger in activeAgents after finishing)
+  const hasActiveAgent = !!activeAgent && !feature.passes
 
   return (
     <Card
@@ -74,8 +75,8 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
           {feature.description}
         </p>
 
-        {/* Agent working on this feature */}
-        {activeAgent && (
+        {/* Agent working on this feature (hide for completed features) */}
+        {activeAgent && !feature.passes && (
           <div className="flex items-center gap-2 py-2 px-2 rounded-md bg-primary/10 border border-primary/30">
             <AgentAvatar name={activeAgent.agentName} state={activeAgent.state} size="sm" />
             <div className="flex-1 min-w-0">
