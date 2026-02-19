@@ -15,6 +15,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from claude_agent_sdk import ClaudeSDKClient
+from claude_agent_sdk.types import ResultMessage
 
 # Fix Windows console encoding for Unicode characters (emoji, etc.)
 # Without this, print() crashes when Claude outputs emoji like ✅
@@ -82,8 +83,13 @@ async def run_agent_session(
         # Collect response text and show tool use
         response_text = ""
         mcp_calls = []  # Track MCP feature tool calls for session summary
+        got_result = False  # Track if CLI produced a proper ResultMessage
         async for msg in client.receive_response():
             msg_type = type(msg).__name__
+
+            # Track ResultMessage to detect abnormal termination
+            if isinstance(msg, ResultMessage):
+                got_result = True
 
             # Handle AssistantMessage (text and tool use)
             if msg_type == "AssistantMessage" and hasattr(msg, "content"):
@@ -92,7 +98,9 @@ async def run_agent_session(
 
                     if block_type == "TextBlock" and hasattr(block, "text"):
                         response_text += block.text
-                        print(block.text, end="", flush=True)
+                        # Use newline termination so output is visible through
+                        # the line-based pipe to the orchestrator immediately.
+                        print(block.text, flush=True)
                     elif block_type == "ToolUseBlock" and hasattr(block, "name"):
                         tool_name = block.name
                         print(f"\n[Tool: {tool_name}]", flush=True)
@@ -149,6 +157,14 @@ async def run_agent_session(
             print(f"\n[Session Summary] MCP calls: {', '.join(mcp_calls)}")
         else:
             print(f"\n[Session Summary] WARNING: No feature MCP calls made this session!")
+
+        # Detect abnormal termination: CLI exited without producing a ResultMessage.
+        # This happens when the CLI subprocess crashes, MCP servers fail, or the
+        # API returns an error that the CLI handles silently (exit code 0).
+        if not got_result and not response_text.strip():
+            print("\n[Session Summary] ERROR: CLI terminated without producing a result", flush=True)
+            print("   This usually means MCP server startup failed or the API returned an error.", flush=True)
+            return "error", "Agent session ended without result (CLI may have crashed or MCP servers failed)"
 
         print("\n" + "-" * 70 + "\n")
         return "continue", response_text
@@ -307,6 +323,23 @@ async def run_autonomous_agent(
         # Wrap in try/except to handle MCP server startup failures gracefully
         try:
             async with client:
+                # Verify MCP servers connected before running session
+                try:
+                    mcp_status = await client.get_mcp_status()
+                    if mcp_status and "mcpServers" in mcp_status:
+                        all_connected = True
+                        for server in mcp_status["mcpServers"]:
+                            name = server.get("name", "unknown")
+                            srv_status = server.get("status", "unknown")
+                            print(f"   MCP server '{name}': {srv_status}", flush=True)
+                            if srv_status != "connected":
+                                all_connected = False
+                                print(f"   WARNING: MCP server '{name}' not connected!", flush=True)
+                        if not all_connected:
+                            print("   Some MCP servers failed — agent may lack required tools", flush=True)
+                except Exception as e:
+                    print(f"   Warning: Could not check MCP status: {e}", flush=True)
+
                 status, response = await run_agent_session(client, prompt, project_dir)
         except Exception as e:
             print(f"Client/MCP server error: {e}")

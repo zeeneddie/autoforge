@@ -1388,12 +1388,31 @@ class ParallelOrchestrator:
             all_feature_ids, "coding", proc.pid, None, return_code
         )
 
-        # Track failures for features still in_progress at exit
-        if return_code != 0:
+        # Track failures: both explicit failures (return_code != 0) AND silent
+        # failures where agent exits 0 but didn't mark the feature as passing.
+        # Without this, agents that exit cleanly without doing useful work would
+        # be retried indefinitely.
+        session2 = self.get_session()
+        try:
+            session2.expire_all()
+            features_still_failing = []
+            for fid in all_feature_ids:
+                feat = session2.query(Feature).filter(Feature.id == fid).first()
+                if feat and not feat.passes:
+                    features_still_failing.append(fid)
+        finally:
+            session2.close()
+
+        if return_code != 0 or features_still_failing:
             with self._lock:
-                for fid in all_feature_ids:
+                failed_ids = all_feature_ids if return_code != 0 else features_still_failing
+                for fid in failed_ids:
                     self._failure_counts[fid] = self._failure_counts.get(fid, 0) + 1
                     failure_count = self._failure_counts[fid]
+                    if return_code == 0:
+                        print(f"Feature #{fid} agent exited 0 but feature not passing (attempt #{failure_count})", flush=True)
+                        debug_log.log("COMPLETE", f"Feature #{fid} silent failure (exit 0, not passing)",
+                            failure_count=failure_count)
                     if failure_count >= MAX_FEATURE_RETRIES:
                         print(f"Feature #{fid} has failed {failure_count} times, will not retry", flush=True)
                         debug_log.log("COMPLETE", f"Feature #{fid} exceeded max retries",
