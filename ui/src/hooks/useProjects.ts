@@ -4,7 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import type { FeatureCreate, FeatureUpdate, ModelsResponse, ProjectSettingsUpdate, Settings, SettingsUpdate, PlanningConfigUpdate } from '../lib/types'
+import type { FeatureCreate, FeatureUpdate, ModelsResponse, ProjectSettingsUpdate, ProvidersListResponse, Settings, SettingsUpdate, PlanningConfigUpdate } from '../lib/types'
 
 // ============================================================================
 // Projects
@@ -279,9 +279,15 @@ const DEFAULT_SETTINGS: Settings = {
   model_testing: null,
   glm_mode: false,
   ollama_mode: false,
+  active_provider: null,
   testing_agent_ratio: 1,
   playwright_headless: true,
   batch_size: 3,
+}
+
+const DEFAULT_PROVIDERS: ProvidersListResponse = {
+  providers: [],
+  active: null,
 }
 
 export function useAvailableModels() {
@@ -333,7 +339,18 @@ export function useUpdateSettings() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['providers'] })
     },
+  })
+}
+
+export function useProviders() {
+  return useQuery({
+    queryKey: ['providers'],
+    queryFn: api.getProviders,
+    staleTime: 60000,
+    retry: 1,
+    placeholderData: DEFAULT_PROVIDERS,
   })
 }
 

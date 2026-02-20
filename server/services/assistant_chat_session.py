@@ -25,7 +25,7 @@ from .assistant_database import (
     create_conversation,
     get_messages,
 )
-from .chat_constants import API_ENV_VARS, ROOT_DIR
+from .chat_constants import ROOT_DIR
 
 # Load environment variables from .env file if present
 load_dotenv()
@@ -258,11 +258,8 @@ class AssistantChatSession:
         system_cli = shutil.which("claude")
 
         # Build environment overrides for API configuration
-        sdk_env: dict[str, str] = {}
-        for var in API_ENV_VARS:
-            value = os.getenv(var)
-            if value:
-                sdk_env[var] = value
+        from provider_config import get_provider_env
+        sdk_env = get_provider_env()
 
         # Determine model from environment or use default
         # This allows using alternative APIs (e.g., GLM via z.ai) that may not support Claude model names
