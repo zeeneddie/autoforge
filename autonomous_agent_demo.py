@@ -164,9 +164,16 @@ Authentication:
     # Agent type for subprocess mode
     parser.add_argument(
         "--agent-type",
-        choices=["initializer", "coding", "testing"],
+        choices=["architect", "initializer", "coding", "testing", "reviewer"],
         default=None,
         help="Agent type (used by orchestrator to spawn specialized subprocesses)",
+    )
+
+    parser.add_argument(
+        "--review-feature-id",
+        type=int,
+        default=None,
+        help="Feature ID to review (used by orchestrator for reviewer agents)",
     )
 
     parser.add_argument(
@@ -280,6 +287,7 @@ def main() -> None:
                     agent_type=args.agent_type,
                     testing_feature_id=args.testing_feature_id,
                     testing_feature_ids=testing_feature_ids,
+                    review_feature_id=getattr(args, 'review_feature_id', None),
                 )
             )
         else:

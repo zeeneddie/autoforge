@@ -41,7 +41,7 @@ from sqlalchemy import text
 # Add parent directory to path so we can import from api module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.database import Feature, atomic_transaction, create_database
+from api.database import AgentMemory, Feature, atomic_transaction, create_database
 from api.dependency_resolver import (
     MAX_DEPENDENCIES_PER_FEATURE,
     compute_scheduling_scores,
@@ -982,6 +982,416 @@ def feature_set_dependencies(
             })
     except Exception as e:
         return json.dumps({"error": f"Failed to set dependencies: {str(e)}"})
+
+
+# ---------------------------------------------------------------------------
+# Review Agent Tools (Sprint 7.5)
+# ---------------------------------------------------------------------------
+# These tools support the independent review workflow. When review_enabled
+# is True, coding agents use feature_mark_for_review instead of
+# feature_mark_passing. Review agents then approve or reject.
+
+
+@mcp.tool()
+def feature_mark_for_review(
+    feature_id: Annotated[int, Field(description="The ID of the feature to submit for review", ge=1)]
+) -> str:
+    """Submit a feature for independent review after implementation.
+
+    Sets the feature's review_status to 'pending_review' and clears in_progress.
+    A review agent will then independently verify the feature.
+
+    Use this instead of feature_mark_passing when review mode is enabled.
+    If review mode is disabled, this behaves like feature_mark_passing (pass-through).
+
+    Args:
+        feature_id: The ID of the feature to submit for review
+
+    Returns:
+        JSON with success confirmation
+    """
+    # Check if review mode is enabled
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from registry import get_setting
+        review_enabled = get_setting("review_enabled")
+        is_review_enabled = review_enabled and review_enabled.lower() == "true"
+    except Exception:
+        is_review_enabled = False
+
+    if not is_review_enabled:
+        # Pass-through: behave like feature_mark_passing
+        return feature_mark_passing(feature_id)
+
+    session = get_session()
+    try:
+        from api.database import _utc_now
+        # Atomic update: set review_status, clear in_progress
+        result = session.execute(text("""
+            UPDATE features
+            SET review_status = 'pending_review', in_progress = 0
+            WHERE id = :id AND passes = 0
+        """), {"id": feature_id})
+        session.commit()
+
+        if result.rowcount == 0:
+            feature = session.query(Feature).filter(Feature.id == feature_id).first()
+            if feature is None:
+                return json.dumps({"error": f"Feature with ID {feature_id} not found"})
+            if feature.passes:
+                return json.dumps({"error": f"Feature {feature_id} is already passing"})
+            return json.dumps({"error": "Failed to submit feature for review"})
+
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        return json.dumps({
+            "success": True,
+            "feature_id": feature_id,
+            "name": feature.name,
+            "review_status": "pending_review",
+            "message": f"Feature #{feature_id} submitted for review"
+        })
+    except Exception as e:
+        session.rollback()
+        return json.dumps({"error": f"Failed to submit for review: {str(e)}"})
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def feature_approve(
+    feature_id: Annotated[int, Field(description="The ID of the feature to approve", ge=1)]
+) -> str:
+    """Approve a feature after independent review.
+
+    Sets review_status to 'approved', marks passes=True, and records the
+    review timestamp. Only works on features with review_status='pending_review'.
+
+    Args:
+        feature_id: The ID of the feature to approve
+
+    Returns:
+        JSON with approval confirmation
+    """
+    session = get_session()
+    try:
+        from api.database import _utc_now
+        now = _utc_now()
+
+        result = session.execute(text("""
+            UPDATE features
+            SET passes = 1, in_progress = 0,
+                review_status = 'approved', reviewed_at = :now
+            WHERE id = :id AND review_status = 'pending_review'
+        """), {"id": feature_id, "now": now})
+        session.commit()
+
+        if result.rowcount == 0:
+            feature = session.query(Feature).filter(Feature.id == feature_id).first()
+            if feature is None:
+                return json.dumps({"error": f"Feature with ID {feature_id} not found"})
+            if feature.passes:
+                return json.dumps({"error": f"Feature {feature_id} is already passing"})
+            if feature.review_status != "pending_review":
+                return json.dumps({"error": f"Feature {feature_id} is not pending review (status: {feature.review_status})"})
+            return json.dumps({"error": "Failed to approve feature"})
+
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        return json.dumps({
+            "success": True,
+            "feature_id": feature_id,
+            "name": feature.name,
+            "review_status": "approved",
+            "message": f"Feature #{feature_id} approved and marked as passing"
+        })
+    except Exception as e:
+        session.rollback()
+        return json.dumps({"error": f"Failed to approve feature: {str(e)}"})
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def feature_reject(
+    feature_id: Annotated[int, Field(description="The ID of the feature to reject", ge=1)],
+    notes: Annotated[str, Field(min_length=1, max_length=2000, description="Rejection reason with specific feedback for the coding agent")]
+) -> str:
+    """Reject a feature and send it back to the coding agent with feedback.
+
+    Sets review_status to 'rejected' with review notes. The coding agent
+    will see these notes when re-claiming the feature and should address
+    the feedback before re-submitting.
+
+    Args:
+        feature_id: The ID of the feature to reject
+        notes: Specific feedback about what needs to be fixed
+
+    Returns:
+        JSON with rejection confirmation
+    """
+    session = get_session()
+    try:
+        from api.database import _utc_now
+        now = _utc_now()
+
+        result = session.execute(text("""
+            UPDATE features
+            SET review_status = 'rejected', review_notes = :notes,
+                reviewed_at = :now, in_progress = 0
+            WHERE id = :id AND review_status = 'pending_review'
+        """), {"id": feature_id, "notes": notes, "now": now})
+        session.commit()
+
+        if result.rowcount == 0:
+            feature = session.query(Feature).filter(Feature.id == feature_id).first()
+            if feature is None:
+                return json.dumps({"error": f"Feature with ID {feature_id} not found"})
+            if feature.review_status != "pending_review":
+                return json.dumps({"error": f"Feature {feature_id} is not pending review (status: {feature.review_status})"})
+            return json.dumps({"error": "Failed to reject feature"})
+
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        return json.dumps({
+            "success": True,
+            "feature_id": feature_id,
+            "name": feature.name,
+            "review_status": "rejected",
+            "message": f"Feature #{feature_id} rejected - sent back for rework"
+        })
+    except Exception as e:
+        session.rollback()
+        return json.dumps({"error": f"Failed to reject feature: {str(e)}"})
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# Session Memory Tools (Sprint 7.4)
+# ---------------------------------------------------------------------------
+# These tools allow agents to store and recall structured memories across
+# sessions. Memories are stored in the per-project SQLite database and
+# retrieved on-demand (not stuffed into system prompts).
+
+VALID_MEMORY_CATEGORIES = (
+    "decision", "pattern", "learning", "architecture", "spec_constraint",
+)
+
+
+@mcp.tool()
+def memory_store(
+    category: Annotated[str, Field(description="Memory category: decision, pattern, learning, architecture, or spec_constraint")],
+    key: Annotated[str, Field(min_length=1, max_length=200, description="Short descriptive key (e.g., 'auth-strategy', 'db-orm-choice')")],
+    value: Annotated[str, Field(min_length=1, max_length=2000, description="The memory content to store")],
+    feature_id: Annotated[int | None, Field(default=None, description="Optional feature ID this memory relates to")] = None,
+    agent_type: Annotated[str | None, Field(default=None, description="Agent type storing this memory")] = None,
+) -> str:
+    """Store a memory for future sessions.
+
+    If a memory with the same category+key already exists, the old one is
+    superseded (kept for history) and a new version is created.
+
+    Use this to record:
+    - Architecture decisions (e.g., "Using Prisma ORM with PostgreSQL")
+    - Patterns discovered (e.g., "All API routes follow /api/v1/{resource}")
+    - Learnings from errors (e.g., "Must run migrations before seeding")
+    - Spec constraints (e.g., "Max 50 items per page, required by spec")
+
+    Args:
+        category: One of: decision, pattern, learning, architecture, spec_constraint
+        key: Short descriptive identifier for this memory
+        value: The memory content
+        feature_id: Optional feature ID this memory relates to
+        agent_type: Optional agent type (coding, initializer, testing)
+
+    Returns:
+        JSON with the stored memory details
+    """
+    if category not in VALID_MEMORY_CATEGORIES:
+        return json.dumps({
+            "error": f"Invalid category '{category}'. Must be one of: {', '.join(VALID_MEMORY_CATEGORIES)}"
+        })
+
+    try:
+        with atomic_transaction(_session_maker) as session:
+            # Check for existing memory with same category+key
+            existing = (
+                session.query(AgentMemory)
+                .filter(
+                    AgentMemory.category == category,
+                    AgentMemory.memory_key == key,
+                    AgentMemory.superseded_by.is_(None),
+                )
+                .first()
+            )
+
+            # Create new memory
+            from api.database import _utc_now
+            new_memory = AgentMemory(
+                category=category,
+                memory_key=key,
+                memory_value=value,
+                agent_type=agent_type,
+                feature_id=feature_id,
+                relevance_count=0,
+                created_at=_utc_now(),
+                updated_at=_utc_now(),
+            )
+            session.add(new_memory)
+            session.flush()  # Get ID
+
+            # Supersede old memory if it exists
+            if existing:
+                existing.superseded_by = new_memory.id
+                existing.updated_at = _utc_now()
+
+            return json.dumps({
+                "success": True,
+                "memory_id": new_memory.id,
+                "category": category,
+                "key": key,
+                "superseded": existing.id if existing else None,
+            })
+    except Exception as e:
+        return json.dumps({"error": f"Failed to store memory: {str(e)}"})
+
+
+@mcp.tool()
+def memory_recall(
+    category: Annotated[str | None, Field(default=None, description="Filter by category (optional)")] = None,
+    search: Annotated[str | None, Field(default=None, description="Search term to match in key or value (optional)")] = None,
+    limit: Annotated[int, Field(default=10, ge=1, le=50, description="Maximum memories to return")] = 10,
+) -> str:
+    """Recall memories from previous sessions.
+
+    Returns active (non-superseded) memories, ordered by relevance count
+    (most-recalled first), then by most recent. Each recall increments
+    the relevance_count of returned memories.
+
+    Use this at the START of a session to recall:
+    - Architecture decisions for the project
+    - Patterns and conventions to follow
+    - Learnings from previous errors
+
+    Args:
+        category: Optional filter by category
+        search: Optional search term (matches key or value, case-insensitive)
+        limit: Maximum number of memories to return (default 10)
+
+    Returns:
+        JSON with list of memories and count
+    """
+    if category and category not in VALID_MEMORY_CATEGORIES:
+        return json.dumps({
+            "error": f"Invalid category '{category}'. Must be one of: {', '.join(VALID_MEMORY_CATEGORIES)}"
+        })
+
+    session = get_session()
+    try:
+        query = session.query(AgentMemory).filter(
+            AgentMemory.superseded_by.is_(None),
+        )
+
+        if category:
+            query = query.filter(AgentMemory.category == category)
+
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                (AgentMemory.memory_key.ilike(search_pattern))
+                | (AgentMemory.memory_value.ilike(search_pattern))
+            )
+
+        memories = (
+            query
+            .order_by(AgentMemory.relevance_count.desc(), AgentMemory.updated_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        # Increment relevance count for recalled memories
+        if memories:
+            from api.database import _utc_now
+            memory_ids = [m.id for m in memories]
+            session.execute(
+                text("UPDATE agent_memories SET relevance_count = relevance_count + 1 WHERE id IN :ids"),
+                {"ids": tuple(memory_ids)},
+            )
+            session.commit()
+
+        return json.dumps({
+            "memories": [m.to_dict() for m in memories],
+            "count": len(memories),
+        })
+    except Exception as e:
+        return json.dumps({"error": f"Failed to recall memories: {str(e)}"})
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def memory_recall_for_feature(
+    feature_id: Annotated[int, Field(ge=1, description="The feature ID to recall memories for")]
+) -> str:
+    """Recall memories relevant to a specific feature.
+
+    Returns both feature-specific memories AND architecture/spec_constraint
+    memories (which are relevant to all features). This gives an agent
+    full context for implementing a feature.
+
+    Use this after claiming a feature to get relevant context from
+    previous sessions.
+
+    Args:
+        feature_id: The feature ID to get memories for
+
+    Returns:
+        JSON with feature-specific memories and architecture memories
+    """
+    session = get_session()
+    try:
+        # Feature-specific memories
+        feature_memories = (
+            session.query(AgentMemory)
+            .filter(
+                AgentMemory.feature_id == feature_id,
+                AgentMemory.superseded_by.is_(None),
+            )
+            .order_by(AgentMemory.relevance_count.desc(), AgentMemory.updated_at.desc())
+            .all()
+        )
+
+        # Architecture + spec constraint memories (relevant to all features)
+        global_memories = (
+            session.query(AgentMemory)
+            .filter(
+                AgentMemory.category.in_(("architecture", "spec_constraint")),
+                AgentMemory.superseded_by.is_(None),
+            )
+            .order_by(AgentMemory.relevance_count.desc(), AgentMemory.updated_at.desc())
+            .limit(20)
+            .all()
+        )
+
+        all_memories = feature_memories + global_memories
+
+        # Increment relevance count
+        if all_memories:
+            from api.database import _utc_now
+            memory_ids = [m.id for m in all_memories]
+            session.execute(
+                text("UPDATE agent_memories SET relevance_count = relevance_count + 1 WHERE id IN :ids"),
+                {"ids": tuple(memory_ids)},
+            )
+            session.commit()
+
+        return json.dumps({
+            "feature_memories": [m.to_dict() for m in feature_memories],
+            "architecture_memories": [m.to_dict() for m in global_memories],
+            "total": len(all_memories),
+        })
+    except Exception as e:
+        return json.dumps({"error": f"Failed to recall memories for feature: {str(e)}"})
+    finally:
+        session.close()
 
 
 if __name__ == "__main__":

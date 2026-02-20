@@ -65,6 +65,11 @@ class Feature(Base):
     planning_synced_at = Column(DateTime, nullable=True)
     planning_updated_at = Column(DateTime, nullable=True)
     planning_last_status_hash = Column(String(20), nullable=True)
+    # Review agent fields (Sprint 7.5)
+    # NULL = not in review pipeline, pending_review/approved/rejected
+    review_status = Column(String(20), nullable=True, default=None)
+    review_notes = Column(Text, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
 
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
@@ -83,6 +88,9 @@ class Feature(Base):
             "planning_work_item_id": self.planning_work_item_id,
             "planning_synced_at": self.planning_synced_at.isoformat() if self.planning_synced_at else None,
             "planning_updated_at": self.planning_updated_at.isoformat() if self.planning_updated_at else None,
+            "review_status": self.review_status,
+            "review_notes": self.review_notes,
+            "reviewed_at": self.reviewed_at.isoformat() if self.reviewed_at else None,
         }
 
     def get_dependencies_safe(self) -> list[int]:
@@ -226,6 +234,54 @@ class ScheduleOverride(Base):
             "override_type": self.override_type,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class AgentMemory(Base):
+    """Cross-session memory for agents.
+
+    Stores structured memories (decisions, patterns, learnings, architecture,
+    spec constraints) that agents can recall in future sessions via MCP tools.
+    Each project database has its own memories (project-scoped by design).
+
+    Categories:
+        decision      - Architectural or implementation decisions made
+        pattern       - Recurring code patterns discovered
+        learning      - Lessons learned from errors or rework
+        architecture  - Tech stack, data model, API design choices
+        spec_constraint - Requirements/constraints from the app spec
+    """
+
+    __tablename__ = "agent_memories"
+    __table_args__ = (
+        Index('ix_agent_memory_category', 'category'),
+        Index('ix_agent_memory_key', 'memory_key'),
+    )
+
+    id = Column(Integer, primary_key=True)
+    category = Column(String(50), nullable=False)
+    memory_key = Column(String(200), nullable=False)
+    memory_value = Column(Text, nullable=False)
+    agent_type = Column(String(20), nullable=True)
+    feature_id = Column(Integer, nullable=True)
+    relevance_count = Column(Integer, nullable=False, default=0)
+    superseded_by = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_utc_now)
+    updated_at = Column(DateTime, nullable=False, default=_utc_now)
+
+    def to_dict(self) -> dict:
+        """Convert memory to dictionary for JSON serialization."""
+        return {
+            "id": self.id,
+            "category": self.category,
+            "memory_key": self.memory_key,
+            "memory_value": self.memory_value,
+            "agent_type": self.agent_type,
+            "feature_id": self.feature_id,
+            "relevance_count": self.relevance_count,
+            "superseded_by": self.superseded_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
@@ -487,6 +543,38 @@ def _migrate_add_agent_logs_table(engine) -> None:
                 conn.commit()
 
 
+def _migrate_add_agent_memories_table(engine) -> None:
+    """Create agent_memories table if it doesn't exist."""
+    from sqlalchemy import inspect
+
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    if "agent_memories" not in existing_tables:
+        AgentMemory.__table__.create(bind=engine)  # type: ignore[attr-defined]
+
+
+def _migrate_add_review_columns(engine) -> None:
+    """Add review agent columns to features table (Sprint 7.5)."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if "review_status" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN review_status VARCHAR(20) DEFAULT NULL"
+            ))
+        if "review_notes" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN review_notes TEXT DEFAULT NULL"
+            ))
+        if "reviewed_at" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN reviewed_at DATETIME DEFAULT NULL"
+            ))
+        conn.commit()
+
+
 def _configure_sqlite_immediate_transactions(engine) -> None:
     """Configure engine for IMMEDIATE transactions via event hooks.
 
@@ -591,6 +679,12 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add agent_logs table
     _migrate_add_agent_logs_table(engine)
+
+    # Migrate to add agent_memories table (Sprint 7.4: Session Memory)
+    _migrate_add_agent_memories_table(engine)
+
+    # Migrate to add review columns on features (Sprint 7.5: Review Agent)
+    _migrate_add_review_columns(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

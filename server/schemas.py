@@ -413,6 +413,10 @@ class SettingsResponse(BaseModel):
     testing_agent_ratio: int = 1  # Regression testing agents (0-3)
     playwright_headless: bool = True
     batch_size: int = 3  # Features per coding agent batch (1-3)
+    review_enabled: bool = False  # Independent review agents (Sprint 7.5)
+    architect_enabled: bool = False  # Pre-initialization architecture analysis (Sprint 7.6)
+    routing_enabled: bool = False  # Hybrid LLM routing per feature (Sprint 7.7)
+    cost_preference: str = "balanced"  # budget/balanced/quality (Sprint 7.7)
 
 
 class ModelsResponse(BaseModel):
@@ -432,6 +436,10 @@ class SettingsUpdate(BaseModel):
     testing_agent_ratio: int | None = None  # 0-3
     playwright_headless: bool | None = None
     batch_size: int | None = None  # Features per agent batch (1-3)
+    review_enabled: bool | None = None  # Independent review agents (Sprint 7.5)
+    architect_enabled: bool | None = None  # Pre-initialization architect (Sprint 7.6)
+    routing_enabled: bool | None = None  # Hybrid LLM routing per feature (Sprint 7.7)
+    cost_preference: str | None = None  # budget/balanced/quality (Sprint 7.7)
 
     @field_validator('model', 'model_initializer', 'model_coding', 'model_testing')
     @classmethod
@@ -450,6 +458,13 @@ class SettingsUpdate(BaseModel):
     def validate_batch_size(cls, v: int | None) -> int | None:
         if v is not None and (v < 1 or v > 3):
             raise ValueError("batch_size must be between 1 and 3")
+        return v
+
+    @field_validator('cost_preference')
+    @classmethod
+    def validate_cost_preference(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("budget", "balanced", "quality"):
+            raise ValueError("cost_preference must be budget, balanced, or quality")
         return v
 
 

@@ -339,14 +339,43 @@ Set up the basic project structure based on what's specified in `app_spec.txt`.
 This typically includes directories for frontend, backend, and any other
 components mentioned in the spec.
 
+### FIFTH TASK: Store Architecture Decisions in Memory
+
+After setting up the project, store key architecture decisions so future coding
+agents can recall them. Use the memory_store tool:
+
+```
+# Store the tech stack
+Use memory_store with category="architecture", key="tech-stack", value="Next.js 14 + Prisma + PostgreSQL + Tailwind CSS"
+
+# Store the data model overview
+Use memory_store with category="architecture", key="data-model", value="Users, Projects, Tasks tables with foreign key relationships"
+
+# Store API design pattern
+Use memory_store with category="architecture", key="api-pattern", value="REST API at /api/v1/*, authentication via JWT in httpOnly cookies"
+
+# Store spec constraints
+Use memory_store with category="spec_constraint", key="auth-requirement", value="Must support email+password login, no OAuth required"
+```
+
+**What to store:**
+- Technology stack choices (framework, ORM, database, CSS)
+- Data model structure (tables, key relationships)
+- API design pattern (REST vs GraphQL, route conventions, auth method)
+- Key spec constraints that coding agents must follow
+- Any non-obvious design decisions from the app_spec
+
+This gives coding agents immediate context instead of re-reading the full spec.
+
 ### ENDING THIS SESSION
 
-Once you have completed the four tasks above:
+Once you have completed the five tasks above:
 
 1. Commit all work with a descriptive message
 2. Verify features were created using the feature_get_stats tool
-3. Leave the environment in a clean, working state
-4. Exit cleanly
+3. Verify memories were stored using memory_recall
+4. Leave the environment in a clean, working state
+5. Exit cleanly
 
 **IMPORTANT:** Do NOT attempt to implement any features. Your job is setup only.
 Feature implementation will be handled by parallel coding agents that spawn after

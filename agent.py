@@ -32,9 +32,11 @@ from progress import (
 )
 from prompts import (
     copy_spec_to_project,
+    get_architect_prompt,
     get_batch_feature_prompt,
     get_coding_prompt,
     get_initializer_prompt,
+    get_review_prompt,
     get_single_feature_prompt,
     get_testing_prompt,
 )
@@ -195,6 +197,7 @@ async def run_autonomous_agent(
     agent_type: Optional[str] = None,
     testing_feature_id: Optional[int] = None,
     testing_feature_ids: Optional[list[int]] = None,
+    review_feature_id: Optional[int] = None,
 ) -> None:
     """
     Run the autonomous agent loop.
@@ -206,9 +209,10 @@ async def run_autonomous_agent(
         yolo_mode: If True, skip browser testing in coding agent prompts
         feature_id: If set, work only on this specific feature (used by orchestrator for coding agents)
         feature_ids: If set, work on these features in batch (used by orchestrator for batch mode)
-        agent_type: Type of agent: "initializer", "coding", "testing", or None (auto-detect)
+        agent_type: Type of agent: "initializer", "coding", "testing", "reviewer", or None (auto-detect)
         testing_feature_id: For testing agents, the pre-claimed feature ID to test (legacy single mode)
         testing_feature_ids: For testing agents, list of feature IDs to batch test
+        review_feature_id: For reviewer agents, the pre-assigned feature ID to review
     """
     print("\n" + "=" * 70)
     print("  AUTONOMOUS CODING AGENT")
@@ -243,8 +247,19 @@ async def run_autonomous_agent(
             agent_type = "coding"
 
     is_initializer = agent_type == "initializer"
+    is_architect = agent_type == "architect"
 
-    if is_initializer:
+    if is_architect:
+        print("Running as ARCHITECT agent (pre-initialization architecture analysis)")
+        print()
+        print("=" * 70)
+        print("  NOTE: Architecture analysis takes 5-15 minutes.")
+        print("  The agent is analyzing the spec and storing architecture decisions.")
+        print("=" * 70)
+        print()
+        # Copy the app spec into the project directory for the architect to read
+        copy_spec_to_project(project_dir)
+    elif is_initializer:
         print("Running as INITIALIZER agent")
         print()
         print("=" * 70)
@@ -257,6 +272,9 @@ async def run_autonomous_agent(
         copy_spec_to_project(project_dir)
     elif agent_type == "testing":
         print("Running as TESTING agent (regression testing)")
+        print_progress_summary(project_dir)
+    elif agent_type == "reviewer":
+        print("Running as REVIEWER agent (independent code review)")
         print_progress_summary(project_dir)
     else:
         print("Running as CODING agent")
@@ -271,8 +289,8 @@ async def run_autonomous_agent(
         iteration += 1
 
         # Check if all features are already complete (before starting a new session)
-        # Skip this check if running as initializer (needs to create features first)
-        if not is_initializer and iteration == 1:
+        # Skip this check for initializer/architect (they run before features exist)
+        if not is_initializer and not is_architect and iteration == 1:
             passing, in_progress, total = count_passing_tests(project_dir)
             if total > 0 and passing == total:
                 print("\n" + "=" * 70)
@@ -293,8 +311,12 @@ async def run_autonomous_agent(
         # Create client (fresh context)
         # Pass agent_id for browser isolation in multi-agent scenarios
         import os
-        if agent_type == "testing":
+        if agent_type == "architect":
+            agent_id = f"architect-{os.getpid()}"  # Unique ID for architect agents
+        elif agent_type == "testing":
             agent_id = f"testing-{os.getpid()}"  # Unique ID for testing agents
+        elif agent_type == "reviewer":
+            agent_id = f"reviewer-{os.getpid()}"  # Unique ID for reviewer agents
         elif feature_ids and len(feature_ids) > 1:
             agent_id = f"batch-{feature_ids[0]}"
         elif feature_id:
@@ -304,8 +326,12 @@ async def run_autonomous_agent(
         client = create_client(project_dir, model, yolo_mode=yolo_mode, agent_id=agent_id, agent_type=agent_type)
 
         # Choose prompt based on agent type
-        if agent_type == "initializer":
+        if agent_type == "architect":
+            prompt = get_architect_prompt(project_dir)
+        elif agent_type == "initializer":
             prompt = get_initializer_prompt(project_dir)
+        elif agent_type == "reviewer":
+            prompt = get_review_prompt(project_dir, review_feature_id)
         elif agent_type == "testing":
             prompt = get_testing_prompt(project_dir, testing_feature_id, testing_feature_ids)
         elif feature_ids and len(feature_ids) > 1:

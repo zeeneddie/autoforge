@@ -201,6 +201,8 @@ class ParallelOrchestrator:
         # Testing agents: pid -> (feature_id, process, batch_ids, start_time)
         # Keyed by PID (not feature_id) because multiple agents can test the same feature
         self.running_testing_agents: dict[int, tuple[int, subprocess.Popen, list[int], datetime]] = {}
+        # Review agents: pid -> (feature_id, process, start_time)
+        self.running_review_agents: dict[int, tuple[int, subprocess.Popen, datetime]] = {}
         # Legacy alias for backward compatibility
         self.running_agents = self.running_coding_agents
         self.abort_events: dict[int, threading.Event] = {}
@@ -244,6 +246,319 @@ class ParallelOrchestrator:
     def get_session(self):
         """Get a new database session."""
         return self._session_maker()
+
+    def _is_architect_enabled(self) -> bool:
+        """Check if architect agent is enabled.
+
+        Reads the architect_enabled setting from the global registry settings.
+        Defaults to False (architect disabled).
+        """
+        try:
+            from registry import get_setting
+            value = get_setting("architect_enabled")
+            return value is not None and value.lower() == "true"
+        except Exception:
+            return False
+
+    def _has_architecture_memories(self) -> bool:
+        """Check if architecture memories already exist for this project.
+
+        Returns True if at least one memory with category='architecture' exists,
+        indicating the architect agent has already run.
+        """
+        from api.database import AgentMemory
+        session = self.get_session()
+        try:
+            count = (
+                session.query(AgentMemory)
+                .filter(AgentMemory.category == "architecture")
+                .filter(AgentMemory.superseded_by == None)  # noqa: E711
+                .count()
+            )
+            return count > 0
+        except Exception:
+            return False
+        finally:
+            session.close()
+
+    async def _run_architect(self) -> bool:
+        """Run architect agent as blocking subprocess.
+
+        The architect analyzes app_spec.txt and stores architecture decisions
+        in session memory. Runs BEFORE the initializer.
+
+        Returns True if architect completed successfully.
+        """
+        debug_log.section("ARCHITECT PHASE")
+        debug_log.log("ARCH", "Starting architect subprocess",
+            project_dir=str(self.project_dir))
+
+        cmd = [
+            sys.executable, "-u",
+            str(AUTOFORGE_ROOT / "autonomous_agent_demo.py"),
+            "--project-dir", str(self.project_dir),
+            "--agent-type", "architect",
+            "--max-iterations", "1",
+        ]
+        # Use initializer model for architect (same tier)
+        if self.model_initializer:
+            cmd.extend(["--model", self.model_initializer])
+
+        print(f"Running architect agent (model: {self.model_initializer or 'default'})...", flush=True)
+
+        popen_kwargs: dict[str, Any] = {
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "text": True,
+            "encoding": "utf-8",
+            "errors": "replace",
+            "cwd": str(AUTOFORGE_ROOT),
+            "env": {**os.environ, "PYTHONUNBUFFERED": "1"},
+        }
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+        proc = subprocess.Popen(cmd, **popen_kwargs)
+        debug_log.log("ARCH", "Architect subprocess started", pid=proc.pid)
+
+        # Stream output with timeout (15 minutes max for architect)
+        architect_timeout = 900
+        loop = asyncio.get_running_loop()
+        try:
+            async def stream_output():
+                while True:
+                    line = await loop.run_in_executor(None, proc.stdout.readline)
+                    if not line:
+                        break
+                    print(line.rstrip(), flush=True)
+                    if self.on_output is not None:
+                        self.on_output(0, line.rstrip())
+                proc.wait()
+
+            await asyncio.wait_for(stream_output(), timeout=architect_timeout)
+
+        except asyncio.TimeoutError:
+            print(f"ERROR: Architect timed out after {architect_timeout // 60} minutes", flush=True)
+            debug_log.log("ARCH", "TIMEOUT - Architect exceeded time limit")
+            try:
+                kill_process_tree(proc, timeout=5.0)
+            except Exception:
+                pass
+            return False
+
+        success = proc.returncode == 0
+        debug_log.log("ARCH", f"Architect finished with return code {proc.returncode}",
+            success=success)
+
+        if success:
+            # Verify memories were stored
+            if self._has_architecture_memories():
+                print("Architect stored architecture decisions in session memory.", flush=True)
+            else:
+                print("WARNING: Architect completed but no architecture memories found.", flush=True)
+
+        return success
+
+    def _is_review_enabled(self) -> bool:
+        """Check if review agents are enabled.
+
+        Reads the review_enabled setting from the global registry settings.
+        Defaults to False (review disabled).
+        """
+        try:
+            from registry import get_setting
+            value = get_setting("review_enabled")
+            return value is not None and value.lower() == "true"
+        except Exception:
+            return False
+
+    def _is_routing_enabled(self) -> bool:
+        """Check if hybrid LLM routing is enabled.
+
+        Reads the routing_enabled setting from the global registry settings.
+        Defaults to False (static model selection).
+        """
+        try:
+            from registry import get_setting
+            value = get_setting("routing_enabled")
+            return value is not None and value.lower() == "true"
+        except Exception:
+            return False
+
+    def _get_cost_preference(self) -> str:
+        """Get the cost preference setting (budget/balanced/quality).
+
+        Defaults to 'balanced'.
+        """
+        try:
+            from registry import get_setting
+            value = get_setting("cost_preference")
+            if value and value in ("budget", "balanced", "quality"):
+                return value
+        except Exception:
+            pass
+        return "balanced"
+
+    def _route_model_for_feature(self, feature_dict: dict) -> str | None:
+        """Route a feature to the optimal model using the task router.
+
+        Only called when routing_enabled=True. Returns the resolved model name
+        or None to use the default model.
+
+        Args:
+            feature_dict: Feature dict with name, description, category, etc.
+
+        Returns:
+            Model name string or None for default.
+        """
+        try:
+            from task_router import route_feature, resolve_model_tier
+            from provider_config import get_provider_model_tiers
+
+            cost_pref = self._get_cost_preference()
+            tier = route_feature(feature_dict, cost_pref)
+
+            # Resolve tier to actual model name using provider config
+            provider_tiers = get_provider_model_tiers()
+            model = resolve_model_tier(tier, provider_tiers)
+
+            debug_log.log("ROUTING", f"Feature #{feature_dict.get('id')} routed",
+                name=feature_dict.get("name", "")[:50],
+                cost_preference=cost_pref,
+                tier=tier,
+                model=model)
+
+            return model
+        except Exception as e:
+            debug_log.log("ROUTING", f"Routing failed, using default: {e}")
+            return None
+
+    def _get_pending_review_features(self) -> list[dict]:
+        """Get features with review_status='pending_review' that need review.
+
+        Returns a list of feature dicts ready for review agent assignment.
+        Excludes features already being reviewed by a running review agent.
+        """
+        session = self.get_session()
+        try:
+            session.expire_all()
+            features = (
+                session.query(Feature)
+                .filter(Feature.review_status == "pending_review")
+                .all()
+            )
+            # Exclude features already assigned to a running review agent
+            with self._lock:
+                reviewing_feature_ids = {fid for fid, _, _ in self.running_review_agents.values()}
+            return [
+                f.to_dict() for f in features
+                if f.id not in reviewing_feature_ids
+            ]
+        finally:
+            session.close()
+
+    def _maintain_review_agents(self) -> None:
+        """Maintain review agents for features pending review.
+
+        Spawns review agents for features that have review_status='pending_review'.
+        Only active when review_enabled is True in project settings.
+        Each feature gets at most one review agent.
+        """
+        if not self._is_review_enabled():
+            return
+
+        pending = self._get_pending_review_features()
+        if not pending:
+            return
+
+        for feature_dict in pending:
+            # Check total agent limit
+            with self._lock:
+                total_agents = (
+                    len(self.running_coding_agents)
+                    + len(self.running_testing_agents)
+                    + len(self.running_review_agents)
+                )
+                if total_agents >= MAX_TOTAL_AGENTS:
+                    debug_log.log("REVIEW", "At max total agents, skipping review spawn")
+                    return
+
+            feature_id = feature_dict["id"]
+            debug_log.log("REVIEW", f"Spawning review agent for feature #{feature_id}")
+            success, msg = self._spawn_review_agent(feature_id)
+            if not success:
+                debug_log.log("REVIEW", f"Review spawn failed: {msg}")
+
+    def _spawn_review_agent(self, feature_id: int) -> tuple[bool, str]:
+        """Spawn a review agent subprocess for a specific feature.
+
+        Args:
+            feature_id: The feature ID to review.
+
+        Returns:
+            Tuple of (success, message).
+        """
+        with self._lock:
+            # Check if already reviewing this feature
+            for _, (fid, _, _) in self.running_review_agents.items():
+                if fid == feature_id:
+                    return False, f"Feature #{feature_id} already being reviewed"
+
+            total_agents = (
+                len(self.running_coding_agents)
+                + len(self.running_testing_agents)
+                + len(self.running_review_agents)
+            )
+            if total_agents >= MAX_TOTAL_AGENTS:
+                return False, f"At max total agents ({total_agents}/{MAX_TOTAL_AGENTS})"
+
+            cmd = [
+                sys.executable,
+                "-u",
+                str(AUTOFORGE_ROOT / "autonomous_agent_demo.py"),
+                "--project-dir", str(self.project_dir),
+                "--max-iterations", "1",
+                "--agent-type", "reviewer",
+                "--review-feature-id", str(feature_id),
+            ]
+            # Use coding model for reviewer (same tier)
+            if self.model_coding:
+                cmd.extend(["--model", self.model_coding])
+
+            try:
+                popen_kwargs: dict[str, Any] = {
+                    "stdin": subprocess.DEVNULL,
+                    "stdout": subprocess.PIPE,
+                    "stderr": subprocess.STDOUT,
+                    "text": True,
+                    "encoding": "utf-8",
+                    "errors": "replace",
+                    "cwd": str(self.project_dir),
+                    "env": {**os.environ, "PYTHONUNBUFFERED": "1"},
+                }
+                if sys.platform == "win32":
+                    popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+                proc = subprocess.Popen(cmd, **popen_kwargs)
+            except Exception as e:
+                debug_log.log("REVIEW", f"FAILED to spawn review agent: {e}")
+                return False, f"Failed to start review agent: {e}"
+
+            start_time = datetime.now(timezone.utc)
+            self.running_review_agents[proc.pid] = (feature_id, proc, start_time)
+
+        # Start output reader thread
+        threading.Thread(
+            target=self._read_output,
+            args=(feature_id, proc, threading.Event(), "reviewer"),
+            daemon=True,
+        ).start()
+
+        print(f"Started review agent for feature #{feature_id} (PID {proc.pid})", flush=True)
+        debug_log.log("REVIEW", f"Successfully spawned review agent for feature #{feature_id}",
+            pid=proc.pid)
+        return True, f"Started review agent for feature #{feature_id}"
 
     def _get_random_passing_feature(self) -> int | None:
         """Get a random passing feature for regression testing (no claim needed).
@@ -892,6 +1207,27 @@ class ParallelOrchestrator:
 
     def _spawn_coding_agent(self, feature_id: int) -> tuple[bool, str]:
         """Spawn a coding agent subprocess for a specific feature."""
+        # Determine model: task routing override or default
+        model = self.model_coding
+        if self._is_routing_enabled():
+            session = self.get_session()
+            try:
+                feature = session.query(Feature).filter(Feature.id == feature_id).first()
+                if feature:
+                    feature_dict = {
+                        "id": feature.id,
+                        "name": feature.name,
+                        "description": feature.description,
+                        "category": feature.category,
+                        "steps": feature.steps or [],
+                        "depends_on": [],
+                    }
+                    routed = self._route_model_for_feature(feature_dict)
+                    if routed:
+                        model = routed
+            finally:
+                session.close()
+
         # Create abort event
         abort_event = threading.Event()
 
@@ -905,8 +1241,8 @@ class ParallelOrchestrator:
             "--agent-type", "coding",
             "--feature-id", str(feature_id),
         ]
-        if self.model_coding:
-            cmd.extend(["--model", self.model_coding])
+        if model:
+            cmd.extend(["--model", model])
         if self.yolo_mode:
             cmd.append("--yolo")
 
@@ -960,6 +1296,28 @@ class ParallelOrchestrator:
     def _spawn_coding_agent_batch(self, feature_ids: list[int]) -> tuple[bool, str]:
         """Spawn a coding agent subprocess for a batch of features."""
         primary_id = feature_ids[0]
+
+        # Determine model: task routing override (using primary feature) or default
+        model = self.model_coding
+        if self._is_routing_enabled():
+            session = self.get_session()
+            try:
+                feature = session.query(Feature).filter(Feature.id == primary_id).first()
+                if feature:
+                    feature_dict = {
+                        "id": feature.id,
+                        "name": feature.name,
+                        "description": feature.description,
+                        "category": feature.category,
+                        "steps": feature.steps or [],
+                        "depends_on": [],
+                    }
+                    routed = self._route_model_for_feature(feature_dict)
+                    if routed:
+                        model = routed
+            finally:
+                session.close()
+
         abort_event = threading.Event()
 
         cmd = [
@@ -971,8 +1329,8 @@ class ParallelOrchestrator:
             "--agent-type", "coding",
             "--feature-ids", ",".join(str(fid) for fid in feature_ids),
         ]
-        if self.model_coding:
-            cmd.extend(["--model", self.model_coding])
+        if model:
+            cmd.extend(["--model", model])
         if self.yolo_mode:
             cmd.append("--yolo")
 
@@ -1204,7 +1562,7 @@ class ParallelOrchestrator:
         feature_id: int | None,
         proc: subprocess.Popen,
         abort: threading.Event,
-        agent_type: Literal["coding", "testing"] = "coding",
+        agent_type: Literal["coding", "testing", "reviewer"] = "coding",
     ):
         """Read output from subprocess and emit events."""
         current_feature_id = feature_id
@@ -1287,7 +1645,7 @@ class ParallelOrchestrator:
         self,
         feature_id: int | None,
         return_code: int,
-        agent_type: Literal["coding", "testing"],
+        agent_type: Literal["coding", "testing", "reviewer"],
         proc: subprocess.Popen,
     ):
         """Handle agent completion.
@@ -1300,7 +1658,24 @@ class ParallelOrchestrator:
 
         For testing agents:
         - Remove from running dict (no claim to release - concurrent testing is allowed).
+
+        For reviewer agents:
+        - Remove from running dict. The review agent already updated review_status
+          in the database (approved/rejected) via MCP tools.
         """
+        if agent_type == "reviewer":
+            with self._lock:
+                agent_info = self.running_review_agents.pop(proc.pid, None)
+
+            reviewed_fid = agent_info[0] if agent_info else feature_id
+            status = "completed" if return_code == 0 else "failed"
+            print(f"Feature #{reviewed_fid} review {status}", flush=True)
+            debug_log.log("COMPLETE", f"Review agent for feature #{reviewed_fid} finished",
+                pid=proc.pid, status=status)
+
+            self._signal_agent_completed()
+            return
+
         if agent_type == "testing":
             # Capture batch info before removing from dict
             with self._lock:
@@ -1495,7 +1870,7 @@ class ParallelOrchestrator:
         return True, f"Stopped feature {feature_id}"
 
     def stop_all(self) -> None:
-        """Stop all running agents (coding and testing)."""
+        """Stop all running agents (coding, testing, and review)."""
         self.is_running = False
 
         # Stop coding agents
@@ -1515,10 +1890,21 @@ class ParallelOrchestrator:
                 status=result.status, children_found=result.children_found,
                 children_terminated=result.children_terminated, children_killed=result.children_killed)
 
-        # Clear dict so get_status() doesn't report stale agents while
+        # Stop review agents
+        with self._lock:
+            review_items = list(self.running_review_agents.items())
+
+        for pid, (feature_id, proc, _start) in review_items:
+            result = kill_process_tree(proc, timeout=5.0)
+            debug_log.log("STOP", f"Killed review agent for feature #{feature_id} (PID {pid})",
+                status=result.status, children_found=result.children_found,
+                children_terminated=result.children_terminated, children_killed=result.children_killed)
+
+        # Clear dicts so get_status() doesn't report stale agents while
         # _on_agent_complete callbacks are still in flight.
         with self._lock:
             self.running_testing_agents.clear()
+            self.running_review_agents.clear()
 
     async def run_loop(self):
         """Main orchestration loop."""
@@ -1560,6 +1946,29 @@ class ParallelOrchestrator:
         print(f"Model (testing):     {self.model_testing}", flush=True)
         print("=" * 70, flush=True)
         print(flush=True)
+
+        # Phase 0: Architect (optional, behind feature flag)
+        # Runs BEFORE initializer to establish architecture decisions in session memory.
+        if self._is_architect_enabled() and not has_features(self.project_dir):
+            if not self._has_architecture_memories():
+                print("=" * 70, flush=True)
+                print("  ARCHITECT PHASE", flush=True)
+                print("=" * 70, flush=True)
+                print("Architect enabled - analyzing spec before initialization...", flush=True)
+                print(flush=True)
+
+                arch_success = await self._run_architect()
+
+                if not arch_success:
+                    print("WARNING: Architect phase failed. Continuing with initialization.", flush=True)
+                else:
+                    print(flush=True)
+                    print("=" * 70, flush=True)
+                    print("  ARCHITECT PHASE COMPLETE", flush=True)
+                    print("=" * 70, flush=True)
+                    print(flush=True)
+            else:
+                print("Architecture memories already exist, skipping architect phase.", flush=True)
 
         # Phase 1: Check if initialization needed
         if not has_features(self.project_dir):
@@ -1664,6 +2073,9 @@ class ParallelOrchestrator:
 
                 # Maintain testing agents independently (runs every iteration)
                 self._maintain_testing_agents(feature_dicts)
+
+                # Maintain review agents for pending_review features (Sprint 7.5)
+                self._maintain_review_agents()
 
                 # Check capacity
                 with self._lock:
@@ -1779,11 +2191,16 @@ class ParallelOrchestrator:
                 "running_features": list(self.running_coding_agents.keys()),
                 "coding_agent_count": len(self.running_coding_agents),
                 "testing_agent_count": len(self.running_testing_agents),
+                "review_agent_count": len(self.running_review_agents),
                 "count": len(self.running_coding_agents),  # Legacy compatibility
                 "max_concurrency": self.max_concurrency,
                 "testing_agent_ratio": self.testing_agent_ratio,
                 "is_running": self.is_running,
                 "yolo_mode": self.yolo_mode,
+                "review_enabled": self._is_review_enabled(),
+                "architect_enabled": self._is_architect_enabled(),
+                "routing_enabled": self._is_routing_enabled(),
+                "cost_preference": self._get_cost_preference(),
             }
 
     def cleanup(self) -> None:

@@ -66,6 +66,11 @@ def load_prompt(name: str, project_dir: Path | None = None) -> str:
     )
 
 
+def get_architect_prompt(project_dir: Path | None = None) -> str:
+    """Load the architect agent prompt (project-specific if available)."""
+    return load_prompt("architect_prompt", project_dir)
+
+
 def get_initializer_prompt(project_dir: Path | None = None) -> str:
     """Load the initializer prompt (project-specific if available)."""
     return load_prompt("initializer_prompt", project_dir)
@@ -146,6 +151,35 @@ def get_coding_prompt(project_dir: Path | None = None, yolo_mode: bool = False) 
         prompt = _strip_browser_testing_sections(prompt)
 
     return prompt
+
+
+def get_review_prompt(
+    project_dir: Path | None = None,
+    review_feature_id: int | None = None,
+) -> str:
+    """Load the review agent prompt (project-specific if available).
+
+    Args:
+        project_dir: Optional project directory for project-specific prompts
+        review_feature_id: If provided, the pre-assigned feature ID to review.
+
+    Returns:
+        The review prompt, with feature assignment populated.
+    """
+    base_prompt = load_prompt("review_prompt", project_dir)
+
+    if review_feature_id is not None:
+        header = f"""## ASSIGNED FEATURE FOR REVIEW: #{review_feature_id}
+
+Review ONLY this feature. Use `feature_get_by_id` with ID {review_feature_id} to get details.
+Then approve or reject based on your review.
+
+---
+
+"""
+        return header + base_prompt
+
+    return base_prompt
 
 
 def get_testing_prompt(

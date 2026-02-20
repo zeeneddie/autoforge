@@ -34,6 +34,23 @@ Use the feature_get_stats tool
 Understanding the `app_spec.txt` is critical - it contains the full requirements
 for the application you're building.
 
+### STEP 1.5: RECALL SESSION MEMORY (IF AVAILABLE)
+
+Recall relevant memories from previous sessions to avoid repeating mistakes
+and follow established patterns:
+
+```
+# Recall architecture decisions and patterns
+Use the memory_recall tool (no arguments needed - returns top 10 by relevance)
+
+# After claiming your feature (Step 3), recall feature-specific context:
+Use the memory_recall_for_feature tool with feature_id={your_assigned_id}
+```
+
+These memories contain decisions, patterns, and learnings from previous agents.
+Follow any architecture decisions and conventions found. If no memories exist
+yet, that's fine - you're the first agent on this project.
+
 ### STEP 2: START SERVERS (IF NOT RUNNING)
 
 If `init.sh` exists, run it:
@@ -130,10 +147,15 @@ For any feature involving CRUD or data persistence: create unique test data (e.g
 
 **YOU CAN ONLY MODIFY ONE FIELD: "passes"**
 
-After thorough verification, mark the feature as passing:
+After thorough verification, submit the feature for review or mark it passing:
 
 ```
-# Mark feature #42 as passing (replace 42 with the actual feature ID)
+# PREFERRED: Submit for review (auto-routes based on project settings)
+# If review is enabled: sends to review agent for independent verification
+# If review is disabled: marks as passing directly (same as feature_mark_passing)
+Use the feature_mark_for_review tool with feature_id=42
+
+# ALTERNATIVE: Mark directly as passing (bypasses review pipeline)
 Use the feature_mark_passing tool with feature_id=42
 ```
 
@@ -178,6 +200,30 @@ Update `claude-progress.txt` with:
 - What should be worked on next
 - Current completion status (e.g., "45/200 tests passing")
 
+### STEP 8.5: STORE SESSION LEARNINGS (IF APPLICABLE)
+
+If you discovered something valuable during this session, store it for
+future agents using the memory_store tool:
+
+```
+# Store a pattern you discovered
+Use memory_store with category="pattern", key="api-route-convention", value="All API routes follow /api/v1/{resource} pattern"
+
+# Store a learning from an error you fixed
+Use memory_store with category="learning", key="prisma-migration-order", value="Must run prisma migrate before prisma seed, otherwise seed fails"
+
+# Store an architecture decision you made
+Use memory_store with category="decision", key="state-management", value="Using Zustand for client state, React Query for server state"
+```
+
+**When to store memories:**
+- Architecture/design decisions that future agents should follow
+- Patterns in the codebase that aren't obvious
+- Errors you encountered and how you fixed them
+- Spec constraints you discovered during implementation
+
+**When NOT to store:** Routine implementation details, obvious things, or session-specific context.
+
 ### STEP 9: END SESSION CLEANLY
 
 Before context fills up:
@@ -214,16 +260,19 @@ feature_get_by_id with feature_id={your_assigned_id}
 # 3. Mark a feature as in-progress
 feature_mark_in_progress with feature_id={id}
 
-# 4. Mark a feature as passing (after verification)
+# 4. Submit for review (preferred - auto-routes based on project settings)
+feature_mark_for_review with feature_id={id}
+
+# 5. Mark a feature as passing (after verification, bypasses review)
 feature_mark_passing with feature_id={id}
 
-# 5. Mark a feature as failing (if you discover it's broken)
+# 6. Mark a feature as failing (if you discover it's broken)
 feature_mark_failing with feature_id={id}
 
-# 6. Skip a feature (moves to end of queue) - ONLY when blocked by external dependency
+# 7. Skip a feature (moves to end of queue) - ONLY when blocked by external dependency
 feature_skip with feature_id={id}
 
-# 7. Clear in-progress status (when abandoning a feature)
+# 8. Clear in-progress status (when abandoning a feature)
 feature_clear_in_progress with feature_id={id}
 ```
 

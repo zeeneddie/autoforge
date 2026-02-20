@@ -1,12 +1,21 @@
 # MarQed.ai Roadmap v2
 
-> Bijgewerkt: 2026-02-12
+> Bijgewerkt: 2026-02-20
 
 ## Strategische Wijziging
 
 De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **MQ Planning** (open-source PM tool) en **Onboarding** (codebase analyse) is het kern-platform in **7 sprints** opgeleverd.
 
-Fase 2 (Sprint 8+) bouwt de **Discovery-laag** en het **PM Dashboard**: een grafische, interactieve requirements-workflow die BMAD vervangt, plus een hiërarchisch overzicht voor product managers en stakeholders. Samen vormen deze componenten het **MarQed.ai platform**.
+**Fase 1.5 (Sprint 7.3-7.7)** versterkt DevEngine's kern met ideeën uit de BMAD method en OpenClaw:
+- **Role Registry** voor BMAD-upgradable agent rollen (drop-in prompt templates)
+- **Session Memory** voor cross-sessie geheugen (architectuur, patronen, learnings)
+- **Review Agent** voor onafhankelijke code review (quality gate)
+- **Architect Agent** voor PRD → architectuur → requirements decomposatie
+- **Hybride LLM Routing** voor per-taak model/provider selectie met kostenoptimalisatie
+
+Alle verbeteringen zijn achter feature flags en 100% backward compatible.
+
+Fase 2 (Sprint 8+) bouwt de **Discovery-laag** en het **PM Dashboard**: een grafische, interactieve requirements-workflow, plus een hiërarchisch overzicht voor product managers en stakeholders. Samen vormen deze componenten het **MarQed.ai platform**.
 
 Zie [ADR-001](decisions/ADR-001-plane-integration.md) voor de rationale.
 
@@ -269,6 +278,171 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 - `process_manager.py`: `soft_stop()` stuurt `signal.SIGUSR1`, `healthcheck()` + `_stream_output()` behandelen exit code 0 als `stopped` (niet `crashed`)
 - Frontend: `useSoftStopAgent()` hook, `softStopAgent()` API functie, `CircleStop` icoon
 - 8 bestanden gewijzigd, 116 insertions, 23 deletions
+
+---
+
+## Sprint 7.3: Role Registry Foundation -- PLANNED
+
+> Doel: Agent configuratie centraliseren in een data-driven registry. Fundament voor BMAD-upgradable rollen.
+
+Geïnspireerd door de BMAD method (Breakthrough Method of Agile AI-driven Development). Agent rollen worden gedefinieerd als data, niet als hardcoded logica. Nieuwe rollen toevoegen = template droppen + registry entry toevoegen.
+
+| # | Item | Status |
+|---|---|---|
+| 7.3.1 | `role_registry.py` (nieuw): AGENT_ROLES dict met bestaande 3 types (initializer, coding, testing) | planned |
+| 7.3.2 | `provider_config.py`: AGENT_TYPES leest uit registry ipv hardcoded tuple | planned |
+| 7.3.3 | `client.py`: tool lists + max_turns lezen uit registry | planned |
+| 7.3.4 | `agent.py` + `prompts.py`: type validatie + template lookup via registry | planned |
+
+**Acceptatiecriteria:**
+1. `role_registry.py` bevat AGENT_ROLES met initializer, coding, testing -- elk met template, tools, max_turns, model_tier, phase
+2. `provider_config.AGENT_TYPES` leest dynamisch uit registry
+3. `client.py` tool lists en max_turns komen uit registry -- geen hardcoded dicts meer
+4. Start bestaand project: initializer + coding agents werken identiek aan voor de refactor
+5. DevEngine start op zonder errors, alle endpoints bereikbaar
+6. Project-level override mogelijk via `.mq-devengine/roles.json` (optioneel)
+
+**Technische details:**
+- Role registry is pure data (dict), geen classes of inheritance
+- Per role: template (str), tools (list[str]), max_turns (int), model_tier (str), phase (int)
+- model_tier maps naar provider_config model keys: "opus"→model_initializer, "coding"→model_coding, "testing"→model_testing
+- Backward compatible: als role_registry niet geladen kan worden, fallback naar huidige hardcoded waarden
+
+---
+
+## Sprint 7.4: Session Memory -- PLANNED
+
+> Doel: Agents onthouden beslissingen, patronen en fouten across sessies via structured memory in SQLite + MCP tools.
+
+Kern-idee uit OpenClaw: persistent memory across sessies. Maar dan structured (SQLite + categories) ipv vector store. On-demand ophalen via MCP tools (~honderden tokens), niet in system prompt gestopt (geen token overflow).
+
+| # | Item | Status |
+|---|---|---|
+| 7.4.1 | `api/database.py`: AgentMemory model + `_migrate_add_agent_memories_table` migratie | planned |
+| 7.4.2 | `mcp_server/feature_mcp.py`: `memory_store`, `memory_recall`, `memory_recall_for_feature` MCP tools | planned |
+| 7.4.3 | `client.py`: MEMORY_TOOLS toevoegen aan coding + initializer tool lists (testing = read-only) | planned |
+| 7.4.4 | `coding_prompt.template.md`: Step 1.5 (recall context) + Step 8.5 (save learnings) | planned |
+| 7.4.5 | `initializer_prompt.template.md`: Task 2.5 (store architectuur + spec constraints) | planned |
+
+**Acceptatiecriteria:**
+1. Server start, `agent_memories` tabel wordt automatisch aangemaakt via migratie
+2. `memory_store` valideert category, key (max 200 chars), value (max 500 chars), slaat op met versioning (superseded_by)
+3. `memory_recall` filtert op category, search (LIKE op key+value), limiteert resultaten, verhoogt relevance_count
+4. `memory_recall_for_feature` retourneert feature-specifieke + architectuur memories
+5. Nieuw project: initializer draait, slaat architectuurbeslissingen op in memory
+6. Coding agent recall-t architectuur voor implementatie, slaat patronen/learnings op na afloop
+7. Stop agent, herstart: nieuwe sessie recall-t memories van vorige sessie correct
+8. Memory recall voegt <2000 tokens toe aan agent context per call
+
+**Technische details:**
+- AgentMemory: project_dir, category (decision/pattern/learning/architecture/spec_constraint), memory_key, memory_value, agent_type, feature_id, relevance_count, superseded_by, created_at
+- Indices: ix_memory_project_category, ix_memory_project_key
+- Versioning: bij store met bestaande key+category, oude record krijgt superseded_by → nieuwe ID
+- Migratie volgt patroon van `_migrate_add_agent_logs_table` in database.py
+
+---
+
+## Sprint 7.5: Review Agent -- PLANNED
+
+> Doel: Onafhankelijke code review door review agent. Coding agent certificeert niet meer zichzelf. Achter `review_enabled` feature flag.
+
+BMAD-method scheidt developer en reviewer rollen. De review agent verifieert code kwaliteit, spec compliance, en architectuur consistentie onafhankelijk van de coding agent.
+
+| # | Item | Status |
+|---|---|---|
+| 7.5.1 | `api/database.py`: review_status, review_notes, reviewed_at kolommen + migratie | planned |
+| 7.5.2 | `mcp_server/feature_mcp.py`: `feature_mark_for_review`, `feature_approve`, `feature_reject` tools | planned |
+| 7.5.3 | `role_registry.py`: reviewer role toevoegen (template, tools, max_turns=50, phase=3) | planned |
+| 7.5.4 | `review_prompt.template.md` (nieuw) + `prompts.py`: get_review_prompt | planned |
+| 7.5.5 | `agent.py`: review agent type support | planned |
+| 7.5.6 | `coding_prompt.template.md`: mark_for_review ipv mark_passing (achter review_enabled flag) | planned |
+| 7.5.7 | `parallel_orchestrator.py`: `_maintain_review_agents()` lifecycle + review_enabled flag | planned |
+
+**Acceptatiecriteria:**
+1. `review_enabled=False` (default): DevEngine werkt identiek aan huidige versie (mark_passing direct)
+2. `review_enabled=True`: coding agent markeert feature als `pending_review`
+3. Review agent pikt `pending_review` features op, leest code, checkt kwaliteit
+4. Review agent approved → `passes=True`; reject → coding agent krijgt feature terug met review_notes
+5. Rejected feature wordt automatisch opnieuw opgepakt door coding agent
+6. Review agent recall-t architectuur + patronen uit session memory
+7. Max 1 concurrent review agent (configureerbaar)
+8. UI toont review_status in feature cards (optioneel, kan later)
+
+**Technische details:**
+- Feature kolommen: review_status (varchar 20, nullable), review_notes (text, nullable), reviewed_at (datetime, nullable)
+- `feature_mark_for_review`: sets review_status='pending_review', in_progress=False, passes=False
+- `feature_approve`: sets passes=True, review_status='approved', reviewed_at=now()
+- `feature_reject`: sets review_status='rejected', in_progress=False, review_notes=notes
+- Orchestrator: `_maintain_review_agents()` volgt patroon van `_maintain_testing_agents()` (line ~570 in parallel_orchestrator.py)
+- Review prompt checkt: lint, type errors, mock data patterns, spec constraints, architectuur consistentie
+
+---
+
+## Sprint 7.6: Architect Agent -- PLANNED
+
+> Doel: Architectuurfase voor PRD-analyse en requirements decomposatie. Produceert MarQed markdown voor MQ Planning import. Achter `architect_enabled` feature flag.
+
+De architect agent draait als phase 0 (voor initializer). Analyseert de PRD/app_spec, stelt technische architectuur op, slaat beslissingen op in session memory, en decomposeert naar Epic → Feature → Story → Task structuur via MarQed markdown output.
+
+| # | Item | Status |
+|---|---|---|
+| 7.6.1 | `role_registry.py`: architect role toevoegen (template, tools, max_turns=200, phase=0) | planned |
+| 7.6.2 | `architect_prompt.template.md` (nieuw) + `prompts.py`: get_architect_prompt | planned |
+| 7.6.3 | `agent.py`: architect agent type support | planned |
+| 7.6.4 | `parallel_orchestrator.py`: architect fase + MarQed trigger (achter architect_enabled flag) | planned |
+| 7.6.5 | Architect output validatie: MarQed parser test met architect output | planned |
+
+**Acceptatiecriteria:**
+1. `architect_enabled=False` (default): DevEngine werkt identiek aan huidige versie
+2. `architect_enabled=True`: architect agent draait VOOR initializer bij nieuw project
+3. Architect leest app_spec.txt, stelt technische architectuur op
+4. Architectuurbeslissingen opgeslagen in session memory (category="architecture")
+5. Spec constraints opgeslagen in session memory (category="spec_constraint")
+6. Output: MarQed markdown tree in `.mq-devengine/marqed_output/` (parseable door marqed_import/parser.py)
+7. Als MQ Planning geconfigureerd: MarQed import creëert modules + work items in MQ Planning
+8. Toekomstig: wordt verfijnd als Discovery Tool (Sprint 8a) live is
+
+**Technische details:**
+- Architect produceert: project.md, epics/{EPIC-001-name}/epic.md, features/{FEATURE-001-name}/feature.md, stories/{STORY-001-name}/story.md, tasks/TASK-001.md
+- Elke task max 2-4 uur werk (micro feature principe)
+- MarQed markdown format moet exact matchen met `marqed_import/parser.py` verwachtingen (H1 met identifier, status/priority frontmatter)
+- Tools: memory_store, memory_recall + standaard file tools (Write, Edit, Glob, Grep, Read)
+- Geen feature MCP tools (die komen pas na import)
+
+---
+
+## Sprint 7.7: Hybride LLM Routing + Subscription-First -- PLANNED
+
+> Doel: Per-taak model/provider selectie op basis van task classificatie en klantbudget. Achter `routing_enabled` feature flag.
+
+Task-aware routing met 3 lagen: rules-based classificatie → kostenweging → optioneel AI-override. Subscription-first strategie voor kostenoptimalisatie.
+
+| # | Item | Status |
+|---|---|---|
+| 7.7.1 | `task_router.py` (nieuw): task classificatie (type + complexity) en model routing logica | planned |
+| 7.7.2 | `providers.json` schema uitbreiden: cost_per_1k_input/output, capabilities per model | planned |
+| 7.7.3 | `provider_config.py`: per-subprocess provider env injection | planned |
+| 7.7.4 | `parallel_orchestrator.py`: router integratie bij agent spawn (achter routing_enabled flag) | planned |
+| 7.7.5 | `server/schemas.py` + `server/routers/settings.py`: cost_preference setting (budget/balanced/quality) | planned |
+
+**Acceptatiecriteria:**
+1. `routing_enabled=False` (default): DevEngine gebruikt statische model config (als vanouds)
+2. `routing_enabled=True`: task router analyseert elke feature en kiest model + provider
+3. `cost_preference=budget`: simpele features → goedkoop model (Haiku/Flash/DeepSeek), complexe → Sonnet
+4. `cost_preference=balanced`: mix van subscription (bulk) en API/OpenRouter (specifieke modellen)
+5. `cost_preference=quality`: beste model (Opus) ongeacht kosten
+6. Subscription provider (claude-sub) geprefereerd in budget mode
+7. Per-subprocess environment injection werkt correct (elke agent kan ander provider/model krijgen)
+8. UI settings pagina toont cost preference dropdown
+9. Unit tests: task classificatie geeft correcte type + complexity voor bekende feature patterns
+
+**Technische details:**
+- Task classificatie: regex/keyword matching op feature naam, beschrijving, category → task_type (auth, ui, api, database, devops) + complexity (simple, medium, complex)
+- Model routing tabel: task_type × complexity × cost_preference → model_id
+- Provider cost metadata in providers.json: cost_tier (subscription/pay-per-token), cost_per_1k_input, cost_per_1k_output
+- AI override (optioneel): voor complex + niet-budget taken, vraag Haiku/Flash om model suggestie (~$0.001 per call)
+- Per-subprocess env: uitbreiding van `get_provider_env()` die per-task overrides accepteert
+- Toekomstig: kosten dashboard, breakeven calculator, per-feature cost tracking
 
 ---
 

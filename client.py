@@ -16,7 +16,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from claude_agent_sdk.types import HookContext, HookInput, HookMatcher, SyncHookJSONOutput
 from dotenv import load_dotenv
 
-from env_constants import API_ENV_VARS
+from role_registry import get_all_tools, get_max_turns, get_tools
 from security import SENSITIVE_DIRECTORIES, bash_security_hook
 
 # Load environment variables from .env file if present
@@ -182,51 +182,18 @@ def get_extra_read_paths() -> list[Path]:
     return validated_paths
 
 
-# Per-agent-type MCP tool lists.
-# Only expose the tools each agent type actually needs, reducing tool schema
-# overhead and preventing agents from calling tools meant for other roles.
+# Per-agent-type MCP tool lists are now defined in role_registry.py.
+# The registry is the single source of truth for agent role configuration
+# (tools, max_turns, model_tier, prompt template).
 #
 # Tools intentionally omitted from ALL agent lists (UI/orchestrator only):
 #   feature_get_ready, feature_get_blocked, feature_get_graph,
 #   feature_remove_dependency
-#
-# The ghost tool "feature_release_testing" was removed entirely -- it was
-# listed here but never implemented in mcp_server/feature_mcp.py.
-
-CODING_AGENT_TOOLS = [
-    "mcp__features__feature_get_stats",
-    "mcp__features__feature_get_by_id",
-    "mcp__features__feature_get_summary",
-    "mcp__features__feature_claim_and_get",
-    "mcp__features__feature_mark_in_progress",
-    "mcp__features__feature_mark_passing",
-    "mcp__features__feature_mark_failing",
-    "mcp__features__feature_skip",
-    "mcp__features__feature_clear_in_progress",
-]
-
-TESTING_AGENT_TOOLS = [
-    "mcp__features__feature_get_stats",
-    "mcp__features__feature_get_by_id",
-    "mcp__features__feature_get_summary",
-    "mcp__features__feature_mark_passing",
-    "mcp__features__feature_mark_failing",
-]
-
-INITIALIZER_AGENT_TOOLS = [
-    "mcp__features__feature_get_stats",
-    "mcp__features__feature_create_bulk",
-    "mcp__features__feature_create",
-    "mcp__features__feature_add_dependency",
-    "mcp__features__feature_set_dependencies",
-]
 
 # Union of all agent tool lists -- used for permissions (all tools remain
 # *permitted* so the MCP server can respond, but only the agent-type-specific
 # list is included in allowed_tools, which controls what the LLM sees).
-ALL_FEATURE_MCP_TOOLS = sorted(
-    set(CODING_AGENT_TOOLS) | set(TESTING_AGENT_TOOLS) | set(INITIALIZER_AGENT_TOOLS)
-)
+ALL_FEATURE_MCP_TOOLS = get_all_tools()
 
 # Playwright MCP tools for browser automation.
 # Full set of tools for comprehensive UI testing including drag-and-drop,
@@ -309,23 +276,10 @@ def create_client(
     Note: Authentication is handled by start.bat/start.sh before this runs.
     The Claude SDK auto-detects credentials from the Claude CLI configuration
     """
-    # Select the feature MCP tools appropriate for this agent type
-    feature_tools_map = {
-        "coding": CODING_AGENT_TOOLS,
-        "testing": TESTING_AGENT_TOOLS,
-        "initializer": INITIALIZER_AGENT_TOOLS,
-    }
-    feature_tools = feature_tools_map.get(agent_type, CODING_AGENT_TOOLS)
-
-    # Select max_turns based on agent type:
-    #   - coding/initializer: 300 turns (complex multi-step implementation)
-    #   - testing: 100 turns (focused verification of a single feature)
-    max_turns_map = {
-        "coding": 300,
-        "testing": 100,
-        "initializer": 300,
-    }
-    max_turns = max_turns_map.get(agent_type, 300)
+    # Select the feature MCP tools and max_turns from the role registry.
+    # The registry is the single source of truth for agent role configuration.
+    feature_tools = get_tools(agent_type)
+    max_turns = get_max_turns(agent_type)
 
     # Build allowed tools list based on mode and agent type.
     # In YOLO mode, exclude Playwright tools for faster prototyping.
@@ -452,11 +406,8 @@ def create_client(
     # These override system env vars for the Claude CLI subprocess,
     # allowing MQ DevEngine to use alternative APIs (e.g., GLM) without
     # affecting the user's global Claude Code settings
-    sdk_env = {}
-    for var in API_ENV_VARS:
-        value = os.getenv(var)
-        if value:
-            sdk_env[var] = value
+    from provider_config import get_provider_env
+    sdk_env = get_provider_env()
 
     # Detect alternative API mode (Ollama, GLM, or Vertex AI)
     base_url = sdk_env.get("ANTHROPIC_BASE_URL", "")
