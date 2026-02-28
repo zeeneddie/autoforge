@@ -206,3 +206,11 @@ def get_playwright_tier(name: str) -> str:
 def get_builtin_tools(name: str) -> list[str]:
     """Get SDK builtin tools for an agent role."""
     return list(get_role(name).get("builtin_tools", _ALL_BUILTIN_TOOLS))
+
+
+def get_runtime_type(name: str) -> str:
+    """Get default runtime type for an agent role.
+
+    Returns "claude" or "pi-agent".
+    """
+    return get_role(name).get("runtime_type", "claude")

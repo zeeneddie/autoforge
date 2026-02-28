@@ -159,7 +159,7 @@ def set_active_provider(name: str | None) -> None:
     Args:
         name: Provider name or None to clear (legacy mode).
     """
-    from registry import set_setting, delete_setting
+    from registry import delete_setting, set_setting
     if name is None:
         delete_setting("active_provider")
     else:
@@ -276,6 +276,33 @@ def has_credentials(profile: dict[str, Any]) -> bool:
         return True  # No auth vars to check
 
     return all(bool(env.get(k)) for k in auth_keys)
+
+
+def get_provider_runtime_type(agent_type: str | None = None) -> str:
+    """Get runtime type from active provider profile.
+
+    Args:
+        agent_type: Optional agent type for per-type overrides (Fase 5).
+
+    Returns:
+        "claude" or "pi-agent".
+    """
+    active = get_active_provider()
+    if active is None:
+        return os.getenv("AGENT_RUNTIME", "claude")
+
+    providers = load_providers()
+    profile = providers.get(active)
+    if not profile:
+        return "claude"
+
+    # Fase 5: per-type runtime overrides
+    if agent_type:
+        overrides = profile.get("runtime_overrides", {})
+        if agent_type in overrides:
+            return overrides[agent_type]
+
+    return profile.get("runtime_type", "claude")
 
 
 def mask_credentials(env: dict[str, str]) -> dict[str, str]:

@@ -485,6 +485,10 @@ def create_client(
             }
         }
 
+    # Determine runtime type from provider config or environment
+    from provider_config import get_provider_runtime_type
+    runtime_type = get_provider_runtime_type(agent_type)
+
     # Build SDK-agnostic runtime configuration
     config = RuntimeConfig(
         model=model,
@@ -505,5 +509,10 @@ def create_client(
         # Enable extended context beta for better handling of long sessions.
         # Disabled for alternative APIs (Ollama, GLM, Vertex AI) as they don't support this beta.
         betas=[] if is_alternative_api else ["context-1m-2025-08-07"],
+        runtime_type=runtime_type,
     )
+
+    if runtime_type != "claude":
+        print(f"   - Runtime: {runtime_type}")
+
     return create_runtime(config)

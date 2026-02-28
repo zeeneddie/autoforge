@@ -413,6 +413,8 @@ class SettingsResponse(BaseModel):
     testing_agent_ratio: int = 1  # Regression testing agents (0-3)
     playwright_headless: bool = True
     batch_size: int = 3  # Features per coding agent batch (1-3)
+    runtime_type: str = "claude"  # "claude" | "pi-agent"
+    ui_mode: str = "classic"  # "classic" | "vibe"
     review_enabled: bool = False  # Independent review agents (Sprint 7.5)
     architect_enabled: bool = False  # Pre-initialization architecture analysis (Sprint 7.6)
     routing_enabled: bool = False  # Hybrid LLM routing per feature (Sprint 7.7)
@@ -436,6 +438,8 @@ class SettingsUpdate(BaseModel):
     testing_agent_ratio: int | None = None  # 0-3
     playwright_headless: bool | None = None
     batch_size: int | None = None  # Features per agent batch (1-3)
+    runtime_type: str | None = None  # "claude" | "pi-agent"
+    ui_mode: str | None = None  # "classic" | "vibe"
     review_enabled: bool | None = None  # Independent review agents (Sprint 7.5)
     architect_enabled: bool | None = None  # Pre-initialization architect (Sprint 7.6)
     routing_enabled: bool | None = None  # Hybrid LLM routing per feature (Sprint 7.7)
@@ -458,6 +462,20 @@ class SettingsUpdate(BaseModel):
     def validate_batch_size(cls, v: int | None) -> int | None:
         if v is not None and (v < 1 or v > 3):
             raise ValueError("batch_size must be between 1 and 3")
+        return v
+
+    @field_validator('runtime_type')
+    @classmethod
+    def validate_runtime_type(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("claude", "pi-agent"):
+            raise ValueError("runtime_type must be claude or pi-agent")
+        return v
+
+    @field_validator('ui_mode')
+    @classmethod
+    def validate_ui_mode(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("classic", "vibe"):
+            raise ValueError("ui_mode must be classic or vibe")
         return v
 
     @field_validator('cost_preference')

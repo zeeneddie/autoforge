@@ -103,6 +103,8 @@ def _build_settings_response(all_settings: dict[str, str]) -> SettingsResponse:
         testing_agent_ratio=_parse_int(all_settings.get("testing_agent_ratio"), 1),
         playwright_headless=_parse_bool(all_settings.get("playwright_headless"), default=True),
         batch_size=_parse_int(all_settings.get("batch_size"), 3),
+        runtime_type=all_settings.get("runtime_type", "claude"),
+        ui_mode=all_settings.get("ui_mode", "classic"),
         review_enabled=_parse_bool(all_settings.get("review_enabled"), default=False),
         architect_enabled=_parse_bool(all_settings.get("architect_enabled"), default=False),
         routing_enabled=_parse_bool(all_settings.get("routing_enabled"), default=False),
@@ -145,6 +147,12 @@ async def update_settings(update: SettingsUpdate):
 
     if update.batch_size is not None:
         set_setting("batch_size", str(update.batch_size))
+
+    if update.runtime_type is not None:
+        set_setting("runtime_type", update.runtime_type)
+
+    if update.ui_mode is not None:
+        set_setting("ui_mode", update.ui_mode)
 
     if update.review_enabled is not None:
         set_setting("review_enabled", "true" if update.review_enabled else "false")

@@ -546,6 +546,8 @@ export interface Settings {
   glm_mode: boolean
   ollama_mode: boolean
   active_provider?: string | null
+  runtime_type?: string  // "claude" | "pi-agent"
+  ui_mode?: string  // "classic" | "vibe"
   testing_agent_ratio: number  // Regression testing agents (0-3)
   playwright_headless: boolean
   batch_size: number  // Features per coding agent batch (1-3)
@@ -558,6 +560,8 @@ export interface SettingsUpdate {
   model_coding?: string | null
   model_testing?: string | null
   active_provider?: string | null
+  runtime_type?: string  // "claude" | "pi-agent"
+  ui_mode?: string  // "classic" | "vibe"
   testing_agent_ratio?: number
   playwright_headless?: boolean
   batch_size?: number
