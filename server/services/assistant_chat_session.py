@@ -17,8 +17,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator, Optional
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from dotenv import load_dotenv
+
+from agent_runtime import AgentClient, RuntimeConfig, create_runtime
 
 from .assistant_database import (
     add_message,
@@ -173,7 +174,7 @@ class AssistantChatSession:
         self.project_name = project_name
         self.project_dir = project_dir
         self.conversation_id = conversation_id
-        self.client: Optional[ClaudeSDKClient] = None
+        self.client: Optional[AgentClient] = None
         self._client_entered: bool = False
         self.created_at = datetime.now()
         self._history_loaded: bool = False  # Track if we've loaded history for resumed conversations
@@ -266,27 +267,26 @@ class AssistantChatSession:
         model = os.getenv("ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-5-20251101")
 
         try:
-            logger.info("Creating ClaudeSDKClient...")
-            self.client = ClaudeSDKClient(
-                options=ClaudeAgentOptions(
-                    model=model,
-                    cli_path=system_cli,
-                    # System prompt loaded from CLAUDE.md via setting_sources
-                    # This avoids Windows command line length limit (~8191 chars)
-                    setting_sources=["project"],
-                    allowed_tools=[*READONLY_BUILTIN_TOOLS, *ASSISTANT_FEATURE_TOOLS],
-                    mcp_servers=mcp_servers,  # type: ignore[arg-type]  # SDK accepts dict config at runtime
-                    permission_mode="bypassPermissions",
-                    max_turns=100,
-                    cwd=str(self.project_dir.resolve()),
-                    settings=str(settings_file.resolve()),
-                    env=sdk_env,
-                )
+            logger.info("Creating agent client...")
+            config = RuntimeConfig(
+                model=model,
+                cli_path=system_cli,
+                # System prompt loaded from CLAUDE.md via setting_sources
+                # This avoids Windows command line length limit (~8191 chars)
+                setting_sources=["project"],
+                allowed_tools=[*READONLY_BUILTIN_TOOLS, *ASSISTANT_FEATURE_TOOLS],
+                mcp_servers=mcp_servers,
+                permission_mode="bypassPermissions",
+                max_turns=100,
+                cwd=self.project_dir.resolve(),
+                settings_path=settings_file.resolve(),
+                env=sdk_env,
             )
-            logger.info("Entering Claude client context...")
+            self.client = create_runtime(config)
+            logger.info("Entering agent client context...")
             await self.client.__aenter__()
             self._client_entered = True
-            logger.info("Claude client ready")
+            logger.info("Agent client ready")
         except Exception as e:
             logger.exception("Failed to create Claude client")
             yield {"type": "error", "content": f"Failed to initialize assistant: {str(e)}"}

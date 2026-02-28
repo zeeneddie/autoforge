@@ -18,8 +18,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from dotenv import load_dotenv
+
+from agent_runtime import AgentClient, RuntimeConfig, create_runtime
 
 from ..schemas import ImageAttachment
 from .chat_constants import ROOT_DIR, make_multimodal_message
@@ -57,7 +58,7 @@ class ExpandChatSession:
         """
         self.project_name = project_name
         self.project_dir = project_dir
-        self.client: Optional[ClaudeSDKClient] = None
+        self.client: Optional[AgentClient] = None
         self.messages: list[dict] = []
         self.complete: bool = False
         self.created_at = datetime.now()
@@ -173,29 +174,28 @@ class ExpandChatSession:
             },
         }
 
-        # Create Claude SDK client
+        # Create agent client
         try:
-            self.client = ClaudeSDKClient(
-                options=ClaudeAgentOptions(
-                    model=model,
-                    cli_path=system_cli,
-                    system_prompt=system_prompt,
-                    allowed_tools=[
-                        "Read",
-                        "Glob",
-                        "Grep",
-                        "WebFetch",
-                        "WebSearch",
-                        *EXPAND_FEATURE_TOOLS,
-                    ],
-                    mcp_servers=mcp_servers,  # type: ignore[arg-type]  # SDK accepts dict config at runtime
-                    permission_mode="bypassPermissions",
-                    max_turns=100,
-                    cwd=str(self.project_dir.resolve()),
-                    settings=str(settings_file.resolve()),
-                    env=sdk_env,
-                )
+            config = RuntimeConfig(
+                model=model,
+                cli_path=system_cli,
+                system_prompt=system_prompt,
+                allowed_tools=[
+                    "Read",
+                    "Glob",
+                    "Grep",
+                    "WebFetch",
+                    "WebSearch",
+                    *EXPAND_FEATURE_TOOLS,
+                ],
+                mcp_servers=mcp_servers,
+                permission_mode="bypassPermissions",
+                max_turns=100,
+                cwd=self.project_dir.resolve(),
+                settings_path=settings_file.resolve(),
+                env=sdk_env,
             )
+            self.client = create_runtime(config)
             await self.client.__aenter__()
             self._client_entered = True
         except Exception:

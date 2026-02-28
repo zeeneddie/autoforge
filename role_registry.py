@@ -10,6 +10,8 @@ Each role defines:
 - max_turns: Maximum conversation turns
 - model_tier: Model tier key (maps to provider_config model slots)
 - phase: Execution order in workflow (lower = earlier)
+- playwright_tier: "none" | "core" | "full" -- controls Playwright tool exposure
+- builtin_tools: SDK built-in tools exposed to this agent type
 
 Adding a new agent role:
 1. Add an entry to AGENT_ROLES below
@@ -81,6 +83,15 @@ _REVIEWER_TOOLS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Builtin tool sets per agent role (token optimization)
+# ---------------------------------------------------------------------------
+
+_ALL_BUILTIN_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "WebFetch", "WebSearch"]
+_READONLY_BUILTIN_TOOLS = ["Read", "Glob", "Grep", "Bash"]
+_INIT_BUILTIN_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash"]
+_REVIEWER_BUILTIN_TOOLS = ["Read", "Glob", "Grep", "Bash", "WebFetch", "WebSearch"]
+
+# ---------------------------------------------------------------------------
 # Role definitions
 # ---------------------------------------------------------------------------
 
@@ -91,6 +102,8 @@ AGENT_ROLES: dict[str, dict[str, Any]] = {
         "max_turns": 200,
         "model_tier": "initializer",
         "phase": 0,
+        "playwright_tier": "none",
+        "builtin_tools": _READONLY_BUILTIN_TOOLS,
     },
     "initializer": {
         "template": "initializer_prompt",
@@ -98,6 +111,8 @@ AGENT_ROLES: dict[str, dict[str, Any]] = {
         "max_turns": 300,
         "model_tier": "initializer",
         "phase": 1,
+        "playwright_tier": "none",
+        "builtin_tools": _INIT_BUILTIN_TOOLS,
     },
     "coding": {
         "template": "coding_prompt",
@@ -105,6 +120,8 @@ AGENT_ROLES: dict[str, dict[str, Any]] = {
         "max_turns": 300,
         "model_tier": "coding",
         "phase": 2,
+        "playwright_tier": "core",
+        "builtin_tools": _ALL_BUILTIN_TOOLS,
     },
     "testing": {
         "template": "testing_prompt",
@@ -112,6 +129,8 @@ AGENT_ROLES: dict[str, dict[str, Any]] = {
         "max_turns": 100,
         "model_tier": "testing",
         "phase": 2,
+        "playwright_tier": "full",
+        "builtin_tools": _READONLY_BUILTIN_TOOLS,
     },
     "reviewer": {
         "template": "review_prompt",
@@ -119,6 +138,8 @@ AGENT_ROLES: dict[str, dict[str, Any]] = {
         "max_turns": 50,
         "model_tier": "coding",
         "phase": 3,
+        "playwright_tier": "none",
+        "builtin_tools": _REVIEWER_BUILTIN_TOOLS,
     },
 }
 
@@ -172,3 +193,16 @@ def get_template_name(name: str) -> str:
 def get_model_tier(name: str) -> str:
     """Get model tier key for an agent role."""
     return get_role(name)["model_tier"]
+
+
+def get_playwright_tier(name: str) -> str:
+    """Get Playwright tool tier for an agent role.
+
+    Returns "none", "core", or "full".
+    """
+    return get_role(name).get("playwright_tier", "none")
+
+
+def get_builtin_tools(name: str) -> list[str]:
+    """Get SDK builtin tools for an agent role."""
+    return list(get_role(name).get("builtin_tools", _ALL_BUILTIN_TOOLS))

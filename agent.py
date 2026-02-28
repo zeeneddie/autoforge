@@ -14,8 +14,7 @@ from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-from claude_agent_sdk import ClaudeSDKClient
-from claude_agent_sdk.types import ResultMessage
+from agent_runtime import AgentClient, is_result_message
 
 # Fix Windows console encoding for Unicode characters (emoji, etc.)
 # Without this, print() crashes when Claude outputs emoji like ✅
@@ -53,7 +52,7 @@ AUTO_CONTINUE_DELAY_SECONDS = 3
 
 
 async def run_agent_session(
-    client: ClaudeSDKClient,
+    client: AgentClient,
     message: str,
     project_dir: Path,
 ) -> tuple[str, str]:
@@ -90,7 +89,7 @@ async def run_agent_session(
             msg_type = type(msg).__name__
 
             # Track ResultMessage to detect abnormal termination
-            if isinstance(msg, ResultMessage):
+            if is_result_message(msg):
                 got_result = True
 
             # Handle AssistantMessage (text and tool use)
@@ -158,7 +157,7 @@ async def run_agent_session(
         if mcp_calls:
             print(f"\n[Session Summary] MCP calls: {', '.join(mcp_calls)}")
         else:
-            print(f"\n[Session Summary] WARNING: No feature MCP calls made this session!")
+            print("\n[Session Summary] WARNING: No feature MCP calls made this session!")
 
         # Detect abnormal termination: CLI exited without producing a ResultMessage.
         # This happens when the CLI subprocess crashes, MCP servers fail, or the

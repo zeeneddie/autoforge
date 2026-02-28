@@ -12,11 +12,10 @@ import shutil
 import sys
 from pathlib import Path
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
-from claude_agent_sdk.types import HookContext, HookInput, HookMatcher, SyncHookJSONOutput
 from dotenv import load_dotenv
 
-from role_registry import get_all_tools, get_max_turns, get_tools
+from agent_runtime import AgentClient, HookSpec, RuntimeConfig, create_runtime
+from role_registry import get_builtin_tools, get_max_turns, get_playwright_tier, get_tools
 from security import SENSITIVE_DIRECTORIES, bash_security_hook
 
 # Load environment variables from .env file if present
@@ -184,65 +183,42 @@ def get_extra_read_paths() -> list[Path]:
 
 # Per-agent-type MCP tool lists are now defined in role_registry.py.
 # The registry is the single source of truth for agent role configuration
-# (tools, max_turns, model_tier, prompt template).
-#
-# Tools intentionally omitted from ALL agent lists (UI/orchestrator only):
-#   feature_get_ready, feature_get_blocked, feature_get_graph,
-#   feature_remove_dependency
+# (tools, max_turns, model_tier, prompt template, playwright_tier, builtin_tools).
 
-# Union of all agent tool lists -- used for permissions (all tools remain
-# *permitted* so the MCP server can respond, but only the agent-type-specific
-# list is included in allowed_tools, which controls what the LLM sees).
-ALL_FEATURE_MCP_TOOLS = get_all_tools()
-
-# Playwright MCP tools for browser automation.
-# Full set of tools for comprehensive UI testing including drag-and-drop,
-# hover menus, file uploads, tab management, etc.
-PLAYWRIGHT_TOOLS = [
-    # Core navigation & screenshots
+# Playwright MCP tools split into tiers for token optimization.
+# Coding agents only need core tools; testing agents get the full set.
+PLAYWRIGHT_CORE_TOOLS = [
     "mcp__playwright__browser_navigate",
-    "mcp__playwright__browser_navigate_back",
     "mcp__playwright__browser_take_screenshot",
     "mcp__playwright__browser_snapshot",
-
-    # Element interaction
     "mcp__playwright__browser_click",
     "mcp__playwright__browser_type",
     "mcp__playwright__browser_fill_form",
+    "mcp__playwright__browser_evaluate",
+    "mcp__playwright__browser_console_messages",
+    "mcp__playwright__browser_wait_for",
+    "mcp__playwright__browser_close",
+]
+
+PLAYWRIGHT_EXTENDED_TOOLS = [
+    "mcp__playwright__browser_navigate_back",
     "mcp__playwright__browser_select_option",
     "mcp__playwright__browser_press_key",
     "mcp__playwright__browser_drag",
     "mcp__playwright__browser_hover",
     "mcp__playwright__browser_file_upload",
-
-    # JavaScript & debugging
-    "mcp__playwright__browser_evaluate",
-    # "mcp__playwright__browser_run_code",  # REMOVED - causes Playwright MCP server crash
-    "mcp__playwright__browser_console_messages",
     "mcp__playwright__browser_network_requests",
-
-    # Browser management
     "mcp__playwright__browser_resize",
-    "mcp__playwright__browser_wait_for",
     "mcp__playwright__browser_handle_dialog",
     "mcp__playwright__browser_install",
-    "mcp__playwright__browser_close",
     "mcp__playwright__browser_tabs",
 ]
 
-# Built-in tools available to agents.
-# WebFetch and WebSearch are included so coding agents can look up current
-# documentation for frameworks and libraries they are implementing.
-BUILTIN_TOOLS = [
-    "Read",
-    "Write",
-    "Edit",
-    "Glob",
-    "Grep",
-    "Bash",
-    "WebFetch",
-    "WebSearch",
-]
+# Full set (core + extended) -- used for permissions and "full" tier
+PLAYWRIGHT_TOOLS = PLAYWRIGHT_CORE_TOOLS + PLAYWRIGHT_EXTENDED_TOOLS
+
+
+# Default builtin tools are now defined per role in role_registry.py via get_builtin_tools().
 
 
 def create_client(
@@ -251,9 +227,9 @@ def create_client(
     yolo_mode: bool = False,
     agent_id: str | None = None,
     agent_type: str = "coding",
-):
+) -> AgentClient:
     """
-    Create a Claude Agent SDK client with multi-layered security.
+    Create an agent client with multi-layered security.
 
     Args:
         project_dir: Directory for the project
@@ -265,7 +241,7 @@ def create_client(
                     MCP tools are exposed and the max_turns limit.
 
     Returns:
-        Configured ClaudeSDKClient (from claude_agent_sdk)
+        Configured AgentClient (runtime-agnostic)
 
     Security layers (defense in depth):
     1. Sandbox - OS-level bash command isolation prevents filesystem escape
@@ -281,16 +257,22 @@ def create_client(
     feature_tools = get_tools(agent_type)
     max_turns = get_max_turns(agent_type)
 
+    # Scoped builtin tools per agent type (token optimization).
+    builtin_tools = get_builtin_tools(agent_type)
+
     # Build allowed tools list based on mode and agent type.
     # In YOLO mode, exclude Playwright tools for faster prototyping.
-    allowed_tools = [*BUILTIN_TOOLS, *feature_tools]
+    allowed_tools = [*builtin_tools, *feature_tools]
     if not yolo_mode:
-        allowed_tools.extend(PLAYWRIGHT_TOOLS)
+        # Use tiered Playwright tools: "core" for coding, "full" for testing, "none" for others
+        pw_tier = get_playwright_tier(agent_type)
+        if pw_tier == "full":
+            allowed_tools.extend(PLAYWRIGHT_TOOLS)
+        elif pw_tier == "core":
+            allowed_tools.extend(PLAYWRIGHT_CORE_TOOLS)
 
     # Build permissions list.
-    # We permit ALL feature MCP tools at the security layer (so the MCP server
-    # can respond if called), but the LLM only *sees* the agent-type-specific
-    # subset via allowed_tools above.
+    # Only permit the agent-type-specific feature tools (token optimization).
     permissions_list = [
         # Allow all file operations within the project directory
         "Read(./**)",
@@ -304,8 +286,8 @@ def create_client(
         # Allow web tools for looking up framework/library documentation
         "WebFetch(*)",
         "WebSearch(*)",
-        # Allow Feature MCP tools for feature management
-        *ALL_FEATURE_MCP_TOOLS,
+        # Allow agent-specific Feature MCP tools
+        *feature_tools,
     ]
 
     # Add extra read paths from environment variable (read-only access)
@@ -439,10 +421,10 @@ def create_client(
     # This hook provides custom instructions that guide the summarizer to preserve
     # critical workflow state while discarding verbose/redundant content.
     async def pre_compact_hook(
-        input_data: HookInput,
+        input_data: dict,
         tool_use_id: str | None,
-        context: HookContext,
-    ) -> SyncHookJSONOutput:
+        context: dict,
+    ) -> dict:
         """
         Hook called before context compaction occurs.
 
@@ -494,65 +476,34 @@ def create_client(
 
         print("[Context] Applying custom compaction instructions (preserve workflow state, discard verbose content)")
 
-        # The SDK's HookSpecificOutput union type does not yet include a
-        # PreCompactHookSpecificOutput variant, but the CLI protocol accepts
-        # {"hookEventName": "PreCompact", "customInstructions": "..."}.
-        # The dict is serialized to JSON and sent to the CLI process directly,
-        # so the runtime behavior is correct despite the type mismatch.
-        return SyncHookJSONOutput(
-            hookSpecificOutput={  # type: ignore[typeddict-item]
+        # The CLI protocol accepts {"hookEventName": "PreCompact", "customInstructions": "..."}.
+        # Plain dict is serialized to JSON and sent to the CLI process directly.
+        return {
+            "hookSpecificOutput": {
                 "hookEventName": "PreCompact",
                 "customInstructions": compaction_guidance,
             }
-        )
+        }
 
-    # PROMPT CACHING: The Claude Code CLI applies cache_control breakpoints internally.
-    # Our system_prompt benefits from automatic caching without explicit configuration.
-    # If explicit cache_control is needed, the SDK would need to accept content blocks
-    # with cache_control fields (not currently supported in v0.1.x).
-    return ClaudeSDKClient(
-        options=ClaudeAgentOptions(
-            model=model,
-            cli_path=system_cli,  # Use system CLI to avoid bundled Bun crash (exit code 3)
-            system_prompt="You are an expert full-stack developer building a production-quality web application.",
-            setting_sources=["project"],  # Enable skills, commands, and CLAUDE.md from project dir
-            max_buffer_size=10 * 1024 * 1024,  # 10MB for large Playwright screenshots
-            allowed_tools=allowed_tools,
-            mcp_servers=mcp_servers,  # type: ignore[arg-type]  # SDK accepts dict config at runtime
-            hooks={
-                "PreToolUse": [
-                    HookMatcher(matcher="Bash", hooks=[bash_hook_with_context]),
-                ],
-                # PreCompact hook for context management during long sessions.
-                # Compaction is automatic when context approaches token limits.
-                # This hook logs compaction events and can customize summarization.
-                "PreCompact": [
-                    HookMatcher(hooks=[pre_compact_hook]),
-                ],
-            },
-            max_turns=max_turns,
-            cwd=str(project_dir.resolve()),
-            settings=str(settings_file.resolve()),  # Use absolute path
-            env=sdk_env,  # Pass API configuration overrides to CLI subprocess
-            # Enable extended context beta for better handling of long sessions.
-            # This provides up to 1M tokens of context with automatic compaction.
-            # See: https://docs.anthropic.com/en/api/beta-headers
-            # Disabled for alternative APIs (Ollama, GLM, Vertex AI) as they don't support this beta.
-            betas=[] if is_alternative_api else ["context-1m-2025-08-07"],
-            # Note on context management:
-            # The Claude Agent SDK handles context management automatically through the
-            # underlying Claude Code CLI. When context approaches limits, the CLI
-            # automatically compacts/summarizes previous messages.
-            #
-            # The SDK does NOT expose explicit compaction_control or context_management
-            # parameters. Instead, context is managed via:
-            # 1. betas=["context-1m-2025-08-07"] - Extended context window
-            # 2. PreCompact hook - Intercept and customize compaction behavior
-            # 3. max_turns - Limit conversation turns (per agent type: coding=300, testing=100)
-            #
-            # Future SDK versions may add explicit compaction controls. When available,
-            # consider adding:
-            # - compaction_control={"enabled": True, "context_token_threshold": 80000}
-            # - context_management={"edits": [...]} for tool use clearing
-        )
+    # Build SDK-agnostic runtime configuration
+    config = RuntimeConfig(
+        model=model,
+        cli_path=system_cli,  # Use system CLI to avoid bundled Bun crash (exit code 3)
+        system_prompt="You are an expert full-stack developer building a production-quality web application.",
+        setting_sources=["project"],  # Enable skills, commands, and CLAUDE.md from project dir
+        max_buffer_size=10 * 1024 * 1024,  # 10MB for large Playwright screenshots
+        allowed_tools=allowed_tools,
+        mcp_servers=mcp_servers,
+        hooks=[
+            HookSpec(event="PreToolUse", matcher="Bash", callback=bash_hook_with_context),
+            HookSpec(event="PreCompact", matcher=None, callback=pre_compact_hook),
+        ],
+        max_turns=max_turns,
+        cwd=project_dir.resolve(),
+        settings_path=settings_file.resolve(),
+        env=sdk_env,  # Pass API configuration overrides to CLI subprocess
+        # Enable extended context beta for better handling of long sessions.
+        # Disabled for alternative APIs (Ollama, GLM, Vertex AI) as they don't support this beta.
+        betas=[] if is_alternative_api else ["context-1m-2025-08-07"],
     )
+    return create_runtime(config)

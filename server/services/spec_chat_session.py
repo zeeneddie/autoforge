@@ -15,8 +15,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from dotenv import load_dotenv
+
+from agent_runtime import AgentClient, RuntimeConfig, create_runtime
 
 from ..schemas import ImageAttachment
 from .chat_constants import ROOT_DIR, make_multimodal_message
@@ -50,7 +51,7 @@ class SpecChatSession:
         """
         self.project_name = project_name
         self.project_dir = project_dir
-        self.client: Optional[ClaudeSDKClient] = None
+        self.client: Optional[AgentClient] = None
         self.messages: list[dict] = []
         self.complete: bool = False
         self.created_at = datetime.now()
@@ -148,28 +149,28 @@ class SpecChatSession:
         model = os.getenv("ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-5-20251101")
 
         try:
-            self.client = ClaudeSDKClient(
-                options=ClaudeAgentOptions(
-                    model=model,
-                    cli_path=system_cli,
-                    # System prompt loaded from CLAUDE.md via setting_sources
-                    # Include "user" for global skills and subagents from ~/.claude/
-                    setting_sources=["project", "user"],
-                    allowed_tools=[
-                        "Read",
-                        "Write",
-                        "Edit",
-                        "Glob",
-                        "WebFetch",
-                        "WebSearch",
-                    ],
-                    permission_mode="acceptEdits",  # Auto-approve file writes for spec creation
-                    max_turns=100,
-                    cwd=str(self.project_dir.resolve()),
-                    settings=str(settings_file.resolve()),
-                    env=sdk_env,
-                )
+            config = RuntimeConfig(
+                model=model,
+                cli_path=system_cli,
+                # System prompt loaded from CLAUDE.md via setting_sources
+                # Include "user" for global skills and subagents from ~/.claude/
+                setting_sources=["project", "user"],
+                allowed_tools=[
+                    "Read",
+                    "Write",
+                    "Edit",
+                    "Glob",
+                    "WebFetch",
+                    "WebSearch",
+                ],
+                mcp_servers={},
+                permission_mode="acceptEdits",  # Auto-approve file writes for spec creation
+                max_turns=100,
+                cwd=self.project_dir.resolve(),
+                settings_path=settings_file.resolve(),
+                env=sdk_env,
             )
+            self.client = create_runtime(config)
             # Enter the async context and track it
             await self.client.__aenter__()
             self._client_entered = True
