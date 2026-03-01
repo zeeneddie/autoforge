@@ -32,14 +32,23 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 import psutil
-from sqlalchemy import text
+from sqlalchemy import func, text
 
-from api.database import Feature, TestRun, create_database
+from api.database import AgentLog, Feature, TestRun, create_database
 from api.dependency_resolver import are_dependencies_satisfied, compute_scheduling_scores
 from progress import has_features
 from server.utils.process_utils import kill_process_tree
 
 logger = logging.getLogger(__name__)
+
+# Noise filter regex for log persistence — matches empty lines and separator lines
+_LOG_NOISE_RE = re.compile(r'^(?:\s*$|[=\-]{3,}\s*$)')
+
+
+def _is_log_noise(line: str) -> bool:
+    """Return True if line is noise (empty or separator) that shouldn't be persisted."""
+    return bool(_LOG_NOISE_RE.match(line))
+
 
 # Root directory of MQ DevEngine (where this script and autonomous_agent_demo.py live)
 AUTOFORGE_ROOT = Path(__file__).parent.resolve()
@@ -153,6 +162,7 @@ class ParallelOrchestrator:
         max_concurrency: int = DEFAULT_CONCURRENCY,
         model: str | None = None,
         yolo_mode: bool = False,
+        tdd_mode: bool = False,
         testing_agent_ratio: int = 1,
         testing_batch_size: int = DEFAULT_TESTING_BATCH_SIZE,
         batch_size: int = 3,
@@ -170,6 +180,7 @@ class ParallelOrchestrator:
                 Also caps testing agents at the same limit.
             model: Claude model to use (or None for default)
             yolo_mode: Whether to run in YOLO mode (skip testing agents entirely)
+            tdd_mode: Whether to run in TDD mode (Red/Green/Refactor cycle)
             testing_agent_ratio: Number of regression testing agents to maintain (0-3).
                 0 = disabled, 1-3 = maintain that many testing agents running independently.
             testing_batch_size: Number of features to include per testing session (1-5).
@@ -187,6 +198,7 @@ class ParallelOrchestrator:
         self.model_coding = model_coding or model
         self.model_testing = model_testing or model
         self.yolo_mode = yolo_mode
+        self.tdd_mode = tdd_mode
         self.testing_agent_ratio = min(max(testing_agent_ratio, 0), 3)  # Clamp 0-3
         self.testing_batch_size = min(max(testing_batch_size, 1), 5)  # Clamp 1-5
         self.batch_size = min(max(batch_size, 1), 3)  # Clamp 1-3
@@ -240,12 +252,35 @@ class ParallelOrchestrator:
         self._agent_completed_event: asyncio.Event | None = None  # Created in run_loop
         self._event_loop: asyncio.AbstractEventLoop | None = None  # Stored for thread-safe signaling
 
+        # Log persistence: run_id tracking per feature (thread-safe)
+        self._run_ids: dict[int, int] = {}
+        self._run_id_lock = threading.Lock()
+
         # Database session for this orchestrator
         self._engine, self._session_maker = create_database(project_dir)
 
     def get_session(self):
         """Get a new database session."""
         return self._session_maker()
+
+    def _start_new_run(self, feature_id: int) -> None:
+        """Start a new run for a feature — called when an agent starts.
+
+        Thread-safe: uses _run_id_lock for concurrent spawn protection.
+        Queries max run_id from DB, increments by 1.
+        """
+        with self._run_id_lock:
+            try:
+                session = self.get_session()
+                try:
+                    max_run = session.query(func.max(AgentLog.run_id)).filter(
+                        AgentLog.feature_id == feature_id
+                    ).scalar()
+                    self._run_ids[feature_id] = (max_run or 0) + 1
+                finally:
+                    session.close()
+            except Exception:
+                self._run_ids[feature_id] = self._run_ids.get(feature_id, 0) + 1
 
     def _is_architect_enabled(self) -> bool:
         """Check if architect agent is enabled.
@@ -303,6 +338,8 @@ class ParallelOrchestrator:
         # Use initializer model for architect (same tier)
         if self.model_initializer:
             cmd.extend(["--model", self.model_initializer])
+        if self.tdd_mode:
+            cmd.append("--tdd")
 
         print(f"Running architect agent (model: {self.model_initializer or 'default'})...", flush=True)
 
@@ -547,6 +584,9 @@ class ParallelOrchestrator:
 
             start_time = datetime.now(timezone.utc)
             self.running_review_agents[proc.pid] = (feature_id, proc, start_time)
+
+        # Track new run for log persistence
+        self._start_new_run(feature_id)
 
         # Start output reader thread
         threading.Thread(
@@ -1245,6 +1285,8 @@ class ParallelOrchestrator:
             cmd.extend(["--model", model])
         if self.yolo_mode:
             cmd.append("--yolo")
+        if self.tdd_mode:
+            cmd.append("--tdd")
 
         try:
             # CREATE_NO_WINDOW on Windows prevents console window pop-ups
@@ -1279,6 +1321,9 @@ class ParallelOrchestrator:
         with self._lock:
             self.running_coding_agents[feature_id] = proc
             self.abort_events[feature_id] = abort_event
+
+        # Track new run for log persistence
+        self._start_new_run(feature_id)
 
         # Start output reader thread
         threading.Thread(
@@ -1333,6 +1378,8 @@ class ParallelOrchestrator:
             cmd.extend(["--model", model])
         if self.yolo_mode:
             cmd.append("--yolo")
+        if self.tdd_mode:
+            cmd.append("--tdd")
 
         try:
             popen_kwargs: dict[str, Any] = {
@@ -1368,6 +1415,10 @@ class ParallelOrchestrator:
             self._batch_features[primary_id] = list(feature_ids)
             for fid in feature_ids:
                 self._feature_to_primary[fid] = primary_id
+
+        # Track new runs for log persistence (all features in batch)
+        for fid in feature_ids:
+            self._start_new_run(fid)
 
         # Start output reader thread
         threading.Thread(
@@ -1463,6 +1514,9 @@ class ParallelOrchestrator:
             self.running_testing_agents[proc.pid] = (primary_feature_id, proc, batch, batch_start_time)
             testing_count = len(self.running_testing_agents)
 
+        # Track new run for log persistence
+        self._start_new_run(primary_feature_id)
+
         # Start output reader thread with primary feature ID for log attribution
         threading.Thread(
             target=self._read_output,
@@ -1495,6 +1549,8 @@ class ParallelOrchestrator:
         ]
         if self.model_initializer:
             cmd.extend(["--model", self.model_initializer])
+        if self.tdd_mode:
+            cmd.append("--tdd")
 
         print(f"Running initializer agent (model: {self.model_initializer or 'default'})...", flush=True)
 
@@ -1557,6 +1613,9 @@ class ParallelOrchestrator:
         r"feature_claim_and_get\b.*?['\"]?feature_id['\"]?\s*[:=]\s*(\d+)"
     )
 
+    # Buffer size for batched DB writes (commit every N lines)
+    _LOG_FLUSH_INTERVAL = 20
+
     def _read_output(
         self,
         feature_id: int | None,
@@ -1564,8 +1623,22 @@ class ParallelOrchestrator:
         abort: threading.Event,
         agent_type: Literal["coding", "testing", "reviewer"] = "coding",
     ):
-        """Read output from subprocess and emit events."""
+        """Read output from subprocess, emit events, and persist logs to DB.
+
+        Creates one SQLAlchemy session per thread for the agent's lifetime.
+        Buffers writes and commits every _LOG_FLUSH_INTERVAL lines.
+        On feature transition (batch mode), flushes buffer and starts new run.
+        """
         current_feature_id = feature_id
+
+        # Set up DB session for log persistence (one per thread)
+        db_session = None
+        buffer_count = 0
+        try:
+            db_session = self._session_maker()
+        except Exception:
+            pass  # Log persistence disabled if session creation fails
+
         try:
             if proc.stdout is None:
                 proc.wait()
@@ -1579,14 +1652,74 @@ class ParallelOrchestrator:
                 if claim_match:
                     claimed_id = int(claim_match.group(1))
                     if claimed_id != current_feature_id:
+                        # Feature transition: flush buffer and start new run
+                        if db_session is not None and buffer_count > 0:
+                            try:
+                                db_session.commit()
+                            except Exception:
+                                try:
+                                    db_session.rollback()
+                                except Exception:
+                                    pass
+                            buffer_count = 0
                         current_feature_id = claimed_id
+                        self._start_new_run(claimed_id)
+
+                # Emit output callback or print
                 if self.on_output is not None:
                     self.on_output(current_feature_id or 0, line)
                 else:
                     # Both coding and testing agents now use [Feature #X] format
                     print(f"[Feature #{current_feature_id}] {line}", flush=True)
+
+                # Persist to DB (skip noise lines)
+                if db_session is not None and current_feature_id and not _is_log_noise(line):
+                    try:
+                        log_type = "error" if "[Error]" in line or "[BLOCKED]" in line else "output"
+                        run_id = self._run_ids.get(current_feature_id, 1)
+                        entry = AgentLog(
+                            feature_id=current_feature_id,
+                            run_id=run_id,
+                            line=line,
+                            log_type=log_type,
+                            agent_type=agent_type,
+                            timestamp=datetime.now(timezone.utc),
+                        )
+                        db_session.add(entry)
+                        buffer_count += 1
+                        if buffer_count >= self._LOG_FLUSH_INTERVAL:
+                            db_session.commit()
+                            buffer_count = 0
+                    except Exception:
+                        # Error recovery: rollback and recreate session
+                        try:
+                            db_session.rollback()
+                        except Exception:
+                            pass
+                        try:
+                            db_session.close()
+                            db_session = self._session_maker()
+                            buffer_count = 0
+                        except Exception:
+                            db_session = None  # Give up on persistence
+
             proc.wait()
         finally:
+            # Flush remaining buffered logs
+            if db_session is not None:
+                try:
+                    if buffer_count > 0:
+                        db_session.commit()
+                except Exception:
+                    try:
+                        db_session.rollback()
+                    except Exception:
+                        pass
+                try:
+                    db_session.close()
+                except Exception:
+                    pass
+
             # CRITICAL: Kill the process tree to clean up any child processes (e.g., Claude CLI)
             # This prevents zombie processes from accumulating
             try:
@@ -1938,6 +2071,7 @@ class ParallelOrchestrator:
         print(f"Project: {self.project_dir}", flush=True)
         print(f"Max concurrency: {self.max_concurrency} coding agents", flush=True)
         print(f"YOLO mode: {self.yolo_mode}", flush=True)
+        print(f"TDD mode: {self.tdd_mode}", flush=True)
         print(f"Regression agents: {self.testing_agent_ratio} (maintained independently)", flush=True)
         print(f"Batch size: {self.batch_size} features per agent", flush=True)
         print(f"Model (default):     {self.model}", flush=True)
@@ -2197,6 +2331,7 @@ class ParallelOrchestrator:
                 "testing_agent_ratio": self.testing_agent_ratio,
                 "is_running": self.is_running,
                 "yolo_mode": self.yolo_mode,
+                "tdd_mode": self.tdd_mode,
                 "review_enabled": self._is_review_enabled(),
                 "architect_enabled": self._is_architect_enabled(),
                 "routing_enabled": self._is_routing_enabled(),
@@ -2238,6 +2373,7 @@ async def run_parallel_orchestrator(
     max_concurrency: int = DEFAULT_CONCURRENCY,
     model: str | None = None,
     yolo_mode: bool = False,
+    tdd_mode: bool = False,
     testing_agent_ratio: int = 1,
     testing_batch_size: int = DEFAULT_TESTING_BATCH_SIZE,
     batch_size: int = 3,
@@ -2252,6 +2388,7 @@ async def run_parallel_orchestrator(
         max_concurrency: Maximum number of concurrent coding agents
         model: Claude model to use
         yolo_mode: Whether to run in YOLO mode (skip testing agents)
+        tdd_mode: Whether to run in TDD mode (Red/Green/Refactor cycle)
         testing_agent_ratio: Number of regression agents to maintain (0-3)
         testing_batch_size: Number of features per testing batch (1-5)
         batch_size: Max features per coding agent batch (1-3)
@@ -2265,6 +2402,7 @@ async def run_parallel_orchestrator(
         max_concurrency=max_concurrency,
         model=model,
         yolo_mode=yolo_mode,
+        tdd_mode=tdd_mode,
         testing_agent_ratio=testing_agent_ratio,
         testing_batch_size=testing_batch_size,
         batch_size=batch_size,
@@ -2353,6 +2491,12 @@ def main():
         help="Enable YOLO mode: rapid prototyping without browser testing",
     )
     parser.add_argument(
+        "--tdd",
+        action="store_true",
+        default=False,
+        help="Enable TDD mode: Red/Green/Refactor cycle for coding agents",
+    )
+    parser.add_argument(
         "--testing-agent-ratio",
         type=int,
         default=1,
@@ -2395,6 +2539,7 @@ def main():
             max_concurrency=args.max_concurrency,
             model=args.model,
             yolo_mode=args.yolo,
+            tdd_mode=args.tdd,
             testing_agent_ratio=args.testing_agent_ratio,
             testing_batch_size=args.testing_batch_size,
             batch_size=args.batch_size,

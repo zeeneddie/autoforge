@@ -754,70 +754,6 @@ async def project_websocket(websocket: WebSocket, project_name: str):
     # Create orchestrator tracker for observability
     orchestrator_tracker = OrchestratorTracker()
 
-    # Persistent log writer - stores agent output to database for later retrieval
-    _db_classes_loaded = False
-    _AgentLog = None
-    _db_create = None
-    # Track current run_id per feature_id — incremented when a new agent starts
-    _feature_run_ids: dict[int, int] = {}
-
-    def _ensure_db_classes():
-        nonlocal _db_classes_loaded, _AgentLog, _db_create
-        if not _db_classes_loaded:
-            import sys
-            root = Path(__file__).parent.parent
-            if str(root) not in sys.path:
-                sys.path.insert(0, str(root))
-            from api.database import AgentLog, create_database
-            _AgentLog = AgentLog
-            _db_create = create_database
-            _db_classes_loaded = True
-
-    def _start_new_run(feature_id: int):
-        """Start a new run for a feature — called when an agent starts."""
-        try:
-            _ensure_db_classes()
-            _, SessionLocal = _db_create(project_dir)
-            session = SessionLocal()
-            try:
-                from sqlalchemy import func
-                max_run = session.query(func.max(_AgentLog.run_id)).filter(
-                    _AgentLog.feature_id == feature_id
-                ).scalar()
-                new_run_id = (max_run or 0) + 1
-                _feature_run_ids[feature_id] = new_run_id
-            finally:
-                session.close()
-        except Exception:
-            _feature_run_ids[feature_id] = _feature_run_ids.get(feature_id, 0) + 1
-
-    def _persist_log(feature_id: int, line: str, agent_index: int | None):
-        """Write a log entry to the database (fire-and-forget).
-
-        Failures are silently ignored to avoid breaking the WebSocket stream.
-        """
-        try:
-            _ensure_db_classes()
-            _, SessionLocal = _db_create(project_dir)
-            session = SessionLocal()
-            try:
-                log_type = "error" if "[Error]" in line or "[BLOCKED]" in line else "output"
-                run_id = _feature_run_ids.get(feature_id, 1)
-                entry = _AgentLog(
-                    feature_id=feature_id,
-                    run_id=run_id,
-                    line=line,
-                    log_type=log_type,
-                    agent_index=agent_index,
-                    timestamp=datetime.now(),
-                )
-                session.add(entry)
-                session.commit()
-            finally:
-                session.close()
-        except Exception:
-            pass  # Don't let log persistence failures break the WebSocket stream
-
     async def on_output(line: str):
         """Handle agent output - broadcast to this WebSocket."""
         try:
@@ -841,25 +777,6 @@ async def project_websocket(websocket: WebSocket, project_name: str):
                 log_msg["agentIndex"] = agent_index
 
             await websocket.send_json(log_msg)
-
-            # Detect agent start → begin a new run_id for those features
-            batch_start = BATCH_CODING_AGENT_START_PATTERN.match(line)
-            if batch_start:
-                ids_str = batch_start.group(1)
-                for fid_str in re.findall(r'#(\d+)', ids_str):
-                    _start_new_run(int(fid_str))
-            elif line.startswith("Started coding agent for feature #"):
-                start_match = re.search(r'#(\d+)', line)
-                if start_match:
-                    _start_new_run(int(start_match.group(1)))
-            elif TESTING_AGENT_START_PATTERN.match(line):
-                test_match = TESTING_AGENT_START_PATTERN.match(line)
-                if test_match:
-                    _start_new_run(int(test_match.group(1)))
-
-            # Persist to database for later retrieval (survives page refresh)
-            if feature_id is not None:
-                _persist_log(feature_id, line, agent_index)
 
             # Check if this line indicates agent activity (parallel mode)
             # and emit agent_update messages if so
