@@ -213,6 +213,22 @@ After completing all behaviours for this feature:
 2. ALL tests must pass (verify no regressions from other features)
 3. If other features' tests break, fix the regressions before proceeding
 
+### STEP 4.6: RECORD TEST RESULTS (TDD MODE)
+
+After all tests pass for this feature, record the test metadata:
+
+```
+feature_record_test(
+    feature_id=<your feature id>,
+    test_file_path="src/__tests__/yourFeature.test.ts",
+    test_count=<number of test cases>,
+    passed=true,
+    output_snippet="<first lines of test output>"
+)
+```
+
+This is MANDATORY before calling feature_mark_passing. Without it, test tracking is incomplete.
+
 """
 
     # Replace STEP 4 (implementation step) with TDD cycle
