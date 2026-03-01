@@ -1613,6 +1613,11 @@ class ParallelOrchestrator:
         r"feature_claim_and_get\b.*?['\"]?feature_id['\"]?\s*[:=]\s*(\d+)"
     )
 
+    # Pattern to detect when a testing agent switches to a new feature
+    _TESTING_FEATURE_PATTERN = re.compile(
+        r"feature_get_by_id\b.*?['\"]?feature_id['\"]?\s*[:=]\s*(\d+)"
+    )
+
     # Buffer size for batched DB writes (commit every N lines)
     _LOG_FLUSH_INTERVAL = 20
 
@@ -1647,11 +1652,13 @@ class ParallelOrchestrator:
                 if abort.is_set():
                     break
                 line = line.rstrip()
-                # Detect when a batch agent claims a new feature
-                claim_match = self._CLAIM_FEATURE_PATTERN.search(line)
-                if claim_match:
-                    claimed_id = int(claim_match.group(1))
-                    if claimed_id != current_feature_id:
+                # Detect feature transitions (coding: claim_and_get, testing: get_by_id)
+                transition_match = self._CLAIM_FEATURE_PATTERN.search(line)
+                if not transition_match and agent_type == "testing":
+                    transition_match = self._TESTING_FEATURE_PATTERN.search(line)
+                if transition_match:
+                    new_fid = int(transition_match.group(1))
+                    if new_fid != current_feature_id:
                         # Feature transition: flush buffer and start new run
                         if db_session is not None and buffer_count > 0:
                             try:
@@ -1662,8 +1669,8 @@ class ParallelOrchestrator:
                                 except Exception:
                                     pass
                             buffer_count = 0
-                        current_feature_id = claimed_id
-                        self._start_new_run(claimed_id)
+                        current_feature_id = new_fid
+                        self._start_new_run(new_fid)
 
                 # Emit output callback or print
                 if self.on_output is not None:
