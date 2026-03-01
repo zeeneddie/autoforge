@@ -174,6 +174,13 @@ async def run_agent_session(
         error_str = str(e)
         print(f"Error during agent session: {error_str}")
 
+        # Handle SDK MessageParseError for rate_limit_event
+        # The system CLI (v2.1.63+) sends rate_limit_event messages that
+        # older versions of claude_agent_sdk don't know how to parse.
+        if "rate_limit_event" in error_str or "rate_limit" in error_str.lower():
+            print("Rate limit detected (CLI sent rate_limit_event)", flush=True)
+            return "rate_limit", "60"  # Default 60s backoff
+
         # Detect rate limit errors from exception message
         if is_rate_limit_error(error_str):
             # Try to extract retry-after time from error
@@ -191,6 +198,7 @@ async def run_autonomous_agent(
     model: str,
     max_iterations: Optional[int] = None,
     yolo_mode: bool = False,
+    tdd_mode: bool = False,
     feature_id: Optional[int] = None,
     feature_ids: Optional[list[int]] = None,
     agent_type: Optional[str] = None,
@@ -206,6 +214,7 @@ async def run_autonomous_agent(
         model: Claude model to use
         max_iterations: Maximum number of iterations (None for unlimited)
         yolo_mode: If True, skip browser testing in coding agent prompts
+        tdd_mode: If True, inject TDD Red/Green/Refactor sections into prompts
         feature_id: If set, work only on this specific feature (used by orchestrator for coding agents)
         feature_ids: If set, work on these features in batch (used by orchestrator for batch mode)
         agent_type: Type of agent: "initializer", "coding", "testing", "reviewer", or None (auto-detect)
@@ -222,6 +231,8 @@ async def run_autonomous_agent(
         print(f"Agent type: {agent_type}")
     if yolo_mode:
         print("Mode: YOLO (testing agents disabled)")
+    if tdd_mode:
+        print("Mode: TDD (Red/Green/Refactor cycle enabled)")
     if feature_ids and len(feature_ids) > 1:
         print(f"Feature batch: {', '.join(f'#{fid}' for fid in feature_ids)}")
     elif feature_id:
@@ -326,23 +337,23 @@ async def run_autonomous_agent(
 
         # Choose prompt based on agent type
         if agent_type == "architect":
-            prompt = get_architect_prompt(project_dir)
+            prompt = get_architect_prompt(project_dir, tdd_mode=tdd_mode)
         elif agent_type == "initializer":
-            prompt = get_initializer_prompt(project_dir)
+            prompt = get_initializer_prompt(project_dir, tdd_mode=tdd_mode)
         elif agent_type == "reviewer":
             prompt = get_review_prompt(project_dir, review_feature_id)
         elif agent_type == "testing":
             prompt = get_testing_prompt(project_dir, testing_feature_id, testing_feature_ids)
         elif feature_ids and len(feature_ids) > 1:
             # Batch mode (used by orchestrator for multi-feature coding agents)
-            prompt = get_batch_feature_prompt(feature_ids, project_dir, yolo_mode)
+            prompt = get_batch_feature_prompt(feature_ids, project_dir, yolo_mode, tdd_mode=tdd_mode)
         elif feature_id or (feature_ids is not None and len(feature_ids) == 1):
             # Single-feature mode (used by orchestrator for coding agents)
             fid = feature_id if feature_id is not None else feature_ids[0]  # type: ignore[index]
-            prompt = get_single_feature_prompt(fid, project_dir, yolo_mode)
+            prompt = get_single_feature_prompt(fid, project_dir, yolo_mode, tdd_mode=tdd_mode)
         else:
             # General coding prompt (legacy path)
-            prompt = get_coding_prompt(project_dir, yolo_mode=yolo_mode)
+            prompt = get_coding_prompt(project_dir, yolo_mode=yolo_mode, tdd_mode=tdd_mode)
 
         # Run session with async context manager
         # Wrap in try/except to handle MCP server startup failures gracefully

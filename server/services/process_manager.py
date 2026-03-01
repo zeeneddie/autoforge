@@ -82,6 +82,7 @@ class AgentProcessManager:
         self.started_at: datetime | None = None
         self._output_task: asyncio.Task | None = None
         self.yolo_mode: bool = False  # YOLO mode for rapid prototyping
+        self.tdd_mode: bool = False  # TDD mode for Red/Green/Refactor
         self.model: str | None = None  # Model being used
         self.parallel_mode: bool = False  # Parallel execution mode
         self.max_concurrency: int | None = None  # Max concurrent agents
@@ -296,6 +297,7 @@ class AgentProcessManager:
     async def start(
         self,
         yolo_mode: bool = False,
+        tdd_mode: bool = False,
         model: str | None = None,
         parallel_mode: bool = False,
         max_concurrency: int | None = None,
@@ -311,6 +313,7 @@ class AgentProcessManager:
 
         Args:
             yolo_mode: If True, run in YOLO mode (skip testing agents)
+            tdd_mode: If True, run in TDD mode (Red/Green/Refactor cycle)
             model: Model to use (e.g., claude-opus-4-5-20251101)
             parallel_mode: DEPRECATED - ignored, always uses unified orchestrator
             max_concurrency: Max concurrent coding agents (1-5, default 1)
@@ -341,6 +344,7 @@ class AgentProcessManager:
 
         # Store for status queries
         self.yolo_mode = yolo_mode
+        self.tdd_mode = tdd_mode
         self.model = model
         self.model_initializer = model_initializer
         self.model_coding = model_coding
@@ -372,6 +376,10 @@ class AgentProcessManager:
         # Add --yolo flag if YOLO mode is enabled
         if yolo_mode:
             cmd.append("--yolo")
+
+        # Add --tdd flag if TDD mode is enabled
+        if tdd_mode:
+            cmd.append("--tdd")
 
         # Add --concurrency flag (unified orchestrator always uses this)
         cmd.extend(["--concurrency", str(max_concurrency or 1)])
@@ -472,6 +480,7 @@ class AgentProcessManager:
             self.process = None
             self.started_at = None
             self.yolo_mode = False  # Reset YOLO mode
+            self.tdd_mode = False  # Reset TDD mode
             self.model = None  # Reset model
             self.model_initializer = None  # Reset per-type models
             self.model_coding = None

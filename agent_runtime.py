@@ -128,7 +128,7 @@ class ClaudeAgentRuntime:
             hooks=hooks_dict if hooks_dict else None,  # type: ignore[arg-type]
             max_turns=cfg.max_turns,
             max_buffer_size=cfg.max_buffer_size,
-            env=cfg.env if cfg.env else None,
+            env=cfg.env or {},
             setting_sources=cfg.setting_sources,
             betas=cfg.betas if cfg.betas else None,
             cli_path=cfg.cli_path,

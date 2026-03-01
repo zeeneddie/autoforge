@@ -17,11 +17,11 @@ from ..utils.project_helpers import get_project_path as _get_project_path
 from ..utils.validation import validate_project_name
 
 
-def _get_settings_defaults() -> tuple[bool, str, int, bool, int, str | None, str | None, str | None]:
+def _get_settings_defaults() -> tuple[bool, bool, str, int, bool, int, str | None, str | None, str | None]:
     """Get defaults from global settings.
 
     Returns:
-        Tuple of (yolo_mode, model, testing_agent_ratio, playwright_headless, batch_size,
+        Tuple of (yolo_mode, tdd_mode, model, testing_agent_ratio, playwright_headless, batch_size,
                   model_initializer, model_coding, model_testing)
     """
     import sys
@@ -33,6 +33,7 @@ def _get_settings_defaults() -> tuple[bool, str, int, bool, int, str | None, str
 
     settings = get_all_settings()
     yolo_mode = (settings.get("yolo_mode") or "false").lower() == "true"
+    tdd_mode = (settings.get("tdd_enabled") or "false").lower() == "true"
     model = settings.get("model", DEFAULT_MODEL)
 
     # Per-agent-type model overrides
@@ -53,7 +54,7 @@ def _get_settings_defaults() -> tuple[bool, str, int, bool, int, str | None, str
     except (ValueError, TypeError):
         batch_size = 3
 
-    return yolo_mode, model, testing_agent_ratio, playwright_headless, batch_size, model_initializer, model_coding, model_testing
+    return yolo_mode, tdd_mode, model, testing_agent_ratio, playwright_headless, batch_size, model_initializer, model_coding, model_testing
 
 
 router = APIRouter(prefix="/api/projects/{project_name}/agent", tags=["agent"])
@@ -102,10 +103,11 @@ async def start_agent(
     manager = get_project_manager(project_name)
 
     # Get defaults from global settings if not provided in request
-    (default_yolo, default_model, default_testing_ratio, playwright_headless,
+    (default_yolo, default_tdd, default_model, default_testing_ratio, playwright_headless,
      default_batch_size, default_model_init, default_model_coding, default_model_testing) = _get_settings_defaults()
 
     yolo_mode = request.yolo_mode if request.yolo_mode is not None else default_yolo
+    tdd_mode = default_tdd
     model = request.model if request.model else default_model
     max_concurrency = request.max_concurrency or 1
     testing_agent_ratio = request.testing_agent_ratio if request.testing_agent_ratio is not None else default_testing_ratio
@@ -119,6 +121,7 @@ async def start_agent(
 
     success, message = await manager.start(
         yolo_mode=yolo_mode,
+        tdd_mode=tdd_mode,
         model=model,
         max_concurrency=max_concurrency,
         testing_agent_ratio=testing_agent_ratio,

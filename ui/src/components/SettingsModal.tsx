@@ -378,6 +378,24 @@ export function SettingsModal({ isOpen, onClose, selectedProject }: SettingsModa
               />
             </div>
 
+            {/* TDD Mode Toggle */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="tdd-mode" className="font-medium">
+                  TDD Mode
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Red/Green/Refactor cycle for coding agents
+                </p>
+              </div>
+              <Switch
+                id="tdd-mode"
+                checked={settings.tdd_enabled ?? false}
+                onCheckedChange={() => updateSettings.mutate({ tdd_enabled: !(settings.tdd_enabled ?? false) })}
+                disabled={isSaving}
+              />
+            </div>
+
             {/* Headless Browser Toggle */}
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">

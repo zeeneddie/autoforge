@@ -70,6 +70,9 @@ export interface Feature {
   dependencies?: number[]           // Optional for backwards compat
   blocked?: boolean                 // Computed by API
   blocking_dependencies?: number[]  // Computed by API
+  test_file_path?: string | null    // TDD: path to test file (Sprint 7.8)
+  test_count?: number | null        // TDD: number of tests (Sprint 7.8)
+  last_test_output?: string | null  // TDD: last test runner output (Sprint 7.8)
 }
 
 // Status type for graph nodes
@@ -551,6 +554,7 @@ export interface Settings {
   testing_agent_ratio: number  // Regression testing agents (0-3)
   playwright_headless: boolean
   batch_size: number  // Features per coding agent batch (1-3)
+  tdd_enabled?: boolean  // Red/Green TDD mode (Sprint 7.8)
 }
 
 export interface SettingsUpdate {
@@ -565,6 +569,7 @@ export interface SettingsUpdate {
   testing_agent_ratio?: number
   playwright_headless?: boolean
   batch_size?: number
+  tdd_enabled?: boolean  // Red/Green TDD mode (Sprint 7.8)
 }
 
 // Provider types

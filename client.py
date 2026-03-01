@@ -337,12 +337,19 @@ def create_client(
     print("   - Project settings enabled (skills, commands, CLAUDE.md)")
     print()
 
-    # Use system Claude CLI instead of bundled one (avoids Bun runtime crash on Windows)
-    system_cli = shutil.which("claude")
-    if system_cli:
-        print(f"   - Using system CLI: {system_cli}")
+    # CLI selection: prefer bundled SDK CLI (separate rate limit pool from system CLI).
+    # Fall back to system CLI only on Windows where bundled Bun runtime can crash (exit code 3).
+    import platform
+    if platform.system() == "Windows":
+        system_cli = shutil.which("claude")
+        if system_cli:
+            print(f"   - Using system CLI: {system_cli} (Windows fallback)")
+        else:
+            system_cli = None
+            print("   - Using bundled SDK CLI")
     else:
-        print("   - Warning: System 'claude' CLI not found, using bundled CLI")
+        system_cli = None
+        print("   - Using bundled SDK CLI")
 
     # Build MCP servers config - features is always included, playwright only in standard mode
     mcp_servers = {
@@ -508,7 +515,7 @@ def create_client(
         env=sdk_env,  # Pass API configuration overrides to CLI subprocess
         # Enable extended context beta for better handling of long sessions.
         # Disabled for alternative APIs (Ollama, GLM, Vertex AI) as they don't support this beta.
-        betas=[] if is_alternative_api else ["context-1m-2025-08-07"],
+        betas=[],  # Temporarily disabled - context-1m beta may not work with Claude Max
         runtime_type=runtime_type,
     )
 

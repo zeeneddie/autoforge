@@ -55,6 +55,8 @@ _CODING_TOOLS = [
     "mcp__features__memory_store",
     "mcp__features__memory_recall",
     "mcp__features__memory_recall_for_feature",
+    # TDD tracking tool (Sprint 7.8)
+    "mcp__features__feature_record_test",
 ]
 
 _TESTING_TOOLS = [

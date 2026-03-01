@@ -70,6 +70,10 @@ class Feature(Base):
     review_status = Column(String(20), nullable=True, default=None)
     review_notes = Column(Text, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
+    # TDD tracking fields (Sprint 7.8)
+    test_file_path = Column(String(500), nullable=True, default=None)
+    test_count = Column(Integer, nullable=True, default=None)
+    last_test_output = Column(Text, nullable=True, default=None)
 
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
@@ -91,6 +95,9 @@ class Feature(Base):
             "review_status": self.review_status,
             "review_notes": self.review_notes,
             "reviewed_at": self.reviewed_at.isoformat() if self.reviewed_at else None,
+            "test_file_path": self.test_file_path,
+            "test_count": self.test_count,
+            "last_test_output": self.last_test_output,
         }
 
     def get_dependencies_safe(self) -> list[int]:
@@ -575,6 +582,27 @@ def _migrate_add_review_columns(engine) -> None:
         conn.commit()
 
 
+def _migrate_add_tdd_columns(engine) -> None:
+    """Add TDD tracking columns to features table (Sprint 7.8)."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if "test_file_path" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN test_file_path VARCHAR(500) DEFAULT NULL"
+            ))
+        if "test_count" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN test_count INTEGER DEFAULT NULL"
+            ))
+        if "last_test_output" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN last_test_output TEXT DEFAULT NULL"
+            ))
+        conn.commit()
+
+
 def _configure_sqlite_immediate_transactions(engine) -> None:
     """Configure engine for IMMEDIATE transactions via event hooks.
 
@@ -685,6 +713,9 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add review columns on features (Sprint 7.5: Review Agent)
     _migrate_add_review_columns(engine)
+
+    # Migrate to add TDD tracking columns on features (Sprint 7.8: TDD Mode)
+    _migrate_add_tdd_columns(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

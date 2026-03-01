@@ -109,6 +109,7 @@ def _build_settings_response(all_settings: dict[str, str]) -> SettingsResponse:
         architect_enabled=_parse_bool(all_settings.get("architect_enabled"), default=False),
         routing_enabled=_parse_bool(all_settings.get("routing_enabled"), default=False),
         cost_preference=all_settings.get("cost_preference", "balanced"),
+        tdd_enabled=_parse_bool(all_settings.get("tdd_enabled"), default=False),
     )
 
 
@@ -165,6 +166,9 @@ async def update_settings(update: SettingsUpdate):
 
     if update.cost_preference is not None:
         set_setting("cost_preference", update.cost_preference)
+
+    if update.tdd_enabled is not None:
+        set_setting("tdd_enabled", "true" if update.tdd_enabled else "false")
 
     return _build_settings_response(get_all_settings())
 

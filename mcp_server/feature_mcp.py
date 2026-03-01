@@ -1394,5 +1394,69 @@ def memory_recall_for_feature(
         session.close()
 
 
+@mcp.tool()
+def feature_record_test(
+    feature_id: Annotated[int, Field(description="The ID of the feature to record test info for", ge=1)],
+    test_file_path: Annotated[str, Field(description="Path to the test file (relative to project root)")],
+    test_count: Annotated[int, Field(description="Number of tests in the file", ge=0)],
+    passed: Annotated[bool, Field(description="Whether all tests passed")],
+    output_snippet: Annotated[str, Field(description="Brief test output (first 500 chars of test runner output)")] = "",
+) -> str:
+    """Record test information for a feature (TDD mode).
+
+    Stores the test file path, test count, and latest output snippet
+    for a feature. Used by coding agents in TDD mode to track which
+    tests were written and their results.
+
+    Args:
+        feature_id: ID of the feature
+        test_file_path: Relative path to the test file
+        test_count: Number of tests written
+        passed: Whether all tests passed
+        output_snippet: Brief output from the test runner
+
+    Returns:
+        JSON with success status or error message
+    """
+    session = get_session()
+    try:
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        if feature is None:
+            return json.dumps({"error": f"Feature with ID {feature_id} not found"})
+
+        # Truncate output to prevent bloated DB entries
+        truncated_output = output_snippet[:500] if output_snippet else ""
+        status_prefix = "PASS" if passed else "FAIL"
+        output_with_status = f"[{status_prefix}] {truncated_output}"
+
+        # Update test tracking fields
+        session.execute(text("""
+            UPDATE features
+            SET test_file_path = :path,
+                test_count = :count,
+                last_test_output = :output
+            WHERE id = :id
+        """), {
+            "path": test_file_path,
+            "count": test_count,
+            "output": output_with_status,
+            "id": feature_id,
+        })
+        session.commit()
+
+        return json.dumps({
+            "success": True,
+            "feature_id": feature_id,
+            "test_file_path": test_file_path,
+            "test_count": test_count,
+            "passed": passed,
+        })
+    except Exception as e:
+        session.rollback()
+        return json.dumps({"error": f"Failed to record test info: {str(e)}"})
+    finally:
+        session.close()
+
+
 if __name__ == "__main__":
     mcp.run()

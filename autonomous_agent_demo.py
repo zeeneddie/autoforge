@@ -128,6 +128,13 @@ Authentication:
         help="Enable YOLO mode: skip testing agents for rapid prototyping",
     )
 
+    parser.add_argument(
+        "--tdd",
+        action="store_true",
+        default=False,
+        help="Enable TDD mode: Red/Green/Refactor cycle for coding agents",
+    )
+
     # Unified orchestrator mode (replaces --parallel)
     parser.add_argument(
         "--concurrency", "-c",
@@ -282,6 +289,7 @@ def main() -> None:
                     model=args.model,
                     max_iterations=args.max_iterations or 1,
                     yolo_mode=args.yolo,
+                    tdd_mode=args.tdd,
                     feature_id=args.feature_id,
                     feature_ids=coding_feature_ids,
                     agent_type=args.agent_type,
@@ -316,6 +324,7 @@ def main() -> None:
                     max_concurrency=concurrency,
                     model=args.model,
                     yolo_mode=args.yolo,
+                    tdd_mode=args.tdd,
                     testing_agent_ratio=args.testing_ratio,
                     testing_batch_size=args.testing_batch_size,
                     batch_size=args.batch_size,

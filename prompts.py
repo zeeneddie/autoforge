@@ -66,14 +66,30 @@ def load_prompt(name: str, project_dir: Path | None = None) -> str:
     )
 
 
-def get_architect_prompt(project_dir: Path | None = None) -> str:
-    """Load the architect agent prompt (project-specific if available)."""
-    return load_prompt("architect_prompt", project_dir)
+def get_architect_prompt(project_dir: Path | None = None, tdd_mode: bool = False) -> str:
+    """Load the architect agent prompt (project-specific if available).
+
+    Args:
+        project_dir: Optional project directory for project-specific prompts
+        tdd_mode: If True, inject TDD testing strategy section
+    """
+    prompt = load_prompt("architect_prompt", project_dir)
+    if tdd_mode:
+        prompt = _inject_architect_tdd_section(prompt)
+    return prompt
 
 
-def get_initializer_prompt(project_dir: Path | None = None) -> str:
-    """Load the initializer prompt (project-specific if available)."""
-    return load_prompt("initializer_prompt", project_dir)
+def get_initializer_prompt(project_dir: Path | None = None, tdd_mode: bool = False) -> str:
+    """Load the initializer prompt (project-specific if available).
+
+    Args:
+        project_dir: Optional project directory for project-specific prompts
+        tdd_mode: If True, inject TDD infrastructure feature and test hints
+    """
+    prompt = load_prompt("initializer_prompt", project_dir)
+    if tdd_mode:
+        prompt = _inject_initializer_tdd_section(prompt)
+    return prompt
 
 
 def _strip_browser_testing_sections(prompt: str) -> str:
@@ -133,7 +149,223 @@ def _strip_browser_testing_sections(prompt: str) -> str:
     return prompt
 
 
-def get_coding_prompt(project_dir: Path | None = None, yolo_mode: bool = False) -> str:
+def _inject_tdd_sections(prompt: str) -> str:
+    """Inject TDD Red/Green/Refactor sections into the coding prompt.
+
+    Adds TDD guidance between Step 3 (Get Feature) and Step 4 (Implement).
+    The injected sections instruct the agent to follow the one-test-at-a-time
+    discipline with explicit red/green verification.
+
+    Args:
+        prompt: The full coding prompt text.
+
+    Returns:
+        The prompt with TDD sections injected.
+    """
+    tdd_section = """
+### STEP 3.5: PLAN THE INTERFACE (TDD MODE)
+
+**TDD mode is active.** Before writing any code, plan your approach:
+
+1. **Recall test framework**: Use `memory_recall` with key="test-framework" to get the project's testing setup
+2. **Identify the public interface**: What does the user/consumer interact with? (API endpoints, component props, function signatures)
+3. **List testable behaviours**: Write down 3-7 behaviours this feature should exhibit. Focus on WHAT, not HOW:
+   - GOOD: "POST /api/todos with valid title returns 201 with todo object"
+   - BAD: "TodoService calls database.insert with correct parameters"
+4. **Pick the tracer bullet**: Which ONE behaviour proves the feature works end-to-end? This is your first test.
+
+### STEP 4: RED/GREEN/REFACTOR CYCLE (TDD MODE)
+
+**CRITICAL: ONE test at a time. Never write multiple tests before making them pass.**
+
+For each behaviour in your list:
+
+#### 4a. RED - Write ONE Failing Test
+- Write a single test that describes the expected behaviour
+- Run the test suite: it MUST FAIL (red)
+- If it passes without new code, the test is useless - rewrite it
+- Confirm the failure message makes sense (it should describe what's missing)
+
+#### 4b. GREEN - Write MINIMAL Implementation
+- Write the MINIMUM code needed to make the failing test pass
+- Do NOT write more than what the test requires
+- Run the test suite: it MUST PASS (green)
+- All previous tests must ALSO still pass (no regressions)
+
+#### 4c. REFACTOR - Clean Up (Tests Stay Green)
+- Look for duplication, unclear naming, or overly complex code
+- Refactor ONLY if there's a clear improvement
+- Run the test suite after refactoring: MUST still be green
+- Skip this step if the code is already clean
+
+#### 4d. REPEAT
+- Go back to 4a with the next behaviour from your list
+- Continue until all behaviours have passing tests
+
+**MOCK DATA CLARIFICATION (TDD MODE):**
+- In TEST files (`__tests__/`, `tests/`, `*.test.*`, `*.spec.*`): test fixtures and mock data are EXPECTED and CORRECT
+- In PRODUCTION code (`src/`, `lib/`, `app/`): mock/hardcoded data remains STRICTLY PROHIBITED
+
+### STEP 4.5: RUN FULL TEST SUITE (TDD MODE)
+
+After completing all behaviours for this feature:
+1. Run the COMPLETE test suite (not just this feature's tests)
+2. ALL tests must pass (verify no regressions from other features)
+3. If other features' tests break, fix the regressions before proceeding
+
+"""
+
+    # Replace STEP 4 (implementation step) with TDD cycle
+    # Match from STEP 4 header up to STEP 5 header (replacing the original implementation guidance)
+    step4_to_step5 = re.compile(
+        r"### STEP 4: IMPLEMENT.*?(?=### STEP 5:)",
+        re.DOTALL | re.IGNORECASE,
+    )
+    match = step4_to_step5.search(prompt)
+    if match:
+        prompt = prompt[:match.start()] + tdd_section + prompt[match.start() + len(match.group()):]
+    else:
+        # Fallback: try to find just STEP 4 header
+        step4_pattern = re.compile(r"(### STEP 4: IMPLEMENT)", re.IGNORECASE)
+        match2 = step4_pattern.search(prompt)
+        if match2:
+            prompt = prompt[:match2.start()] + tdd_section + prompt[match2.end():]
+        else:
+            print("[TDD] Warning: Could not find STEP 4 marker. Appending TDD sections at end.")
+            prompt += "\n" + tdd_section
+
+    # Replace the feature marking rule to include test evidence
+    prompt = prompt.replace(
+        "**ONLY MARK A FEATURE AS PASSING AFTER VERIFICATION WITH SCREENSHOTS.**",
+        "**TDD mode: Mark a feature as passing ONLY after all tests pass (red→green cycle completed for every behaviour).**",
+    )
+    prompt = prompt.replace(
+        "**YOLO mode: Mark a feature as passing after lint/type-check succeeds and server starts cleanly.**",
+        "**TDD mode: Mark a feature as passing ONLY after all tests pass (red→green cycle completed for every behaviour).**",
+    )
+
+    return prompt
+
+
+def _inject_architect_tdd_section(prompt: str) -> str:
+    """Inject TDD testing strategy section into the architect prompt.
+
+    Adds a section for the architect to decide on test framework and strategy,
+    storing the decision via memory_store for coding agents to recall.
+
+    Args:
+        prompt: The architect prompt text.
+
+    Returns:
+        The prompt with TDD architecture section injected.
+    """
+    tdd_architecture = """
+
+### 3.7: Testing Strategy (TDD MODE)
+
+**TDD mode is active.** The coding agents will follow Red/Green/Refactor. You must decide:
+
+1. **Test Runner**: Choose the appropriate test framework for this project:
+   - JavaScript/TypeScript: Vitest (preferred), Jest, or built-in Node test runner
+   - Python: pytest (preferred), unittest
+   - Other: framework-appropriate test runner
+2. **Test File Location**: Define the convention:
+   - Co-located: `src/components/Button.test.tsx` (next to source)
+   - Separate: `tests/components/Button.test.tsx` (mirror structure)
+   - Python: `tests/test_*.py` (standard pytest discovery)
+3. **Test Commands**: The exact commands to run tests:
+   - Single test file: e.g., `npx vitest run src/api/todos.test.ts`
+   - Full suite: e.g., `npx vitest run`
+4. **Mocking Strategy**: When to mock vs use real implementations
+5. **Test Database**: For integration tests, how to manage test data (in-memory SQLite, test fixtures, etc.)
+
+**Store your decisions using `memory_store`:**
+```
+memory_store(key="test-framework", category="architecture", value="<your testing strategy as structured text>")
+```
+
+"""
+
+    # Try to inject after section 3.6 or before STEP 4
+    step4_marker = re.search(r"(## STEP 4:|### STEP 4:)", prompt, re.IGNORECASE)
+    section_36 = re.search(r"(### 3\.6[:\s])", prompt)
+
+    if section_36:
+        # Find the end of section 3.6 (next section header or step)
+        next_section = re.search(r"\n(##[# ])", prompt[section_36.end():])
+        if next_section:
+            insert_pos = section_36.end() + next_section.start()
+        else:
+            insert_pos = len(prompt)
+        prompt = prompt[:insert_pos] + tdd_architecture + prompt[insert_pos:]
+    elif step4_marker:
+        prompt = prompt[:step4_marker.start()] + tdd_architecture + "\n" + prompt[step4_marker.start():]
+    else:
+        prompt += tdd_architecture
+
+    return prompt
+
+
+def _inject_initializer_tdd_section(prompt: str) -> str:
+    """Inject TDD infrastructure feature and test hints into the initializer prompt.
+
+    Adds guidance for creating a test framework setup feature and hints
+    for test-friendly feature descriptions.
+
+    Args:
+        prompt: The initializer prompt text.
+
+    Returns:
+        The prompt with TDD initializer guidance injected.
+    """
+    tdd_init_section = """
+
+## TDD MODE: ADDITIONAL INFRASTRUCTURE FEATURE
+
+**TDD mode is active.** Add ONE additional infrastructure feature at index 5:
+
+**Feature 5: Test Framework Setup**
+- Name: "Test framework configured and passing"
+- Category: "Infrastructure"
+- Description: "Install and configure the project's test framework. Create a sample test that runs and passes. Verify the test command works from the command line."
+- Steps: ["Install test framework dependencies", "Create test configuration file", "Write one sample test (e.g., 1+1=2)", "Run tests and verify they pass", "Document the test command in README or CLAUDE.md"]
+- Priority: 1 (required before any feature implementation)
+- Dependencies: Features 0-4 (all other infrastructure)
+
+**TEST STRATEGY HINTS PER FEATURE CATEGORY:**
+When creating feature descriptions, include testability hints:
+- **API/CRUD features**: "Testable via integration tests on API endpoints"
+- **Form Validation**: "Testable via unit tests on validation functions"
+- **Authentication/Security**: "Testable via unit tests on auth middleware and integration tests on protected routes"
+- **Data Processing**: "Testable via unit tests on transformation functions"
+- **Layout/Visual/CSS**: "Browser-only verification (not unit-testable)"
+- **Accessibility**: "Browser-only or axe-core testing"
+- **Performance**: "Benchmark testing (separate from TDD cycle)"
+
+"""
+
+    # Inject after the infrastructure features section
+    infra_marker = re.search(
+        r"(MANDATORY INFRASTRUCTURE FEATURES|Infrastructure Features|INFRASTRUCTURE)",
+        prompt,
+        re.IGNORECASE,
+    )
+    if infra_marker:
+        # Find the end of the infrastructure section
+        next_section = re.search(r"\n(##[# ])", prompt[infra_marker.end():])
+        if next_section:
+            insert_pos = infra_marker.end() + next_section.start()
+        else:
+            insert_pos = len(prompt)
+        prompt = prompt[:insert_pos] + tdd_init_section + prompt[insert_pos:]
+    else:
+        # Fallback: append at the end
+        prompt += tdd_init_section
+
+    return prompt
+
+
+def get_coding_prompt(project_dir: Path | None = None, yolo_mode: bool = False, tdd_mode: bool = False) -> str:
     """Load the coding agent prompt (project-specific if available).
 
     Args:
@@ -141,14 +373,18 @@ def get_coding_prompt(project_dir: Path | None = None, yolo_mode: bool = False) 
         yolo_mode: If True, strip browser automation / Playwright testing
             instructions and replace with YOLO-mode guidance. This reduces
             prompt tokens since YOLO mode skips all browser testing anyway.
+        tdd_mode: If True, inject TDD Red/Green/Refactor sections into the prompt.
 
     Returns:
-        The coding prompt, optionally stripped of testing instructions.
+        The coding prompt, optionally modified for YOLO and/or TDD mode.
     """
     prompt = load_prompt("coding_prompt", project_dir)
 
     if yolo_mode:
         prompt = _strip_browser_testing_sections(prompt)
+
+    if tdd_mode:
+        prompt = _inject_tdd_sections(prompt)
 
     return prompt
 
@@ -220,7 +456,12 @@ def get_testing_prompt(
     return base_prompt.replace("{{TESTING_FEATURE_IDS}}", "(none assigned)")
 
 
-def get_single_feature_prompt(feature_id: int, project_dir: Path | None = None, yolo_mode: bool = False) -> str:
+def get_single_feature_prompt(
+    feature_id: int,
+    project_dir: Path | None = None,
+    yolo_mode: bool = False,
+    tdd_mode: bool = False,
+) -> str:
     """Prepend single-feature assignment header to base coding prompt.
 
     Used in parallel mode to assign a specific feature to an agent.
@@ -232,11 +473,12 @@ def get_single_feature_prompt(feature_id: int, project_dir: Path | None = None, 
         project_dir: Optional project directory for project-specific prompts
         yolo_mode: If True, strip browser testing instructions from the base
             coding prompt for reduced token usage in YOLO mode.
+        tdd_mode: If True, inject TDD Red/Green/Refactor sections.
 
     Returns:
         The prompt with single-feature header prepended
     """
-    base_prompt = get_coding_prompt(project_dir, yolo_mode=yolo_mode)
+    base_prompt = get_coding_prompt(project_dir, yolo_mode=yolo_mode, tdd_mode=tdd_mode)
 
     # Minimal header - the base prompt already contains the full workflow
     single_feature_header = f"""## ASSIGNED FEATURE: #{feature_id}
@@ -255,6 +497,7 @@ def get_batch_feature_prompt(
     feature_ids: list[int],
     project_dir: Path | None = None,
     yolo_mode: bool = False,
+    tdd_mode: bool = False,
 ) -> str:
     """Prepend batch-feature assignment header to base coding prompt.
 
@@ -265,11 +508,12 @@ def get_batch_feature_prompt(
         feature_ids: List of feature IDs to implement in order
         project_dir: Optional project directory for project-specific prompts
         yolo_mode: If True, strip browser testing instructions from the base prompt
+        tdd_mode: If True, inject TDD Red/Green/Refactor sections.
 
     Returns:
         The prompt with batch-feature header prepended
     """
-    base_prompt = get_coding_prompt(project_dir, yolo_mode=yolo_mode)
+    base_prompt = get_coding_prompt(project_dir, yolo_mode=yolo_mode, tdd_mode=tdd_mode)
     ids_str = ", ".join(f"#{fid}" for fid in feature_ids)
 
     batch_header = f"""## ASSIGNED FEATURES (BATCH): {ids_str}

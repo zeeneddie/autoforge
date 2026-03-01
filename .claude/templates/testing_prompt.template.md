@@ -23,6 +23,22 @@ Your features have been pre-assigned by the orchestrator. For each feature ID li
 Use the feature_get_by_id tool with feature_id=<ID>
 ```
 
+### STEP 1.5: RUN AUTOMATED TEST SUITE (IF AVAILABLE)
+
+Before browser verification, check if the project has automated tests:
+
+1. Look for test configuration files (`vitest.config.*`, `jest.config.*`, `pytest.ini`, `pyproject.toml` with `[tool.pytest]`)
+2. If tests exist, run the full test suite (e.g., `npx vitest run`, `python -m pytest`)
+3. If ALL tests pass: proceed to browser verification (Step 2)
+4. If tests FAIL:
+   - Mark the failing feature(s) as `feature_mark_failing`
+   - Investigate and fix the regression
+   - Re-run the test suite to confirm the fix
+   - Mark as passing after the fix
+5. If no automated tests exist: skip this step and proceed to Step 2
+
+**Note:** Automated tests provide faster and more reliable regression detection than browser testing alone. Always run them first when available.
+
 ### STEP 2: VERIFY THE FEATURE
 
 **CRITICAL:** You MUST verify the feature through the actual UI using browser automation.

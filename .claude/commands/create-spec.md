@@ -271,6 +271,22 @@ Let the user confirm or adjust. This becomes your `feature_count` for the spec.
 
 **Important:** The first 5 features (indices 0-4) created by the initializer MUST be the Infrastructure category with no dependencies. All other features depend on these.
 
+**TDD Mode: Additional Infrastructure Feature**
+
+If the user has TDD mode enabled (check global settings), include feature index 5:
+- **Test framework configured and passing**: Install test framework, create config, write sample test, verify it runs.
+- This feature depends on features 0-4 and all other features depend on it.
+- Adjust total feature count by +1 for TDD infrastructure.
+
+**TDD Mode: Feature Description Style**
+
+When TDD is enabled, write feature descriptions as testable behaviours rather than visual checks:
+- **API features**: Describe expected HTTP status codes, request/response shapes, and error cases
+- **Validation features**: Describe input constraints and expected error messages
+- **Data features**: Describe persistence behaviour (create → retrieve → verify)
+- **Visual/CSS features**: Keep as browser-only (these don't benefit from TDD)
+- Add a `test_hint` to each feature category indicating the recommended test approach (unit, integration, or browser-only)
+
 ## Phase 5: Technical Details (DERIVED OR DISCUSSED)
 
 **For Quick Mode users:**

@@ -1,18 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { ChevronDown, Plus, FolderOpen, Loader2, Trash2 } from 'lucide-react'
 import type { ProjectSummary } from '../lib/types'
 import { NewProjectModal } from './NewProjectModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useDeleteProject } from '../hooks/useProjects'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 
 interface ProjectSelectorProps {
   projects: ProjectSummary[]
@@ -32,8 +24,31 @@ export function ProjectSelector({
   const [isOpen, setIsOpen] = useState(false)
   const [showNewProjectModal, setShowNewProjectModal] = useState(false)
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const deleteProject = useDeleteProject()
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [isOpen])
+
+  // Close on Escape
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen])
 
   const handleProjectCreated = (projectName: string) => {
     onSelectProject(projectName)
@@ -68,44 +83,46 @@ export function ProjectSelector({
   const selectedProjectData = projects.find(p => p.name === selectedProject)
 
   return (
-    <div className="relative">
-      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className="min-w-[200px] justify-between"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : selectedProject ? (
-              <>
-                <span className="flex items-center gap-2">
-                  <FolderOpen size={18} />
-                  {selectedProject}
-                </span>
-                {selectedProjectData && selectedProjectData.stats.total > 0 && (
-                  <Badge className="ml-2">{selectedProjectData.stats.percentage}%</Badge>
-                )}
-              </>
-            ) : (
-              <span className="text-muted-foreground">Select Project</span>
+    <div className="relative" ref={containerRef}>
+      {/* Trigger button */}
+      <button
+        type="button"
+        className="inline-flex min-w-[200px] items-center justify-between gap-2 rounded-md border bg-background px-4 py-2 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50 dark:bg-input/30 dark:border-input dark:hover:bg-input/50"
+        disabled={isLoading}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        {isLoading ? (
+          <Loader2 size={18} className="animate-spin" />
+        ) : selectedProject ? (
+          <>
+            <span className="flex items-center gap-2">
+              <FolderOpen size={18} />
+              {selectedProject}
+            </span>
+            {selectedProjectData && selectedProjectData.stats.total > 0 && (
+              <Badge className="ml-2">{selectedProjectData.stats.percentage}%</Badge>
             )}
-            <ChevronDown size={18} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-          </Button>
-        </DropdownMenuTrigger>
+          </>
+        ) : (
+          <span className="text-muted-foreground">Select Project</span>
+        )}
+        <ChevronDown size={18} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
 
-        <DropdownMenuContent align="start" className="w-[280px] p-0 flex flex-col">
+      {/* Dropdown panel */}
+      {isOpen && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-[280px] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 slide-in-from-top-2">
           {projects.length > 0 ? (
             <div className="max-h-[300px] overflow-y-auto p-1">
               {projects.map(project => (
-                <DropdownMenuItem
+                <div
                   key={project.name}
-                  className={`flex items-center justify-between cursor-pointer ${
+                  className={`flex items-center justify-between cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-hidden select-none hover:bg-accent hover:text-accent-foreground ${
                     project.name === selectedProject ? 'bg-primary/10' : ''
                   }`}
-                  onSelect={() => {
+                  onClick={() => {
                     onSelectProject(project.name)
+                    setIsOpen(false)
                   }}
                 >
                   <span className="flex items-center gap-2 flex-1">
@@ -117,15 +134,14 @@ export function ProjectSelector({
                       </span>
                     )}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
+                  <button
+                    type="button"
                     onClick={(e: React.MouseEvent) => handleDeleteClick(e, project.name)}
-                    className="text-muted-foreground hover:text-destructive"
+                    className="inline-flex items-center justify-center rounded-sm p-1 text-muted-foreground hover:text-destructive hover:bg-accent"
                   >
                     <Trash2 size={14} />
-                  </Button>
-                </DropdownMenuItem>
+                  </button>
+                </div>
               ))}
             </div>
           ) : (
@@ -134,21 +150,22 @@ export function ProjectSelector({
             </div>
           )}
 
-          <DropdownMenuSeparator className="my-0" />
+          <div className="bg-border h-px" />
 
           <div className="p-1">
-            <DropdownMenuItem
-              onSelect={() => {
+            <div
+              className="flex items-center gap-2 cursor-pointer rounded-sm px-2 py-1.5 text-sm font-semibold outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
+              onClick={() => {
                 setShowNewProjectModal(true)
+                setIsOpen(false)
               }}
-              className="cursor-pointer font-semibold"
             >
               <Plus size={16} />
               New Project
-            </DropdownMenuItem>
+            </div>
           </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </div>
+      )}
 
       {/* New Project Modal */}
       <NewProjectModal

@@ -419,6 +419,7 @@ class SettingsResponse(BaseModel):
     architect_enabled: bool = False  # Pre-initialization architecture analysis (Sprint 7.6)
     routing_enabled: bool = False  # Hybrid LLM routing per feature (Sprint 7.7)
     cost_preference: str = "balanced"  # budget/balanced/quality (Sprint 7.7)
+    tdd_enabled: bool = False  # Red/Green TDD mode for coding agents (Sprint 7.8)
 
 
 class ModelsResponse(BaseModel):
@@ -444,6 +445,7 @@ class SettingsUpdate(BaseModel):
     architect_enabled: bool | None = None  # Pre-initialization architect (Sprint 7.6)
     routing_enabled: bool | None = None  # Hybrid LLM routing per feature (Sprint 7.7)
     cost_preference: str | None = None  # budget/balanced/quality (Sprint 7.7)
+    tdd_enabled: bool | None = None  # Red/Green TDD mode for coding agents (Sprint 7.8)
 
     @field_validator('model', 'model_initializer', 'model_coding', 'model_testing')
     @classmethod
