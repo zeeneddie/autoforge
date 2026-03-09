@@ -228,10 +228,108 @@ def feature_get_summary(
 
 
 @mcp.tool()
+def feature_validate_quality(
+    feature_id: Annotated[int, Field(description="The ID of the feature to validate", ge=1)]
+) -> str:
+    """Validate quality gates before marking a feature as passing.
+
+    CALL THIS BEFORE feature_mark_passing. This tool enforces the anti-slop
+    quality bar. It will return a go/no-go decision with a reason.
+
+    Quality gates checked:
+    1. test_count > 0: At least one test must have been written
+    2. last_test_output: Must contain evidence of passing tests
+    3. acceptance_criteria awareness: Reminds agent of ACs to verify
+
+    Args:
+        feature_id: The ID of the feature to validate
+
+    Returns:
+        JSON with: {ok: bool, blockers: list[str], warnings: list[str], feature: dict}
+        If ok=False, DO NOT call feature_mark_passing. Fix the blockers first.
+    """
+    session = get_session()
+    try:
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        if feature is None:
+            return json.dumps({"error": f"Feature with ID {feature_id} not found"})
+
+        blockers = []
+        warnings = []
+
+        # Gate 1: At least one test must exist
+        if feature.test_count is None or feature.test_count == 0:
+            blockers.append(
+                "NO TESTS: test_count is 0 or null. "
+                "Write at least one automated test before marking passing. "
+                "Use feature_register_test_file to register your test file."
+            )
+
+        # Gate 2: Test output must show passing results
+        if feature.last_test_output:
+            output_lower = feature.last_test_output.lower()
+            passing_keywords = ["passed", "success", "ok", "all tests", "✓", "green"]
+            failing_keywords = ["failed", "error", "exception", "traceback", "assert"]
+            has_passing = any(kw in output_lower for kw in passing_keywords)
+            has_failing = any(kw in output_lower for kw in failing_keywords)
+
+            if has_failing and not has_passing:
+                blockers.append(
+                    "FAILING TESTS: last_test_output contains failure indicators. "
+                    "Fix failing tests before marking passing."
+                )
+            elif not has_passing:
+                warnings.append(
+                    "UNCLEAR: last_test_output doesn't clearly show passing tests. "
+                    "Ensure you ran the test suite and output is captured."
+                )
+        elif feature.test_count and feature.test_count > 0:
+            warnings.append(
+                "No test output recorded. Run tests and use feature_register_test_file "
+                "to record the output."
+            )
+
+        # Gate 3: Acceptance criteria reminder
+        ac_list = feature.acceptance_criteria if feature.acceptance_criteria else []
+        if ac_list:
+            warnings.append(
+                f"VERIFY ACs: This feature has {len(ac_list)} acceptance criteria. "
+                "Confirm each is met before marking passing: "
+                + "; ".join(f"[{i+1}] {ac}" for i, ac in enumerate(ac_list))
+            )
+        else:
+            warnings.append(
+                "No acceptance criteria defined for this feature. "
+                "Check the feature description for implicit requirements."
+            )
+
+        ok = len(blockers) == 0
+        return json.dumps({
+            "ok": ok,
+            "blockers": blockers,
+            "warnings": warnings,
+            "verdict": "GO — call feature_mark_passing" if ok else "NO-GO — fix blockers first",
+            "feature": {
+                "id": feature.id,
+                "name": feature.name,
+                "test_count": feature.test_count,
+                "acceptance_criteria": ac_list,
+            }
+        })
+    except Exception as e:
+        return json.dumps({"error": f"Failed to validate quality: {str(e)}"})
+    finally:
+        session.close()
+
+
+@mcp.tool()
 def feature_mark_passing(
     feature_id: Annotated[int, Field(description="The ID of the feature to mark as passing", ge=1)]
 ) -> str:
     """Mark a feature as passing after successful implementation.
+
+    IMPORTANT: Call feature_validate_quality(feature_id) BEFORE this tool.
+    If validate_quality returns ok=False, fix the blockers first.
 
     Updates the feature's passes field to true and clears the in_progress flag.
     Use this after you have implemented the feature and verified it works correctly.

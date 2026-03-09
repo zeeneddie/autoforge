@@ -142,6 +142,31 @@ All interaction tools have **built-in auto-wait** -- no manual timeouts needed.
 
 **Your Goal:** Test each assigned feature thoroughly. Verify it still works, and fix any regression found. Process ALL features in your list before ending your session.
 
+**Anti-Mocking Rule (MANDATORY):**
+
+NEVER use mocks, patches, or monkeypatching unless testing at a true external boundary
+(e.g., a real payment provider API, a third-party SMS service in production).
+
+Always use:
+- Real objects (instantiate the actual class)
+- Real database (SQLite `:memory:` for unit tests, real test DB for integration tests)
+- Real HTTP clients against a real test server (use `TestClient` or `httpx.AsyncClient`)
+- Real file system (use `tmp_path` fixtures, not mocked paths)
+
+```python
+# WRONG: mocking the database
+with patch("app.db.get_session") as mock_session:
+    mock_session.return_value = MagicMock()
+
+# RIGHT: real in-memory SQLite
+from sqlalchemy import create_engine
+engine = create_engine("sqlite:///:memory:")
+Base.metadata.create_all(engine)
+```
+
+The only acceptable mock targets are: external payment APIs, email/SMS providers,
+OAuth providers, and other services that would cause side effects or costs in tests.
+
 **Quality Bar:**
 - Zero console errors
 - All verification steps pass
