@@ -74,6 +74,10 @@ class Feature(Base):
     test_file_path = Column(String(500), nullable=True, default=None)
     test_count = Column(Integer, nullable=True, default=None)
     last_test_output = Column(Text, nullable=True, default=None)
+    # Acceptance criteria (anti-slop: agent knows what to prove)
+    # Stored as JSON array of strings: ["AC1: ...", "AC2: ..."]
+    # Sourced from mq-discover/mq-onboarding AC list
+    acceptance_criteria = Column(JSON, nullable=True, default=None)
 
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
@@ -98,6 +102,7 @@ class Feature(Base):
             "test_file_path": self.test_file_path,
             "test_count": self.test_count,
             "last_test_output": self.last_test_output,
+            "acceptance_criteria": self.acceptance_criteria if self.acceptance_criteria else [],
         }
 
     def get_dependencies_safe(self) -> list[int]:
@@ -603,6 +608,19 @@ def _migrate_add_tdd_columns(engine) -> None:
         conn.commit()
 
 
+def _migrate_add_acceptance_criteria_column(engine) -> None:
+    """Add acceptance_criteria column to features table (anti-slop: AC traceability)."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if "acceptance_criteria" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN acceptance_criteria TEXT DEFAULT NULL"
+            ))
+            conn.commit()
+
+
 def _configure_sqlite_immediate_transactions(engine) -> None:
     """Configure engine for IMMEDIATE transactions via event hooks.
 
@@ -716,6 +734,9 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add TDD tracking columns on features (Sprint 7.8: TDD Mode)
     _migrate_add_tdd_columns(engine)
+
+    # Migrate to add acceptance_criteria column (anti-slop: AC traceability)
+    _migrate_add_acceptance_criteria_column(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
