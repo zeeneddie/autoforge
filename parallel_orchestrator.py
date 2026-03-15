@@ -194,9 +194,23 @@ class ParallelOrchestrator:
         self.project_dir = project_dir
         self.max_concurrency = min(max(max_concurrency, 1), MAX_PARALLEL_AGENTS)
         self.model = model
-        self.model_initializer = model_initializer or model
-        self.model_coding = model_coding or model
-        self.model_testing = model_testing or model
+        # Resolve per-role models: CLI flag → registry setting → default model
+        from registry import get_setting
+        self.model_initializer = (
+            model_initializer
+            or get_setting("model_initializer")
+            or model
+        )
+        self.model_coding = (
+            model_coding
+            or get_setting("model_coding")
+            or model
+        )
+        self.model_testing = (
+            model_testing
+            or get_setting("model_testing")
+            or model
+        )
         self.yolo_mode = yolo_mode
         self.tdd_mode = tdd_mode
         self.testing_agent_ratio = min(max(testing_agent_ratio, 0), 3)  # Clamp 0-3
