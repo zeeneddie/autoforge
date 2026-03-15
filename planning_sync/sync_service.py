@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .client import PlanningApiClient, PlanningApiError
-from .mapper import feature_status_to_planning_update, state_group_for_id, work_item_to_feature_dict
+from .mapper import feature_status_to_planning_update, find_state_id_for_group, state_group_for_id, work_item_to_feature_dict
 from .models import PlanningImportDetail, PlanningImportResult, PlanningOutboundResult
 
 logger = logging.getLogger(__name__)
@@ -220,6 +221,65 @@ def import_cycle(
     return result
 
 
+def apply_category_mapping(project_dir: Path, project_name: str) -> int:
+    """Apply category-to-Plane-work-item mapping to features.
+
+    Sets planning_parent_work_item_id on features whose category matches the mapping.
+    Idempotent: skips features that already have a parent or have a direct 1:1 link.
+
+    Returns:
+        Number of features updated.
+    """
+    root = Path(__file__).parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from registry import get_category_mapping
+
+    _, Feature = _get_db_classes()
+    mapping = get_category_mapping(project_name)
+    if not mapping:
+        return 0
+
+    updated = 0
+    with _get_db_session(project_dir) as session:
+        features = session.query(Feature).filter(
+            Feature.planning_parent_work_item_id.is_(None),
+            Feature.planning_work_item_id.is_(None),
+        ).all()
+
+        for feat in features:
+            parent_id = mapping.get(feat.category)
+            if parent_id:
+                feat.planning_parent_work_item_id = parent_id
+                updated += 1
+
+        session.commit()
+
+    if updated:
+        logger.info(
+            "Applied category mapping for %s: %d features linked to parent work items",
+            project_name, updated,
+        )
+    return updated
+
+
+def _compute_aggregated_status(features) -> tuple[bool, bool]:
+    """Compute aggregated status from a group of features.
+
+    Returns:
+        (all_pass, any_started) tuple for determining Plane state group.
+    """
+    all_pass = all(
+        (f.passes if f.passes is not None else False) for f in features
+    )
+    any_started = any(
+        (f.in_progress if f.in_progress is not None else False)
+        or (f.passes if f.passes is not None else False)
+        for f in features
+    )
+    return all_pass, any_started
+
+
 def outbound_sync(
     client: PlanningApiClient,
     project_dir: Path,
@@ -294,6 +354,68 @@ def outbound_sync(
                     "Failed to push feature %d to Plane: %s",
                     feature.id, e,
                 )
+
+        # --- Mode 2: Aggregated sync for parent-linked features ---
+        parent_features = session.query(Feature).filter(
+            Feature.planning_parent_work_item_id.isnot(None),
+            Feature.planning_work_item_id.is_(None),
+        ).all()
+
+        if parent_features:
+            # Group by parent work item
+            groups: dict[str, list] = defaultdict(list)
+            for feat in parent_features:
+                groups[feat.planning_parent_work_item_id].append(feat)
+
+            root = Path(__file__).parent.parent
+            if str(root) not in sys.path:
+                sys.path.insert(0, str(root))
+            from registry import get_setting, set_setting
+
+            for parent_id, group in groups.items():
+                all_pass, any_started = _compute_aggregated_status(group)
+                passes_count = sum(
+                    1 for f in group if (f.passes if f.passes is not None else False)
+                )
+                in_progress_count = sum(
+                    1 for f in group if (f.in_progress if f.in_progress is not None else False)
+                )
+                agg_hash = f"agg:{passes_count}:{in_progress_count}:{len(group)}"
+
+                # Check if hash changed
+                hash_key = f"planning_agg_hash:{parent_id}:{project_dir.name}"
+                prev_hash = get_setting(hash_key)
+                if prev_hash == agg_hash:
+                    result.skipped += 1
+                    continue
+
+                # Determine target state group
+                if all_pass:
+                    target_group = "completed"
+                elif any_started:
+                    target_group = "started"
+                else:
+                    target_group = "unstarted"
+
+                state_id = find_state_id_for_group(target_group, states)
+                if not state_id:
+                    result.skipped += 1
+                    continue
+
+                try:
+                    client.update_work_item(parent_id, {"state": state_id})
+                    set_setting(hash_key, agg_hash)
+                    result.pushed += 1
+                    logger.debug(
+                        "Pushed aggregated status %s for parent %s (%d features)",
+                        target_group, parent_id, len(group),
+                    )
+                except PlanningApiError as e:
+                    result.errors += 1
+                    logger.warning(
+                        "Failed to push aggregated status for parent %s: %s",
+                        parent_id, e,
+                    )
 
         session.commit()
 

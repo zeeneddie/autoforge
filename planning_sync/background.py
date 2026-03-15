@@ -105,13 +105,16 @@ class PlanningSyncLoop:
             if str(root) not in sys.path:
                 sys.path.insert(0, str(root))
             from api.database import Feature, TestRun, create_database
-            from sqlalchemy import func
+            from sqlalchemy import func, or_
 
             _, SessionLocal = create_database(project_dir)
             session = SessionLocal()
             try:
                 linked = session.query(Feature).filter(
-                    Feature.planning_work_item_id.isnot(None)
+                    or_(
+                        Feature.planning_work_item_id.isnot(None),
+                        Feature.planning_parent_work_item_id.isnot(None),
+                    )
                 ).all()
                 linked_ids = []
                 for f in linked:

@@ -635,6 +635,7 @@ _PER_PROJECT_PLANNING_KEYS = [
     "planning_active_cycle_id",
     "planning_sync_enabled",
     "planning_poll_interval",
+    "planning_category_map",
 ]
 
 
@@ -656,6 +657,34 @@ def set_planning_setting(key: str, value: str, project_name: str | None = None):
         set_setting(f"{key}:{project_name}", value)
     else:
         set_setting(key, value)
+
+
+def get_category_mapping(project_name: str) -> dict[str, str]:
+    """Get the category-to-Plane-work-item mapping for a project.
+
+    Returns:
+        Dict mapping category names to Plane work item UUIDs, or empty dict.
+    """
+    import json as _json
+    raw = get_setting(f"planning_category_map:{project_name}")
+    if not raw:
+        return {}
+    try:
+        mapping = _json.loads(raw)
+        return mapping if isinstance(mapping, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def set_category_mapping(project_name: str, mapping: dict[str, str]) -> None:
+    """Set the category-to-Plane-work-item mapping for a project.
+
+    Args:
+        project_name: Registered project name.
+        mapping: Dict mapping category names to Plane work item UUIDs.
+    """
+    import json as _json
+    set_setting(f"planning_category_map:{project_name}", _json.dumps(mapping))
 
 
 def migrate_global_planning_settings():
