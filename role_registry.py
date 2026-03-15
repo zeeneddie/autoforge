@@ -31,6 +31,7 @@ from typing import Any
 
 _INITIALIZER_TOOLS = [
     "mcp__features__feature_get_stats",
+    "mcp__features__feature_get_ready",
     "mcp__features__feature_create_bulk",
     "mcp__features__feature_create",
     "mcp__features__feature_add_dependency",
@@ -57,6 +58,9 @@ _CODING_TOOLS = [
     "mcp__features__memory_recall_for_feature",
     # TDD tracking tool (Sprint 7.8)
     "mcp__features__feature_record_test",
+    # Quality gate (validates ACs are met)
+    "mcp__features__feature_validate_quality",
+    "mcp__features__feature_get_ready",
 ]
 
 _TESTING_TOOLS = [

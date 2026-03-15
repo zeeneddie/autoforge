@@ -40,6 +40,15 @@ ALLOWED_COMMANDS = {
     "pwd",
     # Output
     "echo",
+    # Python development
+    "python",
+    "python3",
+    "pip",
+    "pip3",
+    "pytest",
+    "ruff",
+    "source",  # For venv activation
+    "which",   # Path detection
     # Node.js development
     "npm",
     "npx",
