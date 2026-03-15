@@ -715,10 +715,26 @@ def feature_create_bulk(
                     created_features[i].dependencies = sorted(dep_ids)  # type: ignore[assignment]  # SQLAlchemy JSON Column accepts list at runtime
                     deps_count += 1
 
+            # Fourth pass: auto-apply category mapping if configured
+            parent_linked = 0
+            try:
+                from registry import get_category_mapping
+                project_name = PROJECT_DIR.name
+                mapping = get_category_mapping(project_name)
+                if mapping:
+                    for feat in created_features:
+                        parent_id = mapping.get(feat.category)
+                        if parent_id and not feat.planning_work_item_id:
+                            feat.planning_parent_work_item_id = parent_id
+                            parent_linked += 1
+            except Exception:
+                pass  # Non-critical: mapping is opt-in
+
             # Commit happens automatically on context manager exit
             return json.dumps({
                 "created": len(created_features),
-                "with_dependencies": deps_count
+                "with_dependencies": deps_count,
+                "parent_linked": parent_linked,
             })
     except Exception as e:
         return json.dumps({"error": str(e)})

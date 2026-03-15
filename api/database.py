@@ -62,6 +62,7 @@ class Feature(Base):
     dependencies = Column(JSON, nullable=True, default=None)
     # Planning sync fields
     planning_work_item_id = Column(String(36), nullable=True, unique=True, index=True)
+    planning_parent_work_item_id = Column(String(36), nullable=True, index=True)
     planning_synced_at = Column(DateTime, nullable=True)
     planning_updated_at = Column(DateTime, nullable=True)
     planning_last_status_hash = Column(String(20), nullable=True)
@@ -94,6 +95,7 @@ class Feature(Base):
             # Dependencies: NULL/empty treated as empty list for backwards compat
             "dependencies": self.dependencies if self.dependencies else [],
             "planning_work_item_id": self.planning_work_item_id,
+            "planning_parent_work_item_id": self.planning_parent_work_item_id,
             "planning_synced_at": self.planning_synced_at.isoformat() if self.planning_synced_at else None,
             "planning_updated_at": self.planning_updated_at.isoformat() if self.planning_updated_at else None,
             "review_status": self.review_status,
@@ -621,6 +623,30 @@ def _migrate_add_acceptance_criteria_column(engine) -> None:
             conn.commit()
 
 
+def _migrate_add_planning_parent_column(engine) -> None:
+    """Add planning_parent_work_item_id column for N:1 aggregated sync."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if "planning_parent_work_item_id" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN planning_parent_work_item_id VARCHAR(36) DEFAULT NULL"
+            ))
+            conn.commit()
+
+    # Create index for aggregation queries
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_feature_planning_parent_work_item_id "
+                "ON features (planning_parent_work_item_id)"
+            ))
+            conn.commit()
+        except Exception:
+            pass
+
+
 def _configure_sqlite_immediate_transactions(engine) -> None:
     """Configure engine for IMMEDIATE transactions via event hooks.
 
@@ -737,6 +763,9 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add acceptance_criteria column (anti-slop: AC traceability)
     _migrate_add_acceptance_criteria_column(engine)
+
+    # Migrate to add planning_parent_work_item_id column (aggregated sync)
+    _migrate_add_planning_parent_column(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
