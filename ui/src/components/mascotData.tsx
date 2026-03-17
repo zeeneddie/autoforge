@@ -32,30 +32,45 @@ export const UNKNOWN_COLORS: MascotColorPalette = {
 }
 
 export const AVATAR_COLORS: Record<AgentMascot, MascotColorPalette> = {
-  // Original 5
-  Spark: { primary: '#3B82F6', secondary: '#60A5FA', accent: '#DBEAFE' },  // Blue robot
-  Fizz: { primary: '#F97316', secondary: '#FB923C', accent: '#FFEDD5' },   // Orange fox
-  Octo: { primary: '#8B5CF6', secondary: '#A78BFA', accent: '#EDE9FE' },   // Purple octopus
-  Hoot: { primary: '#22C55E', secondary: '#4ADE80', accent: '#DCFCE7' },   // Green owl
-  Buzz: { primary: '#EAB308', secondary: '#FACC15', accent: '#FEF9C3' },   // Yellow bee
-  // Tech-inspired
-  Pixel: { primary: '#EC4899', secondary: '#F472B6', accent: '#FCE7F3' },  // Pink
-  Byte: { primary: '#06B6D4', secondary: '#22D3EE', accent: '#CFFAFE' },   // Cyan
-  Nova: { primary: '#F43F5E', secondary: '#FB7185', accent: '#FFE4E6' },   // Rose
-  Chip: { primary: '#84CC16', secondary: '#A3E635', accent: '#ECFCCB' },   // Lime
-  Bolt: { primary: '#FBBF24', secondary: '#FCD34D', accent: '#FEF3C7' },   // Amber
-  // Energetic
-  Dash: { primary: '#14B8A6', secondary: '#2DD4BF', accent: '#CCFBF1' },   // Teal
-  Zap: { primary: '#A855F7', secondary: '#C084FC', accent: '#F3E8FF' },    // Violet
-  Gizmo: { primary: '#64748B', secondary: '#94A3B8', accent: '#F1F5F9' },  // Slate
-  Turbo: { primary: '#EF4444', secondary: '#F87171', accent: '#FEE2E2' },  // Red
-  Blip: { primary: '#10B981', secondary: '#34D399', accent: '#D1FAE5' },   // Emerald
-  // Playful
-  Neon: { primary: '#D946EF', secondary: '#E879F9', accent: '#FAE8FF' },   // Fuchsia
-  Widget: { primary: '#6366F1', secondary: '#818CF8', accent: '#E0E7FF' }, // Indigo
-  Zippy: { primary: '#F59E0B', secondary: '#FBBF24', accent: '#FEF3C7' },  // Orange-yellow
-  Quirk: { primary: '#0EA5E9', secondary: '#38BDF8', accent: '#E0F2FE' },  // Sky
-  Flux: { primary: '#7C3AED', secondary: '#8B5CF6', accent: '#EDE9FE' },   // Purple
+  // Coding agents — blue/cyan tones (builders)
+  Builder: { primary: '#3B82F6', secondary: '#60A5FA', accent: '#DBEAFE' },
+  Forge:   { primary: '#0EA5E9', secondary: '#38BDF8', accent: '#E0F2FE' },
+  Anvil:   { primary: '#6366F1', secondary: '#818CF8', accent: '#E0E7FF' },
+  Craft:   { primary: '#06B6D4', secondary: '#22D3EE', accent: '#CFFAFE' },
+  Welder:  { primary: '#2563EB', secondary: '#3B82F6', accent: '#DBEAFE' },
+  // Testing agents — green/emerald tones (verifiers)
+  Inspector: { primary: '#22C55E', secondary: '#4ADE80', accent: '#DCFCE7' },
+  Sentinel:  { primary: '#10B981', secondary: '#34D399', accent: '#D1FAE5' },
+  Probe:     { primary: '#14B8A6', secondary: '#2DD4BF', accent: '#CCFBF1' },
+  Auditor:   { primary: '#059669', secondary: '#10B981', accent: '#D1FAE5' },
+  Scanner:   { primary: '#84CC16', secondary: '#A3E635', accent: '#ECFCCB' },
+  // Reviewer agents — amber/orange tones (judges)
+  Judge:   { primary: '#F59E0B', secondary: '#FBBF24', accent: '#FEF3C7' },
+  Arbiter: { primary: '#F97316', secondary: '#FB923C', accent: '#FFEDD5' },
+  // Architect agents — purple tones (designers)
+  Blueprint: { primary: '#8B5CF6', secondary: '#A78BFA', accent: '#EDE9FE' },
+  Compass:   { primary: '#7C3AED', secondary: '#8B5CF6', accent: '#EDE9FE' },
+  // Legacy names (backward compat with existing sessions)
+  Spark: { primary: '#3B82F6', secondary: '#60A5FA', accent: '#DBEAFE' },
+  Fizz: { primary: '#F97316', secondary: '#FB923C', accent: '#FFEDD5' },
+  Octo: { primary: '#8B5CF6', secondary: '#A78BFA', accent: '#EDE9FE' },
+  Hoot: { primary: '#22C55E', secondary: '#4ADE80', accent: '#DCFCE7' },
+  Buzz: { primary: '#EAB308', secondary: '#FACC15', accent: '#FEF9C3' },
+  Pixel: { primary: '#EC4899', secondary: '#F472B6', accent: '#FCE7F3' },
+  Byte: { primary: '#06B6D4', secondary: '#22D3EE', accent: '#CFFAFE' },
+  Nova: { primary: '#F43F5E', secondary: '#FB7185', accent: '#FFE4E6' },
+  Chip: { primary: '#84CC16', secondary: '#A3E635', accent: '#ECFCCB' },
+  Bolt: { primary: '#FBBF24', secondary: '#FCD34D', accent: '#FEF3C7' },
+  Dash: { primary: '#14B8A6', secondary: '#2DD4BF', accent: '#CCFBF1' },
+  Zap: { primary: '#A855F7', secondary: '#C084FC', accent: '#F3E8FF' },
+  Gizmo: { primary: '#64748B', secondary: '#94A3B8', accent: '#F1F5F9' },
+  Turbo: { primary: '#EF4444', secondary: '#F87171', accent: '#FEE2E2' },
+  Blip: { primary: '#10B981', secondary: '#34D399', accent: '#D1FAE5' },
+  Neon: { primary: '#D946EF', secondary: '#E879F9', accent: '#FAE8FF' },
+  Widget: { primary: '#6366F1', secondary: '#818CF8', accent: '#E0E7FF' },
+  Zippy: { primary: '#F59E0B', secondary: '#FBBF24', accent: '#FEF3C7' },
+  Quirk: { primary: '#0EA5E9', secondary: '#38BDF8', accent: '#E0F2FE' },
+  Flux: { primary: '#7C3AED', secondary: '#8B5CF6', accent: '#EDE9FE' },
 }
 
 // ---------------------------------------------------------------------------
@@ -479,6 +494,207 @@ function FluxSVG({ colors, size }: MascotSVGProps) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Professional agent SVGs — role-based icons
+// ---------------------------------------------------------------------------
+
+// Coding agents: hammer/wrench tool icon
+function BuilderSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Hammer */}
+      <rect x="28" y="20" width="8" height="24" rx="2" fill="white" />
+      <rect x="22" y="16" width="20" height="10" rx="3" fill={colors.accent} />
+      <rect x="22" y="16" width="20" height="10" rx="3" stroke="white" strokeWidth="1.5" fill="none" />
+    </svg>
+  )
+}
+
+function ForgeSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Code brackets */}
+      <path d="M22,22 L14,32 L22,42" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M42,22 L50,32 L42,42" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <rect x="29" y="18" width="6" height="28" rx="2" fill="white" transform="rotate(15, 32, 32)" />
+    </svg>
+  )
+}
+
+function AnvilSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Wrench */}
+      <path d="M20,20 L44,44 M40,20 Q48,20 48,28 L36,28" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <circle cx="22" cy="42" r="6" stroke="white" strokeWidth="3" fill="none" />
+    </svg>
+  )
+}
+
+function CraftSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* CPU/chip */}
+      <rect x="22" y="22" width="20" height="20" rx="2" fill="none" stroke="white" strokeWidth="2.5" />
+      <rect x="26" y="26" width="12" height="12" rx="1" fill="white" />
+      {/* Pins */}
+      <line x1="28" y1="18" x2="28" y2="22" stroke="white" strokeWidth="2" />
+      <line x1="36" y1="18" x2="36" y2="22" stroke="white" strokeWidth="2" />
+      <line x1="28" y1="42" x2="28" y2="46" stroke="white" strokeWidth="2" />
+      <line x1="36" y1="42" x2="36" y2="46" stroke="white" strokeWidth="2" />
+    </svg>
+  )
+}
+
+function WelderSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Terminal prompt */}
+      <path d="M18,24 L28,32 L18,40" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <line x1="32" y1="40" x2="46" y2="40" stroke="white" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+// Testing agents: shield/check icon
+function InspectorSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Magnifying glass */}
+      <circle cx="28" cy="28" r="10" stroke="white" strokeWidth="3" fill="none" />
+      <line x1="36" y1="36" x2="46" y2="46" stroke="white" strokeWidth="3" strokeLinecap="round" />
+      {/* Check inside */}
+      <path d="M24,28 L27,31 L33,25" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  )
+}
+
+function SentinelSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Shield */}
+      <path d="M32,14 L46,22 L46,34 Q46,48 32,52 Q18,48 18,34 L18,22 Z" fill="none" stroke="white" strokeWidth="2.5" />
+      {/* Checkmark */}
+      <path d="M24,32 L30,38 L40,26" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  )
+}
+
+function ProbeSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Flask */}
+      <path d="M26,16 L26,28 L18,46 Q16,50 20,52 L44,52 Q48,50 46,46 L38,28 L38,16" stroke="white" strokeWidth="2.5" fill="none" />
+      <line x1="24" y1="16" x2="40" y2="16" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+      {/* Bubbles */}
+      <circle cx="28" cy="42" r="2" fill="white" />
+      <circle cx="36" cy="38" r="2.5" fill="white" />
+    </svg>
+  )
+}
+
+function AuditorSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Clipboard with checks */}
+      <rect x="20" y="18" width="24" height="30" rx="2" stroke="white" strokeWidth="2" fill="none" />
+      <rect x="26" y="14" width="12" height="6" rx="2" fill="white" />
+      <path d="M26,30 L29,33 L38,26" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M26,40 L29,43 L38,36" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
+    </svg>
+  )
+}
+
+function ScannerSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Scan lines / radar */}
+      <circle cx="32" cy="32" r="14" stroke="white" strokeWidth="2" fill="none" />
+      <circle cx="32" cy="32" r="8" stroke="white" strokeWidth="1.5" fill="none" opacity="0.7" />
+      <line x1="32" y1="18" x2="32" y2="32" stroke="white" strokeWidth="2" />
+      <line x1="32" y1="32" x2="42" y2="24" stroke="white" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="32" cy="32" r="3" fill="white" />
+    </svg>
+  )
+}
+
+// Reviewer agents: eye/scale icon
+function JudgeSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Scale */}
+      <line x1="32" y1="16" x2="32" y2="48" stroke="white" strokeWidth="2.5" />
+      <line x1="18" y1="24" x2="46" y2="24" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M18,24 L14,36 Q14,40 22,40 Q26,36 22,24" stroke="white" strokeWidth="2" fill="none" />
+      <path d="M46,24 L42,36 Q42,40 50,40 Q54,36 50,24" stroke="white" strokeWidth="2" fill="none" />
+      <rect x="26" y="46" width="12" height="4" rx="1" fill="white" />
+    </svg>
+  )
+}
+
+function ArbiterSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Eye */}
+      <path d="M12,32 Q32,16 52,32 Q32,48 12,32" stroke="white" strokeWidth="2.5" fill="none" />
+      <circle cx="32" cy="32" r="8" fill="white" />
+      <circle cx="32" cy="32" r="4" fill={colors.primary} />
+    </svg>
+  )
+}
+
+// Architect agents: compass/blueprint icon
+function BlueprintSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Layers / blueprint */}
+      <rect x="18" y="20" width="28" height="8" rx="1" stroke="white" strokeWidth="2" fill="none" />
+      <rect x="18" y="32" width="28" height="8" rx="1" stroke="white" strokeWidth="2" fill="none" />
+      <path d="M22,44 L32,50 L42,44" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
+    </svg>
+  )
+}
+
+function CompassSVG({ colors, size }: MascotSVGProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" fill={colors.primary} />
+      <circle cx="32" cy="32" r="24" fill={colors.secondary} />
+      {/* Compass */}
+      <circle cx="32" cy="32" r="14" stroke="white" strokeWidth="2" fill="none" />
+      <polygon points="32,18 36,30 32,34 28,30" fill="white" />
+      <polygon points="32,46 36,34 32,30 28,34" fill="white" opacity="0.5" />
+      <circle cx="32" cy="32" r="3" fill="white" />
+    </svg>
+  )
+}
+
 /** Fallback icon for unknown / untracked agents. */
 function UnknownSVG({ colors, size }: MascotSVGProps) {
   return (
@@ -498,25 +714,40 @@ function UnknownSVG({ colors, size }: MascotSVGProps) {
 
 /** Maps each mascot name to its SVG component. */
 export const MASCOT_SVGS: Record<AgentMascot, React.FC<MascotSVGProps>> = {
-  // Original 5
+  // Coding agents (professional tool icons)
+  Builder: BuilderSVG,
+  Forge: ForgeSVG,
+  Anvil: AnvilSVG,
+  Craft: CraftSVG,
+  Welder: WelderSVG,
+  // Testing agents (verification icons)
+  Inspector: InspectorSVG,
+  Sentinel: SentinelSVG,
+  Probe: ProbeSVG,
+  Auditor: AuditorSVG,
+  Scanner: ScannerSVG,
+  // Reviewer agents (judgment icons)
+  Judge: JudgeSVG,
+  Arbiter: ArbiterSVG,
+  // Architect agents (design icons)
+  Blueprint: BlueprintSVG,
+  Compass: CompassSVG,
+  // Legacy names (backward compat)
   Spark: SparkSVG,
   Fizz: FizzSVG,
   Octo: OctoSVG,
   Hoot: HootSVG,
   Buzz: BuzzSVG,
-  // Tech-inspired
   Pixel: PixelSVG,
   Byte: ByteSVG,
   Nova: NovaSVG,
   Chip: ChipSVG,
   Bolt: BoltSVG,
-  // Energetic
   Dash: DashSVG,
   Zap: ZapSVG,
   Gizmo: GizmoSVG,
   Turbo: TurboSVG,
   Blip: BlipSVG,
-  // Playful
   Neon: NeonSVG,
   Widget: WidgetSVG,
   Zippy: ZippySVG,

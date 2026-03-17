@@ -6,7 +6,8 @@
 
 De oorspronkelijke roadmap plande 7 sprints om een compleet agile planning-systeem te bouwen (data model, analyse workflow, kanban boards, velocity metrics). Door integratie met **MQ Planning** (open-source PM tool) en **Onboarding** (codebase analyse) is het kern-platform in **7 sprints** opgeleverd.
 
-**Fase 1.5 (Sprint 7.3-7.7)** versterkt DevEngine's kern met ideeën uit de BMAD method en OpenClaw:
+**Fase 1.5 (Sprint 7.3-7.8)** versterkt DevEngine's kern met ideeën uit de BMAD method en OpenClaw:
+- **Stuck-State Recovery** voor automatische detectie en LLM-assisted herstel bij vastgelopen orchestrator
 - **Role Registry** voor BMAD-upgradable agent rollen (drop-in prompt templates)
 - **Session Memory** voor cross-sessie geheugen (architectuur, patronen, learnings)
 - **Review Agent** voor onafhankelijke code review (quality gate)
@@ -281,7 +282,60 @@ Graceful agent shutdown: agents ronden lopend werk af in plaats van hard gekilld
 
 ---
 
-## Sprint 7.3: Role Registry Foundation -- PLANNED
+## Sprint 7.3: Stuck-State Detection & Auto-Recovery + Functionele Model Tiers -- DONE
+
+> Afgerond: 2026-03-17
+
+> Doel: (1) Detecteer wanneer de orchestrator vastzit en herstel automatisch bij hoge confidence. (2) Vervang Anthropic merknamen door functionele capability tiers.
+
+**Deel A — Functionele Model Tiers:**
+Interne code gebruikt `"opus"`/`"sonnet"`/`"haiku"` als tier namen. Dit zijn Anthropic merknamen die niets zeggen over capability. Rename naar functionele namen:
+
+| Oud (merknaam) | Nieuw (functioneel) | Betekenis |
+|---|---|---|
+| `"opus"` | `"analyst"` | Maximale capability, diepe analyse |
+| `"sonnet"` | `"developer"` | Default workhorse, coding (fallback) |
+| `"haiku"` | `"assistant"` | Snelle lichte taken, orchestratie |
+
+**Deel B — Stuck-State Recovery:**
+De orchestrator heeft geen stuck-state detectie. Wanneer features 3x falen worden dependents permanent geblokkeerd. Kernregels:
+- **>= 0.8 confidence** → auto-execute (geen human nodig)
+- **< 0.8 confidence** → human-in-the-loop via UI modal
+- **skip/stop** → altijd human (scope-beslissingen)
+- **max 2x auto-recovery** achter elkaar → daarna human
+
+| # | Item | Status |
+|---|---|---|
+| 7.3.0 | Functionele model tiers: `opus`→`analyst`, `sonnet`→`developer`, `haiku`→`assistant` in task_router, provider_config, orchestrator | done |
+| 7.3.1 | Stuck-state detectie in `parallel_orchestrator.py` (BFS blocked-feature analyse) | done |
+| 7.3.2 | `stuck_analyzer.py` (nieuw): LLM analyse via claude CLI met structured JSON output | done |
+| 7.3.3 | Auto-recovery logica: confidence >= 0.8 → directe uitvoering, anders human-in-the-loop | done |
+| 7.3.4 | Recovery opties: retry (reset failure counts), modify (herschrijf feature), skip (altijd human) | done |
+| 7.3.5 | API endpoints: `GET/POST /api/projects/{name}/stuck-state` + WebSocket integratie | done |
+| 7.3.6 | UI: `StuckStateModal.tsx` voor human decisions | done |
+
+**Acceptatiecriteria:**
+1. Interne code bevat nergens meer `"opus"`, `"sonnet"`, of `"haiku"` als tier namen — alleen `"analyst"`, `"developer"`, `"assistant"`
+2. Bestaande env vars (`ANTHROPIC_DEFAULT_OPUS_MODEL` etc.) en providers.json blijven werken via backward compat mapping
+3. Feature A faalt 3x → feature B (depends on A) geblokkeerd → stuck detectie triggert na ~30s
+4. LLM analyseert root cause en geeft suggesties met confidence score
+5. Suggestie met confidence >= 0.8 wordt automatisch uitgevoerd zonder UI
+6. Na 2x auto-recovery → volgende stuck gaat altijd naar human-in-the-loop
+7. skip_feature en stop gaan altijd naar human-in-the-loop
+8. UI modal toont LLM analyse, gefaalde/geblokkeerde features, en actieknoppen (Stop/Retry/Modify)
+9. LLM fallback: bij timeout/fout → basic report, recommended_option = "stop"
+
+**Technische details:**
+- Tier rename: task_router.py, provider_config.py, parallel_orchestrator.py, test_sdk_minimal.py
+- Detectie: BFS vanuit permanently_failed features → alle unsatisfiable dependents
+- IPC: `{project_dir}/.mq-devengine/stuck_state.json` voor orchestrator ↔ API communicatie
+- LLM: `provider_config.get_model("coding")` (analyst tier) voor analyse-kwaliteit
+- Config: `stuck_recovery.enabled`, `auto_recovery_confidence: 0.8`, `max_auto_recoveries: 2`
+- Zie [sprint-7.3-stuck-state-recovery.md](sprint-7.3-stuck-state-recovery.md) voor het volledige implementatieplan
+
+---
+
+## Sprint 7.4: Role Registry Foundation -- PLANNED
 
 > Doel: Agent configuratie centraliseren in een data-driven registry. Fundament voor BMAD-upgradable rollen.
 
@@ -289,10 +343,10 @@ Geïnspireerd door de BMAD method (Breakthrough Method of Agile AI-driven Develo
 
 | # | Item | Status |
 |---|---|---|
-| 7.3.1 | `role_registry.py` (nieuw): AGENT_ROLES dict met bestaande 3 types (initializer, coding, testing) | planned |
-| 7.3.2 | `provider_config.py`: AGENT_TYPES leest uit registry ipv hardcoded tuple | planned |
-| 7.3.3 | `client.py`: tool lists + max_turns lezen uit registry | planned |
-| 7.3.4 | `agent.py` + `prompts.py`: type validatie + template lookup via registry | planned |
+| 7.4.1 | `role_registry.py` (nieuw): AGENT_ROLES dict met bestaande 3 types (initializer, coding, testing) | planned |
+| 7.4.2 | `provider_config.py`: AGENT_TYPES leest uit registry ipv hardcoded tuple | planned |
+| 7.4.3 | `client.py`: tool lists + max_turns lezen uit registry | planned |
+| 7.4.4 | `agent.py` + `prompts.py`: type validatie + template lookup via registry | planned |
 
 **Acceptatiecriteria:**
 1. `role_registry.py` bevat AGENT_ROLES met initializer, coding, testing -- elk met template, tools, max_turns, model_tier, phase
@@ -310,7 +364,7 @@ Geïnspireerd door de BMAD method (Breakthrough Method of Agile AI-driven Develo
 
 ---
 
-## Sprint 7.4: Session Memory -- PLANNED
+## Sprint 7.5: Session Memory -- PLANNED
 
 > Doel: Agents onthouden beslissingen, patronen en fouten across sessies via structured memory in SQLite + MCP tools.
 
@@ -318,11 +372,11 @@ Kern-idee uit OpenClaw: persistent memory across sessies. Maar dan structured (S
 
 | # | Item | Status |
 |---|---|---|
-| 7.4.1 | `api/database.py`: AgentMemory model + `_migrate_add_agent_memories_table` migratie | planned |
-| 7.4.2 | `mcp_server/feature_mcp.py`: `memory_store`, `memory_recall`, `memory_recall_for_feature` MCP tools | planned |
-| 7.4.3 | `client.py`: MEMORY_TOOLS toevoegen aan coding + initializer tool lists (testing = read-only) | planned |
-| 7.4.4 | `coding_prompt.template.md`: Step 1.5 (recall context) + Step 8.5 (save learnings) | planned |
-| 7.4.5 | `initializer_prompt.template.md`: Task 2.5 (store architectuur + spec constraints) | planned |
+| 7.5.1 | `api/database.py`: AgentMemory model + `_migrate_add_agent_memories_table` migratie | planned |
+| 7.5.2 | `mcp_server/feature_mcp.py`: `memory_store`, `memory_recall`, `memory_recall_for_feature` MCP tools | planned |
+| 7.5.3 | `client.py`: MEMORY_TOOLS toevoegen aan coding + initializer tool lists (testing = read-only) | planned |
+| 7.5.4 | `coding_prompt.template.md`: Step 1.5 (recall context) + Step 8.5 (save learnings) | planned |
+| 7.5.5 | `initializer_prompt.template.md`: Task 2.5 (store architectuur + spec constraints) | planned |
 
 **Acceptatiecriteria:**
 1. Server start, `agent_memories` tabel wordt automatisch aangemaakt via migratie
@@ -342,7 +396,7 @@ Kern-idee uit OpenClaw: persistent memory across sessies. Maar dan structured (S
 
 ---
 
-## Sprint 7.5: Review Agent -- PLANNED
+## Sprint 7.6: Review Agent -- PLANNED
 
 > Doel: Onafhankelijke code review door review agent. Coding agent certificeert niet meer zichzelf. Achter `review_enabled` feature flag.
 
@@ -350,13 +404,13 @@ BMAD-method scheidt developer en reviewer rollen. De review agent verifieert cod
 
 | # | Item | Status |
 |---|---|---|
-| 7.5.1 | `api/database.py`: review_status, review_notes, reviewed_at kolommen + migratie | planned |
-| 7.5.2 | `mcp_server/feature_mcp.py`: `feature_mark_for_review`, `feature_approve`, `feature_reject` tools | planned |
-| 7.5.3 | `role_registry.py`: reviewer role toevoegen (template, tools, max_turns=50, phase=3) | planned |
-| 7.5.4 | `review_prompt.template.md` (nieuw) + `prompts.py`: get_review_prompt | planned |
-| 7.5.5 | `agent.py`: review agent type support | planned |
-| 7.5.6 | `coding_prompt.template.md`: mark_for_review ipv mark_passing (achter review_enabled flag) | planned |
-| 7.5.7 | `parallel_orchestrator.py`: `_maintain_review_agents()` lifecycle + review_enabled flag | planned |
+| 7.6.1 | `api/database.py`: review_status, review_notes, reviewed_at kolommen + migratie | planned |
+| 7.6.2 | `mcp_server/feature_mcp.py`: `feature_mark_for_review`, `feature_approve`, `feature_reject` tools | planned |
+| 7.6.3 | `role_registry.py`: reviewer role toevoegen (template, tools, max_turns=50, phase=3) | planned |
+| 7.6.4 | `review_prompt.template.md` (nieuw) + `prompts.py`: get_review_prompt | planned |
+| 7.6.5 | `agent.py`: review agent type support | planned |
+| 7.6.6 | `coding_prompt.template.md`: mark_for_review ipv mark_passing (achter review_enabled flag) | planned |
+| 7.6.7 | `parallel_orchestrator.py`: `_maintain_review_agents()` lifecycle + review_enabled flag | planned |
 
 **Acceptatiecriteria:**
 1. `review_enabled=False` (default): DevEngine werkt identiek aan huidige versie (mark_passing direct)
@@ -378,7 +432,7 @@ BMAD-method scheidt developer en reviewer rollen. De review agent verifieert cod
 
 ---
 
-## Sprint 7.6: Architect Agent -- PLANNED
+## Sprint 7.7: Architect Agent -- PLANNED
 
 > Doel: Architectuurfase voor PRD-analyse en requirements decomposatie. Produceert MarQed markdown voor MQ Planning import. Achter `architect_enabled` feature flag.
 
@@ -386,11 +440,11 @@ De architect agent draait als phase 0 (voor initializer). Analyseert de PRD/app_
 
 | # | Item | Status |
 |---|---|---|
-| 7.6.1 | `role_registry.py`: architect role toevoegen (template, tools, max_turns=200, phase=0) | planned |
-| 7.6.2 | `architect_prompt.template.md` (nieuw) + `prompts.py`: get_architect_prompt | planned |
-| 7.6.3 | `agent.py`: architect agent type support | planned |
-| 7.6.4 | `parallel_orchestrator.py`: architect fase + MarQed trigger (achter architect_enabled flag) | planned |
-| 7.6.5 | Architect output validatie: MarQed parser test met architect output | planned |
+| 7.7.1 | `role_registry.py`: architect role toevoegen (template, tools, max_turns=200, phase=0) | planned |
+| 7.7.2 | `architect_prompt.template.md` (nieuw) + `prompts.py`: get_architect_prompt | planned |
+| 7.7.3 | `agent.py`: architect agent type support | planned |
+| 7.7.4 | `parallel_orchestrator.py`: architect fase + MarQed trigger (achter architect_enabled flag) | planned |
+| 7.7.5 | Architect output validatie: MarQed parser test met architect output | planned |
 
 **Acceptatiecriteria:**
 1. `architect_enabled=False` (default): DevEngine werkt identiek aan huidige versie
@@ -411,7 +465,7 @@ De architect agent draait als phase 0 (voor initializer). Analyseert de PRD/app_
 
 ---
 
-## Sprint 7.7: Hybride LLM Routing + Subscription-First -- PLANNED
+## Sprint 7.8: Hybride LLM Routing + Subscription-First -- PLANNED
 
 > Doel: Per-taak model/provider selectie op basis van task classificatie en klantbudget. Achter `routing_enabled` feature flag.
 
@@ -419,11 +473,11 @@ Task-aware routing met 3 lagen: rules-based classificatie → kostenweging → o
 
 | # | Item | Status |
 |---|---|---|
-| 7.7.1 | `task_router.py` (nieuw): task classificatie (type + complexity) en model routing logica | planned |
-| 7.7.2 | `providers.json` schema uitbreiden: cost_per_1k_input/output, capabilities per model | planned |
-| 7.7.3 | `provider_config.py`: per-subprocess provider env injection | planned |
-| 7.7.4 | `parallel_orchestrator.py`: router integratie bij agent spawn (achter routing_enabled flag) | planned |
-| 7.7.5 | `server/schemas.py` + `server/routers/settings.py`: cost_preference setting (budget/balanced/quality) | planned |
+| 7.8.1 | `task_router.py` (nieuw): task classificatie (type + complexity) en model routing logica | planned |
+| 7.8.2 | `providers.json` schema uitbreiden: cost_per_1k_input/output, capabilities per model | planned |
+| 7.8.3 | `provider_config.py`: per-subprocess provider env injection | planned |
+| 7.8.4 | `parallel_orchestrator.py`: router integratie bij agent spawn (achter routing_enabled flag) | planned |
+| 7.8.5 | `server/schemas.py` + `server/routers/settings.py`: cost_preference setting (budget/balanced/quality) | planned |
 
 **Acceptatiecriteria:**
 1. `routing_enabled=False` (default): DevEngine gebruikt statische model config (als vanouds)

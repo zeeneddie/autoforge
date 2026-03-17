@@ -15,7 +15,7 @@ from typing import Set
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from .schemas import AGENT_MASCOTS
+from .schemas import get_mascot_for_agent
 from .services.chat_constants import ROOT_DIR
 from .services.dev_server_manager import get_devserver_manager
 from .services.process_manager import get_manager
@@ -33,7 +33,7 @@ FEATURE_ID_PATTERN = re.compile(r'\[Feature #(\d+)\]\s*(.*)')
 
 # Pattern to detect testing agent start message (includes feature ID)
 # Matches: "Started testing agent for feature #123 (PID xxx)"
-TESTING_AGENT_START_PATTERN = re.compile(r'Started testing agent for feature #(\d+)')
+TESTING_AGENT_START_PATTERN = re.compile(r'Started testing agent for features? (?:\[)?#(\d+)')
 
 # Pattern to detect testing agent completion
 # Matches: "Feature #123 testing completed" or "Feature #123 testing failed"
@@ -76,11 +76,15 @@ ORCHESTRATOR_PATTERNS = {
     'at_capacity': re.compile(r'At max capacity|at max testing agents|At max total agents'),
     'feature_start': re.compile(r'Starting feature \d+/\d+: #(\d+) - (.+)'),
     'coding_spawn': re.compile(r'Started coding agent for features? #(\d+)'),
-    'testing_spawn': re.compile(r'Started testing agent for feature #(\d+)'),
+    'testing_spawn': re.compile(r'Started testing agent for features? (?:\[)?#(\d+)'),
     'coding_complete': re.compile(r'Features? #(\d+)(?:,\s*#\d+)* (completed|failed)'),
     'testing_complete': re.compile(r'Feature #(\d+) testing (completed|failed)'),
     'all_complete': re.compile(r'All features complete'),
     'blocked_features': re.compile(r'(\d+) blocked by dependencies'),
+    'stuck_analyzing': re.compile(r'STUCK: Analyzing'),
+    'stuck_awaiting': re.compile(r'STUCK: Awaiting human decision'),
+    'stuck_resolved': re.compile(r'STUCK: Resolved'),
+    'stuck_auto_recovery': re.compile(r'STUCK: Auto-recovery applied'),
 }
 
 
@@ -187,7 +191,7 @@ class AgentTracker:
                 agent_index = self._next_agent_index
                 self._next_agent_index += 1
                 self.active_agents[key] = {
-                    'name': AGENT_MASCOTS[agent_index % len(AGENT_MASCOTS)],
+                    'name': get_mascot_for_agent(agent_index, 'coding'),
                     'agent_index': agent_index,
                     'agent_type': 'coding',
                     'feature_ids': [feature_id],
@@ -279,7 +283,7 @@ class AgentTracker:
                 feature_name = name_match.group(1)
 
             self.active_agents[key] = {
-                'name': AGENT_MASCOTS[agent_index % len(AGENT_MASCOTS)],
+                'name': get_mascot_for_agent(agent_index, agent_type),
                 'agent_index': agent_index,
                 'agent_type': agent_type,
                 'feature_ids': [feature_id],
@@ -291,7 +295,7 @@ class AgentTracker:
             return {
                 'type': 'agent_update',
                 'agentIndex': agent_index,
-                'agentName': AGENT_MASCOTS[agent_index % len(AGENT_MASCOTS)],
+                'agentName': get_mascot_for_agent(agent_index, agent_type),
                 'agentType': agent_type,
                 'featureId': feature_id,
                 'featureIds': [feature_id],
@@ -314,7 +318,7 @@ class AgentTracker:
             feature_name = f'Features {", ".join(f"#{fid}" for fid in feature_ids)}'
 
             self.active_agents[key] = {
-                'name': AGENT_MASCOTS[agent_index % len(AGENT_MASCOTS)],
+                'name': get_mascot_for_agent(agent_index, agent_type),
                 'agent_index': agent_index,
                 'agent_type': agent_type,
                 'feature_ids': list(feature_ids),
@@ -333,7 +337,7 @@ class AgentTracker:
             return {
                 'type': 'agent_update',
                 'agentIndex': agent_index,
-                'agentName': AGENT_MASCOTS[agent_index % len(AGENT_MASCOTS)],
+                'agentName': get_mascot_for_agent(agent_index, agent_type),
                 'agentType': agent_type,
                 'featureId': primary_id,
                 'featureIds': list(feature_ids),
@@ -370,7 +374,11 @@ class AgentTracker:
                     'thought': 'Completed successfully!' if is_success else 'Failed to complete',
                     'timestamp': datetime.now().isoformat(),
                 }
-                del self.active_agents[key]
+                # Clean up all keys for this agent (including batch siblings)
+                for fid in agent.get('feature_ids', [feature_id]):
+                    self.active_agents.pop((fid, agent_type), None)
+                # Ensure the primary key is also removed
+                self.active_agents.pop(key, None)
                 return result
             else:
                 # Synthetic completion for untracked agent
@@ -400,6 +408,7 @@ class AgentTracker:
 
             if key in self.active_agents:
                 agent = self.active_agents[key]
+                all_feature_ids = set(feature_ids) | set(agent.get('feature_ids', []))
                 result = {
                     'type': 'agent_update',
                     'agentIndex': agent['agent_index'],
@@ -412,8 +421,8 @@ class AgentTracker:
                     'thought': 'Batch completed successfully!' if is_success else 'Batch failed to complete',
                     'timestamp': datetime.now().isoformat(),
                 }
-                # Clean up all keys for this batch
-                for fid in feature_ids:
+                # Clean up all keys for this batch (both from message and agent's own list)
+                for fid in all_feature_ids:
                     self.active_agents.pop((fid, agent_type), None)
                 return result
             else:
@@ -563,6 +572,35 @@ class OrchestratorTracker:
                 update = self._create_update(
                     'all_complete',
                     'All features complete!'
+                )
+
+            # Stuck state events
+            elif ORCHESTRATOR_PATTERNS['stuck_analyzing'].search(line):
+                self.state = 'stuck'
+                update = self._create_update(
+                    'stuck_analyzing',
+                    'Engine stuck — analyzing with LLM...'
+                )
+
+            elif ORCHESTRATOR_PATTERNS['stuck_awaiting'].search(line):
+                self.state = 'stuck'
+                update = self._create_update(
+                    'stuck_awaiting',
+                    'Engine stuck — awaiting human decision'
+                )
+
+            elif ORCHESTRATOR_PATTERNS['stuck_auto_recovery'].search(line):
+                self.state = 'scheduling'
+                update = self._create_update(
+                    'stuck_auto_recovery',
+                    'Auto-recovery applied, continuing...'
+                )
+
+            elif ORCHESTRATOR_PATTERNS['stuck_resolved'].search(line):
+                self.state = 'scheduling'
+                update = self._create_update(
+                    'stuck_resolved',
+                    'Stuck state resolved'
                 )
 
             return update

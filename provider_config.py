@@ -8,8 +8,14 @@ Manages provider profiles for switching between different API backends
 Profiles are stored in ~/.mq-devengine/providers.json and include:
 - Environment variable overrides per provider
 - Per-agent-type model mappings (initializer, coding, testing)
+- Model tier mappings (analyst/developer/assistant -> actual model names)
 
 Model selection priority: UI settings override > provider profile models > registry DEFAULT_MODEL
+
+Model tier names are functional (provider-agnostic):
+- "analyst"   — maximum capability, deep analysis, complex architecture
+- "developer" — default workhorse for coding tasks
+- "assistant" — fast lightweight tasks, orchestration, classification
 """
 
 import json
@@ -35,9 +41,9 @@ DEFAULT_PROVIDERS: dict[str, dict[str, Any]] = {
             "testing": None,
         },
         "model_tiers": {
-            "opus": "claude-opus-4-5",
-            "sonnet": "claude-sonnet-4-5",
-            "haiku": "claude-haiku-4-5",
+            "analyst": "claude-opus-4-5",
+            "developer": "claude-sonnet-4-5",
+            "assistant": "claude-haiku-4-5",
         },
         "cost_tier": "subscription",
     },
@@ -52,9 +58,9 @@ DEFAULT_PROVIDERS: dict[str, dict[str, Any]] = {
             "testing": None,
         },
         "model_tiers": {
-            "opus": "claude-opus-4-5",
-            "sonnet": "claude-sonnet-4-5",
-            "haiku": "claude-haiku-4-5",
+            "analyst": "claude-opus-4-5",
+            "developer": "claude-sonnet-4-5",
+            "assistant": "claude-haiku-4-5",
         },
         "cost_tier": "pay-per-token",
     },
@@ -70,9 +76,9 @@ DEFAULT_PROVIDERS: dict[str, dict[str, Any]] = {
             "testing": "google/gemini-2.0-flash-exp",
         },
         "model_tiers": {
-            "opus": "anthropic/claude-opus-4-5",
-            "sonnet": "deepseek/deepseek-coder",
-            "haiku": "google/gemini-2.0-flash-exp",
+            "analyst": "anthropic/claude-opus-4-5",
+            "developer": "deepseek/deepseek-coder",
+            "assistant": "google/gemini-2.0-flash-exp",
         },
         "cost_tier": "pay-per-token",
     },
@@ -89,9 +95,9 @@ DEFAULT_PROVIDERS: dict[str, dict[str, Any]] = {
             "testing": "deepseek-coder-v2:16B",
         },
         "model_tiers": {
-            "opus": "deepseek-coder-v2:16B",
-            "sonnet": "deepseek-coder-v2:16B",
-            "haiku": "deepseek-coder-v2:16B",
+            "analyst": "deepseek-coder-v2:16B",
+            "developer": "deepseek-coder-v2:16B",
+            "assistant": "deepseek-coder-v2:16B",
         },
         "cost_tier": "pay-per-token",
     },
@@ -227,11 +233,11 @@ def get_provider_models() -> dict[str, str | None]:
 def get_provider_model_tiers() -> dict[str, str] | None:
     """Get model tier mappings for the active provider.
 
-    Used by the task router to resolve model tiers (opus/sonnet/haiku)
+    Used by the task router to resolve functional tiers (analyst/developer/assistant)
     to actual model names for the active provider.
 
     Returns:
-        Dict like {"opus": "model-id", "sonnet": "model-id", "haiku": "model-id"}
+        Dict like {"analyst": "model-id", "developer": "model-id", "assistant": "model-id"}
         or None if no provider is active or no model_tiers configured.
     """
     active = get_active_provider()

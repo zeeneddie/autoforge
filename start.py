@@ -46,7 +46,7 @@ def check_spec_exists(project_dir: Path) -> bool:
     if spec_file.exists():
         try:
             content = spec_file.read_text(encoding="utf-8")
-            return "<project_specification>" in content
+            return "<project_specification>" in content or "<app_spec>" in content
         except (OSError, PermissionError):
             return False
 
@@ -55,7 +55,7 @@ def check_spec_exists(project_dir: Path) -> bool:
     if legacy_spec.exists():
         try:
             content = legacy_spec.read_text(encoding="utf-8")
-            return "<project_specification>" in content
+            return "<project_specification>" in content or "<app_spec>" in content
         except (OSError, PermissionError):
             return False
 

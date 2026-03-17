@@ -296,8 +296,25 @@ AgentState = Literal["idle", "thinking", "working", "testing", "success", "error
 # Agent type (coding vs testing)
 AgentType = Literal["coding", "testing"]
 
-# Agent mascot names assigned by index
-AGENT_MASCOTS = ["Spark", "Fizz", "Octo", "Hoot", "Buzz"]
+# Agent mascot names assigned by index, grouped by agent type
+CODING_MASCOTS = ["Builder", "Forge", "Anvil", "Craft", "Welder"]
+TESTING_MASCOTS = ["Inspector", "Sentinel", "Probe", "Auditor", "Scanner"]
+REVIEWER_MASCOTS = ["Judge", "Arbiter"]
+ARCHITECT_MASCOTS = ["Blueprint", "Compass"]
+
+# Combined list for backward compat (coding mascots first)
+AGENT_MASCOTS = CODING_MASCOTS
+
+
+def get_mascot_for_agent(agent_index: int, agent_type: str = "coding") -> str:
+    """Get mascot name based on agent type and index."""
+    if agent_type == "testing":
+        return TESTING_MASCOTS[agent_index % len(TESTING_MASCOTS)]
+    elif agent_type == "reviewer":
+        return REVIEWER_MASCOTS[agent_index % len(REVIEWER_MASCOTS)]
+    elif agent_type == "architect":
+        return ARCHITECT_MASCOTS[agent_index % len(ARCHITECT_MASCOTS)]
+    return CODING_MASCOTS[agent_index % len(CODING_MASCOTS)]
 
 
 class WSAgentUpdateMessage(BaseModel):
@@ -691,3 +708,36 @@ class AgentLogsListResponse(BaseModel):
     logs: list[AgentLogResponse]
     total: int
     total_runs: int
+
+
+# ============================================================================
+# Stuck State Schemas
+# ============================================================================
+
+class StuckSuggestion(BaseModel):
+    """A single LLM suggestion for stuck state recovery."""
+    type: str  # retry_feature, modify_feature, remove_dependency, skip_feature
+    feature_id: int
+    confidence: float = 0.0
+    reason: str = ""
+    changes: dict | None = None  # For modify_feature: {description, steps}
+    dependency_id: int | None = None  # For remove_dependency
+
+
+class StuckStateResponse(BaseModel):
+    """Response for GET /stuck-state endpoint."""
+    detected_at: str
+    analysis: dict
+    failed_features: list[dict]
+    blocked_features: list[dict]
+    passing_count: int
+    total_count: int
+    auto_recovery_count: int = 0
+    decision: str | None = None
+    decision_details: dict | None = None
+
+
+class StuckDecisionRequest(BaseModel):
+    """Request for POST /stuck-state/decision endpoint."""
+    decision: Literal["stop", "retry", "modify"]
+    modifications: list[StuckSuggestion] | None = None

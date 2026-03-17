@@ -257,6 +257,11 @@ class ParallelOrchestrator:
         # Signal handlers only set this flag; cleanup happens in the main loop
         self._shutdown_requested = False
 
+        # Stuck-state detection: tracks consecutive iterations with no progress
+        self._no_progress_iterations: int = 0
+        self._stuck_state_active: bool = False
+        self._auto_recovery_count: int = 0
+
         # Session tracking for logging/debugging
         self.session_start_time: datetime | None = None
 
@@ -464,8 +469,8 @@ class ParallelOrchestrator:
             Model name string or None for default.
         """
         try:
-            from task_router import route_feature, resolve_model_tier
             from provider_config import get_provider_model_tiers
+            from task_router import resolve_model_tier, route_feature
 
             cost_pref = self._get_cost_preference()
             tier = route_feature(feature_dict, cost_pref)
@@ -1008,6 +1013,304 @@ class ParallelOrchestrator:
             f"{failed_count} failed, {pending_count} pending -> {is_complete}")
         return is_complete
 
+    # -------------------------------------------------------------------------
+    # Stuck-state detection and recovery
+    # -------------------------------------------------------------------------
+
+    def _detect_stuck_state(self, feature_dicts: list[dict]) -> dict | None:
+        """Detect if the orchestrator is stuck due to permanently failed features.
+
+        Uses BFS from permanently failed features to find all features whose
+        dependencies can never be satisfied.
+
+        Returns:
+            Dict with stuck state info, or None if not stuck.
+        """
+        passing_ids = {fd["id"] for fd in feature_dicts if fd.get("passes")}
+        permanently_failed_ids = {
+            fd["id"] for fd in feature_dicts
+            if self._failure_counts.get(fd["id"], 0) >= MAX_FEATURE_RETRIES
+            and not fd.get("passes")
+        }
+
+        if not permanently_failed_ids:
+            return None
+
+        # Build dependency map: feature_id -> set of dependency IDs
+        dep_map: dict[int, set[int]] = {}
+        for fd in feature_dicts:
+            deps = fd.get("dependencies") or fd.get("depends_on") or []
+            if isinstance(deps, str):
+                try:
+                    import json
+                    deps = json.loads(deps)
+                except (json.JSONDecodeError, TypeError):
+                    deps = []
+            dep_map[fd["id"]] = set(deps) if deps else set()
+
+        # BFS: find all features whose deps can never be satisfied
+        unsatisfiable: set[int] = set(permanently_failed_ids)
+        changed = True
+        while changed:
+            changed = False
+            for fd in feature_dicts:
+                fid = fd["id"]
+                if fid in passing_ids or fid in unsatisfiable:
+                    continue
+                deps = dep_map.get(fid, set())
+                if deps and deps & unsatisfiable:
+                    unsatisfiable.add(fid)
+                    changed = True
+
+        blocked_ids = unsatisfiable - permanently_failed_ids
+        # Not stuck if there are still features that can make progress
+        non_stuck = {
+            fd["id"] for fd in feature_dicts
+            if fd["id"] not in passing_ids and fd["id"] not in unsatisfiable
+        }
+        if non_stuck:
+            return None
+
+        # Build info dicts
+        failed_features = [
+            {"id": fd["id"], "name": fd.get("name", ""), "failure_count": self._failure_counts.get(fd["id"], 0)}
+            for fd in feature_dicts if fd["id"] in permanently_failed_ids
+        ]
+        blocked_features = [
+            {
+                "id": fd["id"],
+                "name": fd.get("name", ""),
+                "blocked_by": sorted(dep_map.get(fd["id"], set()) & unsatisfiable),
+            }
+            for fd in feature_dicts if fd["id"] in blocked_ids
+        ]
+
+        return {
+            "failed_features": failed_features,
+            "blocked_features": blocked_features,
+            "passing_count": len(passing_ids),
+            "total_count": len(feature_dicts),
+        }
+
+    async def _handle_stuck_state(self, stuck_info: dict, feature_dicts: list[dict]) -> None:
+        """Handle a detected stuck state: analyze with LLM and recover or wait for human."""
+        import json as _json
+
+        from devengine_paths import get_stuck_state_path
+
+        print("STUCK: Analyzing stuck state with LLM...", flush=True)
+        debug_log.log("STUCK", "Stuck state detected", **stuck_info)
+
+        # LLM analysis
+        analysis = await self._analyze_stuck_state(stuck_info, feature_dicts)
+
+        # Check auto-recovery eligibility
+        can_auto = (
+            self._auto_recovery_count < 2
+            and analysis.get("confidence", 0) >= 0.8
+            and analysis.get("recommended_option") not in ("stop", "skip_feature")
+        )
+        # Also check that no individual suggestion is a skip
+        suggestions = analysis.get("suggestions", [])
+        if can_auto and any(s.get("type") == "skip_feature" for s in suggestions):
+            can_auto = False
+
+        if can_auto:
+            # Auto-recovery path
+            self._auto_recovery_count += 1
+            confidence = analysis.get("confidence", 0)
+            option = analysis.get("recommended_option", "retry")
+            print(
+                f"STUCK: Auto-recovery applied (confidence: {confidence:.2f}) "
+                f"— {option} (auto #{self._auto_recovery_count}/2)",
+                flush=True,
+            )
+            debug_log.log("STUCK", "Auto-recovery triggered",
+                confidence=confidence, option=option,
+                auto_count=self._auto_recovery_count)
+
+            if option == "modify" and suggestions:
+                self._apply_modifications(suggestions)
+            else:
+                # Default: retry all failed features
+                self._retry_failed_features(stuck_info)
+
+            self._stuck_state_active = False
+            self._no_progress_iterations = 0
+            stuck_path = get_stuck_state_path(self.project_dir)
+            stuck_path.unlink(missing_ok=True)
+            print("STUCK: Resolved - auto-recovery applied, continuing", flush=True)
+            return
+
+        # Human-in-the-loop path: write stuck_state.json and wait
+        stuck_data = {
+            "detected_at": datetime.now(timezone.utc).isoformat(),
+            "analysis": analysis,
+            "failed_features": stuck_info["failed_features"],
+            "blocked_features": stuck_info["blocked_features"],
+            "passing_count": stuck_info["passing_count"],
+            "total_count": stuck_info["total_count"],
+            "auto_recovery_count": self._auto_recovery_count,
+            "decision": None,
+            "decision_details": None,
+        }
+        stuck_path = get_stuck_state_path(self.project_dir)
+        stuck_path.parent.mkdir(parents=True, exist_ok=True)
+        stuck_path.write_text(_json.dumps(stuck_data, indent=2, default=str), encoding="utf-8")
+
+        print("STUCK: Awaiting human decision", flush=True)
+        debug_log.log("STUCK", "Waiting for human decision via stuck_state.json")
+
+        # Poll for human decision
+        while self.is_running and not self._shutdown_requested:
+            await asyncio.sleep(2)
+            try:
+                data = _json.loads(stuck_path.read_text(encoding="utf-8"))
+                decision = data.get("decision")
+                if decision is not None:
+                    details = data.get("decision_details")
+                    self._handle_stuck_decision(decision, details, stuck_info)
+                    stuck_path.unlink(missing_ok=True)
+                    return
+            except (FileNotFoundError, _json.JSONDecodeError):
+                continue
+
+    async def _analyze_stuck_state(self, stuck_info: dict, feature_dicts: list[dict]) -> dict:
+        """Call LLM to analyze the stuck state and suggest recovery options."""
+        try:
+            from stuck_analyzer import analyze_stuck_state
+            return await analyze_stuck_state(
+                self.project_dir, stuck_info, feature_dicts
+            )
+        except Exception as e:
+            debug_log.log("STUCK", f"LLM analysis failed: {e}")
+            print(f"STUCK: LLM analysis failed ({e}), using basic fallback", flush=True)
+            return {
+                "root_cause_analysis": f"LLM analysis unavailable: {e}",
+                "human_summary": (
+                    f"{len(stuck_info['failed_features'])} feature(s) permanent gefaald, "
+                    f"{len(stuck_info['blocked_features'])} feature(s) geblokkeerd."
+                ),
+                "recommended_option": "stop",
+                "confidence": 0.0,
+                "suggestions": [],
+            }
+
+    def _handle_stuck_decision(
+        self, decision: str, details: dict | None, stuck_info: dict
+    ) -> None:
+        """Execute a human decision for stuck state recovery."""
+        debug_log.log("STUCK", f"Human decision: {decision}", details=details)
+
+        if decision == "stop":
+            self.is_running = False
+            self._shutdown_requested = True
+            print("STUCK: Resolved - user chose to stop", flush=True)
+
+        elif decision == "retry":
+            self._retry_failed_features(stuck_info)
+            print("STUCK: Resolved - retrying failed features", flush=True)
+
+        elif decision == "modify":
+            modifications = (details or {}).get("modifications", [])
+            if modifications:
+                self._apply_modifications(modifications)
+            else:
+                # No modifications provided, fall back to retry
+                self._retry_failed_features(stuck_info)
+            print("STUCK: Resolved - applied modifications, continuing", flush=True)
+
+        else:
+            print(f"STUCK: Unknown decision '{decision}', stopping", flush=True)
+            self.is_running = False
+            self._shutdown_requested = True
+
+        self._stuck_state_active = False
+        self._no_progress_iterations = 0
+
+    def _retry_failed_features(self, stuck_info: dict) -> None:
+        """Reset failure counts for permanently failed features."""
+        session = self.get_session()
+        try:
+            for ff in stuck_info["failed_features"]:
+                fid = ff["id"]
+                self._failure_counts[fid] = 0
+                # Clear in_progress flag so feature becomes eligible again
+                feature = session.query(Feature).filter(Feature.id == fid).first()
+                if feature and feature.in_progress:
+                    feature.in_progress = False
+            session.commit()
+        finally:
+            session.close()
+
+    def _apply_modifications(self, modifications: list[dict]) -> None:
+        """Apply LLM-suggested modifications to features in the database."""
+        session = self.get_session()
+        try:
+            for mod in modifications:
+                mod_type = mod.get("type")
+                fid = mod.get("feature_id")
+
+                if mod_type == "retry_feature" and fid:
+                    self._failure_counts[fid] = 0
+                    feature = session.query(Feature).filter(Feature.id == fid).first()
+                    if feature and feature.in_progress:
+                        feature.in_progress = False
+
+                elif mod_type == "modify_feature" and fid:
+                    feature = session.query(Feature).filter(Feature.id == fid).first()
+                    if feature:
+                        changes = mod.get("changes", {})
+                        if "description" in changes:
+                            feature.description = changes["description"]
+                        if "steps" in changes:
+                            import json as _json
+                            feature.steps = (
+                                _json.dumps(changes["steps"])
+                                if isinstance(changes["steps"], list)
+                                else changes["steps"]
+                            )
+                        if feature.in_progress:
+                            feature.in_progress = False
+                    self._failure_counts.pop(fid, None)
+
+                elif mod_type == "remove_dependency" and fid:
+                    feature = session.query(Feature).filter(Feature.id == fid).first()
+                    dep_id = mod.get("dependency_id")
+                    if feature and dep_id is not None:
+                        import json as _json
+                        deps = feature.dependencies
+                        if isinstance(deps, str):
+                            try:
+                                deps = _json.loads(deps)
+                            except (ValueError, TypeError):
+                                deps = []
+                        if isinstance(deps, list) and dep_id in deps:
+                            deps = [d for d in deps if d != dep_id]
+                            feature.dependencies = _json.dumps(deps) if deps else None
+
+                elif mod_type == "skip_feature" and fid:
+                    # Remove this feature as a dependency from ALL other features
+                    import json as _json
+                    for f in session.query(Feature).all():
+                        deps = f.dependencies
+                        if isinstance(deps, str):
+                            try:
+                                deps = _json.loads(deps)
+                            except (ValueError, TypeError):
+                                deps = []
+                        if isinstance(deps, list) and fid in deps:
+                            deps = [d for d in deps if d != fid]
+                            f.dependencies = _json.dumps(deps) if deps else None
+                    # Mark as permanently failed so get_all_complete counts it
+                    self._failure_counts[fid] = MAX_FEATURE_RETRIES
+
+                debug_log.log("STUCK", f"Applied modification: {mod_type} on feature #{fid}")
+
+            session.commit()
+        finally:
+            session.close()
+
     def get_passing_count(self, feature_dicts: list[dict] | None = None) -> int:
         """Get the number of passing features.
 
@@ -1118,6 +1421,8 @@ class ParallelOrchestrator:
         Returns:
             Tuple of (success, message)
         """
+        self._no_progress_iterations = 0
+
         with self._lock:
             if feature_id in self.running_coding_agents:
                 return False, "Feature already running"
@@ -1200,6 +1505,8 @@ class ParallelOrchestrator:
         Returns:
             Tuple of (success, message)
         """
+        self._no_progress_iterations = 0
+
         if not feature_ids:
             return False, "No features to start"
 
@@ -1817,6 +2124,8 @@ class ParallelOrchestrator:
         - Remove from running dict. The review agent already updated review_status
           in the database (approved/rejected) via MCP tools.
         """
+        # Reset stuck-state progress counter: an agent completing = progress
+        self._no_progress_iterations = 0
         if agent_type == "reviewer":
             with self._lock:
                 agent_info = self.running_review_agents.pop(proc.pid, None)
@@ -2284,6 +2593,15 @@ class ParallelOrchestrator:
                             break
 
                         # Still have pending features but all are blocked by dependencies
+                        self._no_progress_iterations += 1
+
+                        if not self._stuck_state_active and self._no_progress_iterations >= 3:
+                            stuck_info = self._detect_stuck_state(fresh_dicts)
+                            if stuck_info is not None:
+                                self._stuck_state_active = True
+                                await self._handle_stuck_state(stuck_info, fresh_dicts)
+                                continue
+
                         print("No ready features available. All remaining features may be blocked by dependencies.", flush=True)
                         await self._wait_for_agent_completion(timeout=POLL_INTERVAL * 2)
                         continue

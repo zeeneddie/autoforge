@@ -29,6 +29,7 @@ import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp'
 import { ThemeSelector } from './components/ThemeSelector'
 import { ResetProjectModal } from './components/ResetProjectModal'
 import { ProjectSetupRequired } from './components/ProjectSetupRequired'
+import StuckStateModal from './components/StuckStateModal'
 import { getDependencyGraph, startAgent, fetchFeatureLogs } from './lib/api'
 import { Loader2, Settings, Moon, Sun, RotateCcw, BookOpen } from 'lucide-react'
 import type { ActiveAgent, AgentLogEntry, Feature } from './lib/types'
@@ -709,6 +710,17 @@ function App() {
           agentName={wsState.celebration.agentName}
           featureName={wsState.celebration.featureName}
           onComplete={wsState.clearCelebration}
+        />
+      )}
+
+      {/* Stuck State Modal */}
+      {selectedProject && (
+        <StuckStateModal
+          projectName={selectedProject}
+          isStuck={wsState.orchestratorStatus?.state === 'stuck'}
+          onResolved={() => {
+            // Status will update via WebSocket when orchestrator resumes
+          }}
         />
       )}
     </div>

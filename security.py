@@ -32,12 +32,14 @@ ALLOWED_COMMANDS = {
     "tail",
     "wc",
     "grep",
+    "find",
     # File operations (agent uses SDK tools for most file ops, but cp/mkdir needed occasionally)
     "cp",
     "mkdir",
     "chmod",  # For making scripts executable; validated separately
     # Directory
     "pwd",
+    "cd",
     # Output
     "echo",
     # Python development
@@ -64,8 +66,12 @@ ALLOWED_COMMANDS = {
     "sleep",
     "kill",  # Kill by PID
     "pkill",  # For killing dev servers; validated separately
+    "timeout",  # Run commands with timeout
     # Network/API testing
     "curl",
+    "ss",  # Socket statistics (port checking)
+    # Text processing
+    "tr",
     # File operations
     "mv",
     "rm",  # Use with caution

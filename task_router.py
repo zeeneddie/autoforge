@@ -5,9 +5,14 @@ Task Router
 Hybrid LLM routing: classifies features by type and complexity, then routes
 to the optimal model tier based on cost preference.
 
-The router is provider-agnostic - it returns a model TIER ("opus", "sonnet",
-"haiku") which the orchestrator maps to an actual model name using the active
-provider's model_tiers configuration.
+The router is provider-agnostic - it returns a functional model TIER
+("analyst", "developer", "assistant") which the orchestrator maps to an actual
+model name using the active provider's model_tiers configuration.
+
+Tier meanings:
+- "analyst"   — maximum capability, deep analysis, complex architecture
+- "developer" — default workhorse for coding tasks (fallback tier)
+- "assistant" — fast lightweight tasks, orchestration, classification
 
 Classification is rules-based (no LLM calls), keeping routing cost at zero.
 
@@ -26,7 +31,6 @@ Usage:
 
 from __future__ import annotations
 
-import re
 from typing import Literal
 
 # ---------------------------------------------------------------------------
@@ -36,7 +40,14 @@ from typing import Literal
 TaskType = Literal["ui", "auth", "database", "api", "devops", "testing", "general"]
 Complexity = Literal["simple", "medium", "complex"]
 CostPreference = Literal["budget", "balanced", "quality"]
-ModelTier = Literal["opus", "sonnet", "haiku"]
+ModelTier = Literal["analyst", "developer", "assistant"]
+
+# Backward compat: map old Anthropic tier names to functional names
+_LEGACY_TIER_MAP: dict[str, ModelTier] = {
+    "opus": "analyst",
+    "sonnet": "developer",
+    "haiku": "assistant",
+}
 
 # ---------------------------------------------------------------------------
 # Classification keywords
@@ -234,33 +245,33 @@ def _classify_complexity(feature: dict, task_type: TaskType) -> Complexity:
 # (task_type, complexity) -> {cost_preference: model_tier}
 _ROUTING_TABLE: dict[tuple[TaskType, Complexity], dict[CostPreference, ModelTier]] = {
     # UI/styling
-    ("ui", "simple"):  {"budget": "haiku", "balanced": "sonnet", "quality": "sonnet"},
-    ("ui", "medium"):  {"budget": "sonnet", "balanced": "sonnet", "quality": "sonnet"},
-    ("ui", "complex"): {"budget": "sonnet", "balanced": "sonnet", "quality": "opus"},
-    # Auth/security - always at least sonnet
-    ("auth", "simple"):  {"budget": "sonnet", "balanced": "sonnet", "quality": "opus"},
-    ("auth", "medium"):  {"budget": "sonnet", "balanced": "opus", "quality": "opus"},
-    ("auth", "complex"): {"budget": "sonnet", "balanced": "opus", "quality": "opus"},
+    ("ui", "simple"):  {"budget": "assistant", "balanced": "developer", "quality": "developer"},
+    ("ui", "medium"):  {"budget": "developer", "balanced": "developer", "quality": "developer"},
+    ("ui", "complex"): {"budget": "developer", "balanced": "developer", "quality": "analyst"},
+    # Auth/security - always at least developer
+    ("auth", "simple"):  {"budget": "developer", "balanced": "developer", "quality": "analyst"},
+    ("auth", "medium"):  {"budget": "developer", "balanced": "analyst", "quality": "analyst"},
+    ("auth", "complex"): {"budget": "developer", "balanced": "analyst", "quality": "analyst"},
     # Database/migration
-    ("database", "simple"):  {"budget": "sonnet", "balanced": "sonnet", "quality": "opus"},
-    ("database", "medium"):  {"budget": "sonnet", "balanced": "opus", "quality": "opus"},
-    ("database", "complex"): {"budget": "opus", "balanced": "opus", "quality": "opus"},
+    ("database", "simple"):  {"budget": "developer", "balanced": "developer", "quality": "analyst"},
+    ("database", "medium"):  {"budget": "developer", "balanced": "analyst", "quality": "analyst"},
+    ("database", "complex"): {"budget": "analyst", "balanced": "analyst", "quality": "analyst"},
     # API/backend
-    ("api", "simple"):  {"budget": "haiku", "balanced": "sonnet", "quality": "sonnet"},
-    ("api", "medium"):  {"budget": "sonnet", "balanced": "sonnet", "quality": "opus"},
-    ("api", "complex"): {"budget": "sonnet", "balanced": "opus", "quality": "opus"},
+    ("api", "simple"):  {"budget": "assistant", "balanced": "developer", "quality": "developer"},
+    ("api", "medium"):  {"budget": "developer", "balanced": "developer", "quality": "analyst"},
+    ("api", "complex"): {"budget": "developer", "balanced": "analyst", "quality": "analyst"},
     # DevOps/config
-    ("devops", "simple"):  {"budget": "haiku", "balanced": "sonnet", "quality": "sonnet"},
-    ("devops", "medium"):  {"budget": "haiku", "balanced": "sonnet", "quality": "sonnet"},
-    ("devops", "complex"): {"budget": "sonnet", "balanced": "sonnet", "quality": "opus"},
+    ("devops", "simple"):  {"budget": "assistant", "balanced": "developer", "quality": "developer"},
+    ("devops", "medium"):  {"budget": "assistant", "balanced": "developer", "quality": "developer"},
+    ("devops", "complex"): {"budget": "developer", "balanced": "developer", "quality": "analyst"},
     # Testing
-    ("testing", "simple"):  {"budget": "haiku", "balanced": "sonnet", "quality": "sonnet"},
-    ("testing", "medium"):  {"budget": "sonnet", "balanced": "sonnet", "quality": "sonnet"},
-    ("testing", "complex"): {"budget": "sonnet", "balanced": "sonnet", "quality": "opus"},
+    ("testing", "simple"):  {"budget": "assistant", "balanced": "developer", "quality": "developer"},
+    ("testing", "medium"):  {"budget": "developer", "balanced": "developer", "quality": "developer"},
+    ("testing", "complex"): {"budget": "developer", "balanced": "developer", "quality": "analyst"},
     # General/unclassified
-    ("general", "simple"):  {"budget": "haiku", "balanced": "sonnet", "quality": "sonnet"},
-    ("general", "medium"):  {"budget": "sonnet", "balanced": "sonnet", "quality": "opus"},
-    ("general", "complex"): {"budget": "sonnet", "balanced": "opus", "quality": "opus"},
+    ("general", "simple"):  {"budget": "assistant", "balanced": "developer", "quality": "developer"},
+    ("general", "medium"):  {"budget": "developer", "balanced": "developer", "quality": "analyst"},
+    ("general", "complex"): {"budget": "developer", "balanced": "analyst", "quality": "analyst"},
 }
 
 
@@ -277,14 +288,13 @@ def route_task(
         cost_preference: Cost optimization preference.
 
     Returns:
-        Model tier: "opus", "sonnet", or "haiku".
+        Model tier: "analyst", "developer", or "assistant".
     """
     key = (task_type, complexity)
     preferences = _ROUTING_TABLE.get(key)
     if preferences is None:
-        # Fallback: balanced defaults
-        return "sonnet"
-    return preferences.get(cost_preference, "sonnet")
+        return "developer"
+    return preferences.get(cost_preference, "developer")
 
 
 def route_feature(
@@ -298,7 +308,7 @@ def route_feature(
         cost_preference: Cost optimization preference.
 
     Returns:
-        Model tier: "opus", "sonnet", or "haiku".
+        Model tier: "analyst", "developer", or "assistant".
     """
     task_type, complexity = classify_task(feature)
     return route_task(task_type, complexity, cost_preference)
@@ -310,29 +320,58 @@ def route_feature(
 
 # Default model tier mappings (used when provider doesn't specify model_tiers)
 DEFAULT_MODEL_TIERS: dict[ModelTier, str] = {
-    "opus": "claude-opus-4-5",
-    "sonnet": "claude-sonnet-4-5",
-    "haiku": "claude-haiku-4-5",
+    "analyst": "claude-opus-4-5",
+    "developer": "claude-sonnet-4-5",
+    "assistant": "claude-haiku-4-5",
 }
 
 
+def normalize_tier(tier: str) -> ModelTier:
+    """Normalize a tier name, accepting both legacy and functional names.
+
+    Args:
+        tier: Tier name ("analyst", "developer", "assistant",
+              or legacy "opus", "sonnet", "haiku").
+
+    Returns:
+        Functional tier name.
+    """
+    if tier in ("analyst", "developer", "assistant"):
+        return tier  # type: ignore[return-value]
+    mapped = _LEGACY_TIER_MAP.get(tier)
+    if mapped:
+        return mapped
+    return "developer"
+
+
 def resolve_model_tier(
-    tier: ModelTier,
+    tier: str,
     provider_tiers: dict[str, str] | None = None,
 ) -> str:
     """Resolve a model tier to an actual model name.
 
     Uses provider-specific tier mappings if available, otherwise falls back
-    to DEFAULT_MODEL_TIERS.
+    to DEFAULT_MODEL_TIERS. Accepts both functional ("analyst", "developer",
+    "assistant") and legacy ("opus", "sonnet", "haiku") tier names.
 
     Args:
-        tier: Model tier ("opus", "sonnet", "haiku").
+        tier: Model tier (functional or legacy name).
         provider_tiers: Optional provider-specific tier->model mapping
             from providers.json model_tiers section.
 
     Returns:
         Actual model name string.
     """
-    if provider_tiers and tier in provider_tiers:
-        return provider_tiers[tier]
-    return DEFAULT_MODEL_TIERS.get(tier, DEFAULT_MODEL_TIERS["sonnet"])
+    normalized = normalize_tier(tier)
+
+    if provider_tiers:
+        # Try functional name first, then legacy name for backward compat
+        if normalized in provider_tiers:
+            return provider_tiers[normalized]
+        # Check if provider still uses legacy keys (opus/sonnet/haiku)
+        legacy_reverse = {"analyst": "opus", "developer": "sonnet", "assistant": "haiku"}
+        legacy_key = legacy_reverse.get(normalized)
+        if legacy_key and legacy_key in provider_tiers:
+            return provider_tiers[legacy_key]
+
+    return DEFAULT_MODEL_TIERS.get(normalized, DEFAULT_MODEL_TIERS["developer"])

@@ -159,6 +159,15 @@ def get_prompts_dir(project_dir: Path) -> Path:
 # Non-dual-path helpers (always use new location)
 # ---------------------------------------------------------------------------
 
+def get_stuck_state_path(project_dir: Path) -> Path:
+    """Resolve the path to ``stuck_state.json``.
+
+    Always uses the new ``.mq-devengine/`` location (no legacy fallback needed
+    since this is a new feature).
+    """
+    return project_dir / ".mq-devengine" / "stuck_state.json"
+
+
 def get_expand_settings_path(project_dir: Path, uuid_hex: str) -> Path:
     """Return the path for an ephemeral expand-session settings file.
 

@@ -44,6 +44,7 @@ import type {
   ReleaseNotesList,
   ReleaseNotesContent,
   ProvidersListResponse,
+  StuckStateData,
 } from './types'
 
 const API_BASE = '/api'
@@ -671,4 +672,28 @@ export async function getReleaseNotesContent(
 ): Promise<ReleaseNotesContent> {
   const params = new URLSearchParams({ project_name: projectName, filename })
   return fetchJSON(`/planning/release-notes/content?${params}`)
+}
+
+// Stuck State API
+export async function getStuckState(projectName: string): Promise<StuckStateData | null> {
+  try {
+    const res = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectName)}/stuck-state`)
+    if (res.status === 404) return null
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.json()
+  } catch {
+    return null
+  }
+}
+
+export async function submitStuckDecision(
+  projectName: string,
+  decision: string,
+  modifications?: Array<{ type: string; feature_id: number; confidence: number; reason: string; changes?: unknown; dependency_id?: number }>
+): Promise<void> {
+  await fetch(`${API_BASE}/projects/${encodeURIComponent(projectName)}/stuck-state/decision`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, modifications }),
+  })
 }

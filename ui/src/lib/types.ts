@@ -175,12 +175,22 @@ export interface TerminalInfo {
   created_at: string
 }
 
-// Agent mascot names for multi-agent UI
+// Agent mascot names for multi-agent UI — grouped by role
+export const CODING_MASCOTS = ['Builder', 'Forge', 'Anvil', 'Craft', 'Welder'] as const
+export const TESTING_MASCOTS = ['Inspector', 'Sentinel', 'Probe', 'Auditor', 'Scanner'] as const
+export const REVIEWER_MASCOTS = ['Judge', 'Arbiter'] as const
+export const ARCHITECT_MASCOTS = ['Blueprint', 'Compass'] as const
+
 export const AGENT_MASCOTS = [
-  'Spark', 'Fizz', 'Octo', 'Hoot', 'Buzz',    // Original 5
-  'Pixel', 'Byte', 'Nova', 'Chip', 'Bolt',    // Tech-inspired
-  'Dash', 'Zap', 'Gizmo', 'Turbo', 'Blip',    // Energetic
-  'Neon', 'Widget', 'Zippy', 'Quirk', 'Flux', // Playful
+  ...CODING_MASCOTS,
+  ...TESTING_MASCOTS,
+  ...REVIEWER_MASCOTS,
+  ...ARCHITECT_MASCOTS,
+  // Legacy names kept for backward compat with existing sessions
+  'Spark', 'Fizz', 'Octo', 'Hoot', 'Buzz',
+  'Pixel', 'Byte', 'Nova', 'Chip', 'Bolt',
+  'Dash', 'Zap', 'Gizmo', 'Turbo', 'Blip',
+  'Neon', 'Widget', 'Zippy', 'Quirk', 'Flux',
 ] as const
 export type AgentMascot = typeof AGENT_MASCOTS[number]
 
@@ -231,6 +241,7 @@ export type OrchestratorState =
   | 'spawning'
   | 'monitoring'
   | 'complete'
+  | 'stuck'
 
 // Orchestrator event for recent activity
 export interface OrchestratorEvent {
@@ -783,4 +794,32 @@ export interface SprintCompletionResult {
   change_log: string
   release_notes_path: string | null
   error: string | null
+}
+
+// Stuck State types
+export interface StuckSuggestion {
+  type: 'retry_feature' | 'modify_feature' | 'remove_dependency' | 'skip_feature'
+  feature_id: number
+  confidence: number
+  reason: string
+  changes?: { description?: string; steps?: string[] }
+  dependency_id?: number
+}
+
+export interface StuckStateData {
+  detected_at: string
+  analysis: {
+    root_cause_analysis: string
+    human_summary: string
+    recommended_option: string
+    confidence: number
+    suggestions: StuckSuggestion[]
+  }
+  failed_features: Array<{ id: number; name: string; failure_count: number }>
+  blocked_features: Array<{ id: number; name: string; blocked_by: number[] }>
+  passing_count: number
+  total_count: number
+  auto_recovery_count: number
+  decision: string | null
+  decision_details: unknown | null
 }

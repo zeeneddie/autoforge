@@ -8,7 +8,7 @@ async def main():
 
     # Use bundled CLI (NO cli_path) - might have separate rate limit
     kwargs = {
-        "model": "sonnet",
+        "model": "developer",
         "cwd": "/home/eddie/Projects/sudoku-solver",
         # NO cli_path - use SDK bundled CLI
     }
