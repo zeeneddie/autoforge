@@ -1,4 +1,5 @@
 import { AlertTriangle, GitBranch, Check } from 'lucide-react'
+import * as Popover from '@radix-ui/react-popover'
 import type { Feature } from '../lib/types'
 import { Badge } from '@/components/ui/badge'
 
@@ -10,10 +11,7 @@ interface DependencyBadgeProps {
 
 /**
  * Badge component showing dependency status for a feature.
- * Shows:
- * - Blocked status with count of blocking dependencies
- * - Dependency count for features with satisfied dependencies
- * - Nothing if feature has no dependencies
+ * Compact mode: clickable badge that opens a popover with full dependency list.
  */
 export function DependencyBadge({ feature, allFeatures = [], compact = false }: DependencyBadgeProps) {
   const dependencies = feature.dependencies || []
@@ -22,47 +20,91 @@ export function DependencyBadge({ feature, allFeatures = [], compact = false }: 
     return null
   }
 
-  // Use API-computed blocked status if available, otherwise compute locally
   const isBlocked = feature.blocked ??
     (feature.blocking_dependencies && feature.blocking_dependencies.length > 0) ??
     false
 
-  const blockingCount = feature.blocking_dependencies?.length ?? 0
+  const blockingIds = feature.blocking_dependencies ?? []
+  const blockingCount = blockingIds.length
 
-  // Compute satisfied count from allFeatures if available
-  let satisfiedCount = dependencies.length - blockingCount
-  if (allFeatures.length > 0 && !feature.blocking_dependencies) {
-    const passingIds = new Set(allFeatures.filter(f => f.passes).map(f => f.id))
-    satisfiedCount = dependencies.filter(d => passingIds.has(d)).length
-  }
+  const passingIds = new Set(allFeatures.filter(f => f.passes).map(f => f.id))
+  const satisfiedCount = dependencies.filter(d => passingIds.has(d)).length
 
   if (compact) {
-    // Compact view for card displays
     return (
-      <Badge
-        variant="outline"
-        className={`gap-1 font-mono text-xs ${
-          isBlocked
-            ? 'bg-destructive/10 text-destructive border-destructive/30'
-            : 'bg-muted text-muted-foreground'
-        }`}
-        title={isBlocked
-          ? `Blocked by ${blockingCount} ${blockingCount === 1 ? 'dependency' : 'dependencies'}`
-          : `${satisfiedCount}/${dependencies.length} dependencies satisfied`
-        }
-      >
-        {isBlocked ? (
-          <>
-            <AlertTriangle size={12} />
-            <span>{blockingCount}</span>
-          </>
-        ) : (
-          <>
-            <GitBranch size={12} />
-            <span>{satisfiedCount}/{dependencies.length}</span>
-          </>
-        )}
-      </Badge>
+      <Popover.Root>
+        <Popover.Trigger asChild>
+          <button
+            onClick={e => e.stopPropagation()}
+            className="focus:outline-none"
+          >
+            <Badge
+              variant="outline"
+              className={`gap-1 font-mono text-xs cursor-pointer hover:opacity-80 ${
+                isBlocked
+                  ? 'bg-destructive/10 text-destructive border-destructive/30'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {isBlocked ? (
+                <>
+                  <AlertTriangle size={12} />
+                  <span>{blockingIds.map(id => `#${id}`).join(' ')}</span>
+                </>
+              ) : (
+                <>
+                  <GitBranch size={12} />
+                  <span>{satisfiedCount}/{dependencies.length}</span>
+                </>
+              )}
+            </Badge>
+          </button>
+        </Popover.Trigger>
+
+        <Popover.Portal>
+          <Popover.Content
+            side="bottom"
+            align="start"
+            sideOffset={4}
+            className="z-50 w-56 rounded-md border bg-popover p-3 shadow-md text-sm"
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="font-semibold mb-2 text-foreground">
+              Afhankelijkheden ({dependencies.length})
+            </p>
+            <ul className="space-y-1">
+              {dependencies.map(depId => {
+                const depFeature = allFeatures.find(f => f.id === depId)
+                const isDone = passingIds.has(depId)
+                const isBlocking = blockingIds.includes(depId)
+                return (
+                  <li key={depId} className="flex items-center gap-2">
+                    {isDone ? (
+                      <Check size={12} className="text-primary shrink-0" />
+                    ) : (
+                      <AlertTriangle size={12} className="text-destructive shrink-0" />
+                    )}
+                    <span className={`font-mono ${isBlocking ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      #{depId}
+                    </span>
+                    {depFeature && (
+                      <span className="truncate text-xs text-muted-foreground">
+                        {depFeature.name}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+            {isBlocked && (
+              <p className="mt-2 text-xs text-destructive">
+                Geblokkeerd door {blockingCount} {blockingCount === 1 ? 'feature' : 'features'}
+              </p>
+            )}
+            <Popover.Arrow className="fill-border" />
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
     )
   }
 
@@ -73,14 +115,15 @@ export function DependencyBadge({ feature, allFeatures = [], compact = false }: 
         <div className="flex items-center gap-1.5 text-sm text-destructive">
           <AlertTriangle size={14} />
           <span className="font-medium">
-            Blocked by {blockingCount} {blockingCount === 1 ? 'dependency' : 'dependencies'}
+            Geblokkeerd door {blockingCount} {blockingCount === 1 ? 'feature' : 'features'}:
+            {' '}{blockingIds.map(id => `#${id}`).join(', ')}
           </span>
         </div>
       ) : (
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <Check size={14} className="text-primary" />
           <span>
-            All {dependencies.length} {dependencies.length === 1 ? 'dependency' : 'dependencies'} satisfied
+            Alle {dependencies.length} {dependencies.length === 1 ? 'dependency' : 'dependencies'} voldaan
           </span>
         </div>
       )}
@@ -103,7 +146,7 @@ export function DependencyIndicator({ feature }: { feature: Feature }) {
     return (
       <span
         className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-destructive/10 text-destructive"
-        title={`Blocked by ${feature.blocking_dependencies?.length || 0} dependencies`}
+        title={`Geblokkeerd door ${feature.blocking_dependencies?.length || 0} features`}
       >
         <AlertTriangle size={12} />
       </span>
@@ -113,9 +156,11 @@ export function DependencyIndicator({ feature }: { feature: Feature }) {
   return (
     <span
       className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted text-muted-foreground"
-      title={`${dependencies.length} dependencies (all satisfied)`}
+      title={`${dependencies.length} dependencies (allemaal voldaan)`}
     >
       <GitBranch size={12} />
     </span>
   )
 }
+
+
