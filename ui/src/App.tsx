@@ -469,7 +469,7 @@ function App() {
 
             {/* Agent Mission Control - shows orchestrator status and active agents in parallel mode */}
             <AgentMissionControl
-              agents={wsState.activeAgents}
+              agents={wsState.activeAgents.filter(a => !features?.done.some(f => f.id === a.featureId))}
               orchestratorStatus={wsState.orchestratorStatus}
               recentActivity={wsState.recentActivity}
               getAgentLogs={wsState.getAgentLogs}
