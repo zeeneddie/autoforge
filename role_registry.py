@@ -106,7 +106,7 @@ AGENT_ROLES: dict[str, dict[str, Any]] = {
         "template": "architect_prompt",
         "tools": _ARCHITECT_TOOLS,
         "max_turns": 200,
-        "model_tier": "initializer",
+        "model_tier": "architect",
         "phase": 0,
         "playwright_tier": "none",
         "builtin_tools": _READONLY_BUILTIN_TOOLS,

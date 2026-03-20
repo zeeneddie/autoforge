@@ -335,6 +335,106 @@ De orchestrator heeft geen stuck-state detectie. Wanneer features 3x falen worde
 
 ---
 
+## Sprint 7.3.1: Feature Checkpoint Tags -- PLANNED
+
+> Doel: Lightweight git tags per feature (pre/post) als formeel rollback-punt voor mq-supervisor. Directe integratie met Sprint 7.3 stuck-state recovery.
+
+**Inspiratie:** gsd-pro (v1.24.0) — checkpoint tags `gsd-checkpoint-{phase}-{plan}-pre` en `-post`. Geadapteerd voor mq-devEngine's feature-granulariteit.
+
+**Probleemstelling:** Als een feature-run halverwege mislukt, weet mq-supervisor (externe service) niet exact wat de git-staat was *vóór* de run startte. De stuck-state recovery (Sprint 7.3) kan een feature herstarten, maar rolt niet terug naar de pre-build staat. Dat kan half-geschreven code achterlaten.
+
+**Hoe het onze pipeline beter maakt:**
+
+Zonder checkpoint-tags is de recovery flow:
+```
+Feature start → codewijzigingen → crash → mq-supervisor: "wat was de vorige staat?" → onbekend
+```
+
+Met checkpoint-tags:
+```
+Feature start →  [pre-tag] → codewijzigingen → crash → mq-supervisor: git reset --hard mq-cp-{fid}-pre
+                                              → succes → [post-tag] → mq-supervisor: bevestigt build OK
+```
+
+mq-supervisor hoeft de git-log niet te parsen — de tags zijn expliciete ankerpunten.
+
+**Koppeling met mq-supervisor Fase A (Node Repair Operator):**
+- `pre`-tag = rollback-punt voor RETRY-strategie
+- `post`-tag = bewijs van succesvolle build voor promotie-gate
+- Ontbrekende `post`-tag bij feature met status `in_progress` > 90 min = stuck signal
+
+### Items
+
+| # | Item | Status |
+|---|---|---|
+| 7.3.1.1 | `worktree_manager.py`: `create_feature_checkpoint(project_dir, feature_id, phase)` helper | planned |
+| 7.3.1.2 | `parallel_orchestrator.py`: roep `pre`-tag aan bij feature claim, `post`-tag na `passes=True` | planned |
+| 7.3.1.3 | `server/routers/projects.py`: `GET /api/projects/{name}/checkpoints` — lijst alle feature checkpoint tags | planned |
+| 7.3.1.4 | `server/routers/projects.py`: `POST /api/projects/{name}/rollback/{feature_id}` — reset naar pre-tag (alleen als feature `in_progress=False`) | planned |
+
+### Implementatiedetails
+
+**Tag naamgeving:**
+```
+mq-cp-{feature_id}-pre    # vóór feature start (feature geclaimed door agent)
+mq-cp-{feature_id}-post   # na succesvolle build + tests (passes=True)
+```
+
+Voorbeeld: `mq-cp-42-pre`, `mq-cp-42-post` (feature_id is de integer PK uit de SQLite DB).
+
+**Helper in `worktree_manager.py`:**
+```python
+async def create_feature_checkpoint(project_dir: Path, feature_id: int, phase: str) -> str:
+    """Create a lightweight git tag as checkpoint anchor.
+
+    phase: "pre" (before feature start) or "post" (after successful build).
+    Returns the tag name.
+    """
+    tag = f"mq-cp-{feature_id}-{phase}"
+    await _run_git("tag", tag, cwd=project_dir, check=False)  # check=False: idempotent
+    return tag
+```
+
+**Integratie in `parallel_orchestrator.py`:**
+```python
+# Bij feature claim (voor agent start):
+await worktree_manager.create_feature_checkpoint(project_dir, feature.id, "pre")
+
+# Na passes=True:
+await worktree_manager.create_feature_checkpoint(project_dir, feature.id, "post")
+```
+
+**Rollback endpoint (voor mq-supervisor gebruik):**
+```python
+# POST /api/projects/{name}/rollback/{feature_id}
+# Vereisten: feature.in_progress == False, pre-tag bestaat
+# Actie: git reset --hard mq-cp-{feature_id}-pre
+# Blokkade: als feature in_progress=True (agent bezig)
+```
+
+**Wat mq-supervisor ermee doet:**
+```python
+# Stuck detection: feature_id 42 stuck?
+# → check: bestaat mq-cp-42-pre? (zo ja: feature gestart)
+# → check: bestaat mq-cp-42-post? (zo nee: build niet voltooid)
+# → check: tijd sinds pre-tag > 90 min? → stuck = True
+# → RETRY strategie: POST /api/projects/{name}/rollback/42 + herstart agent
+```
+
+### Acceptatiecriteria
+
+- [ ] `create_feature_checkpoint("pre")` maakt tag `mq-cp-{fid}-pre` aan bij elke feature-start
+- [ ] `create_feature_checkpoint("post")` maakt tag `mq-cp-{fid}-post` aan na `passes=True`
+- [ ] Tags zijn idempotent (dubbel aanroepen gooit geen error)
+- [ ] `GET /api/projects/{name}/checkpoints` geeft `[{"feature_id": 42, "pre": true, "post": false, "pre_ts": "..."}]`
+- [ ] `POST /api/projects/{name}/rollback/42` reset git naar pre-tag (verifieerbaar: git log toont commit van pre-tag)
+- [ ] Rollback geblokkeerd als feature `in_progress=True` (geeft 409 Conflict)
+- [ ] Bestaande pipeline (geen mq-supervisor actief) werkt identiek — tags zijn additioneel, niet blocking
+
+> Zie [sprint-7.3.1-checkpoint-tags.md](sprint-7.3.1-checkpoint-tags.md) voor implementatiefases, verificatie en gewijzigde bestanden.
+
+---
+
 ## Sprint 7.4: Role Registry Foundation -- PLANNED
 
 > Doel: Agent configuratie centraliseren in een data-driven registry. Fundament voor BMAD-upgradable rollen.
@@ -497,6 +597,50 @@ Task-aware routing met 3 lagen: rules-based classificatie → kostenweging → o
 - AI override (optioneel): voor complex + niet-budget taken, vraag Haiku/Flash om model suggestie (~$0.001 per call)
 - Per-subprocess env: uitbreiding van `get_provider_env()` die per-task overrides accepteert
 - Toekomstig: kosten dashboard, breakeven calculator, per-feature cost tracking
+
+---
+
+## Sprint 7.9: Context Budget Monitor -- PLANNED
+
+> Doel: Voorkomen van stille context-degradatie bij lange coding sessies. Gebaseerd op GSD-pro leerpunt 3.2 (Adaptive Context Loader, 5 tiers).
+
+**Probleemstelling:** mq-devEngine heeft geen gedocumenteerde context-budgetstrategie. Coding sessies van > 60 min degraderen stil als het contextvenster volloopt — geen waarschuwing, geen compressie.
+
+| # | Item | Status |
+|---|---|---|
+| 7.9.1 | `coding_prompt.template.md`: 5-tier context loading instructies toevoegen (tier 0 = minimaal ~200 tokens tot tier 4 = volledig) | planned |
+| 7.9.2 | `coding_prompt.template.md`: compressie-instructie bij context > 40% ("summarize earlier context, keep only active task + recent decisions") | planned |
+| 7.9.3 | `CLAUDE.md` (mq-devEngine): context-tier strategie documenteren als agent-richtlijn | planned |
+| 7.9.4 | `parallel_orchestrator.py`: optionele context-size logging per agent exit (voor observability) | planned |
+
+**Acceptatiecriteria:**
+1. Coding prompt bevat expliciete tier-definitie (tier 0-4)
+2. Agent comprimeert aantoonbaar bij lange sessies (verifieerbaar via token count in agent logs)
+3. CLAUDE.md beschrijft wanneer welke tier te gebruiken
+4. Bestaande pipeline werkt identiek — context management is additioneel gedrag
+
+---
+
+## Sprint 7.10: Cold-start Smoke Test -- PLANNED
+
+> Doel: Omgevingsproblemen detecteren bij nieuwe projecten, vóór echte features beginnen. Gebaseerd op GSD-pro leerpunt 3.6.
+
+**Probleemstelling:** Wanneer een nieuw project wordt aangemeld in mq-devEngine, bestaat er geen validatie of de omgeving correct is. Git werkt? Tests kunnen draaien? Model bereikbaar? Pas bij de eerste echte feature-run wordt dit duidelijk.
+
+| # | Item | Status |
+|---|---|---|
+| 7.10.1 | `server/routers/projects.py`: cold-start smoke test endpoint `POST /api/projects/{name}/smoke-test` | planned |
+| 7.10.2 | Smoke test feature: "Create a file `smoke_test.py` with one passing test, run it, delete it" | planned |
+| 7.10.3 | Smoke test resultaat opgeslagen als `project.smoke_test_passed` (bool) + timestamp in registry | planned |
+| 7.10.4 | Server endpoint: `GET /api/projects/{name}/smoke-test` → status + log | planned |
+| 7.10.5 | UI: project card toont smoke test badge (✅ / ❌ / pending) | planned |
+
+**Acceptatiecriteria:**
+1. Nieuw project aangemeld → smoke test start automatisch als eerste pseudo-feature
+2. Smoke test valideert: git commit werkt, pytest kan draaien, model is bereikbaar
+3. Bij mislukte smoke test: project krijgt status `setup_required`, geen echte features gestart
+4. Bestaande projecten: smoke test overgeslagen (opt-in via re-run knop)
+5. Smoke test duurt < 3 minuten
 
 ---
 

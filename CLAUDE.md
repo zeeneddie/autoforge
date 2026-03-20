@@ -527,3 +527,32 @@ The UI uses a **neobrutalism** design with Tailwind CSS v4:
 - CSS variables defined in `ui/src/styles/globals.css` via `@theme` directive
 - Custom animations: `animate-slide-in`, `animate-pulse-neo`, `animate-shimmer`
 - Color tokens: `--color-neo-pending` (yellow), `--color-neo-progress` (cyan), `--color-neo-done` (green)
+
+## Constraints
+
+### [HIGH] Defense-in-depth security
+- OS-level sandbox for bash commands
+- Filesystem restricted to project directory only
+- Bash commands validated using hierarchical allowlist system
+- Hardcoded blocklist (sudo, dd, shutdown, etc.) can NEVER be overridden
+
+### [HIGH] Sensitive directories blocked
+- `.ssh`, `.aws`, `.azure`, `.kube`, `.gnupg`, `.gpg`, `.password-store`, `.docker`, `.config/gcloud`, `.npmrc`, `.pypirc`, `.netrc` — always blocked from EXTRA_READ_PATHS
+- All paths canonicalized via `Path.resolve()` to prevent traversal attacks
+
+### [HIGH] Per-project allowed commands
+- Hierarchical command validation: hardcoded blocklist > org blocklist > org allowlist > global allowlist > project allowlist
+- Maximum 100 commands per project config
+- Org-level blocked commands cannot be overridden by project configs
+
+### [HIGH] mypy strict
+- Strict return type checking enabled, ignores missing imports
+- Type safety enforced at CI level
+
+### [MEDIUM] Ruff 120 chars (differs from other mq-* repos!)
+- Line-length max 120 tekens (not 100), Python 3.11 target
+- This is intentionally different from mq-hq, mq-discovery, mq-pa, mq-testing
+
+### [MEDIUM] Process limits in parallel mode
+- MAX_PARALLEL_AGENTS = 5, MAX_TOTAL_AGENTS = 10
+- Total process count never exceeds 11 Python processes (1 orchestrator + 5 coding + 5 testing)

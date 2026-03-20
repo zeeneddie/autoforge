@@ -61,6 +61,76 @@ async def _run_git(
     return proc.returncode, stdout_str, stderr_str
 
 
+async def create_feature_checkpoint(project_dir: Path, feature_id: int, phase: str) -> str:
+    """Create lightweight git tag as checkpoint anchor.
+
+    phase: 'pre' (before feature start) or 'post' (after successful build).
+    Returns the tag name. Idempotent via -f flag.
+    """
+    tag = f"mq-cp-{feature_id}-{phase}"
+    await _run_git("tag", "-f", tag, cwd=project_dir, check=False)
+    return tag
+
+
+def create_feature_checkpoint_sync(project_dir: Path, feature_id: int, phase: str) -> str:
+    """Create lightweight git tag as checkpoint anchor (sync version).
+
+    Use this in synchronous orchestrator context where await is not available.
+    phase: 'pre' (before feature start) or 'post' (after successful build).
+    """
+    import subprocess  # noqa: PLC0415
+    tag = f"mq-cp-{feature_id}-{phase}"
+    subprocess.run(["git", "tag", "-f", tag], cwd=str(project_dir), capture_output=True)  # noqa: S603, S607
+    return tag
+
+
+async def list_feature_checkpoints(project_dir: Path) -> list[dict]:
+    """List all mq-cp-* tags with timestamps.
+
+    Returns list of dicts with keys: feature_id, phase, tag, timestamp.
+    Sorted by creation date (newest first).
+    """
+    rc, stdout, _ = await _run_git(
+        "tag", "-l", "mq-cp-*", "--sort=-creatordate",
+        "--format=%(refname:short)|%(creatordate:iso)",
+        cwd=project_dir, check=False,
+    )
+    result = []
+    if rc != 0 or not stdout:
+        return result
+    for line in stdout.splitlines():
+        parts = line.split("|", 1)
+        if len(parts) != 2:
+            continue
+        tag, timestamp = parts
+        # Parse tag: mq-cp-{feature_id}-{phase}
+        segments = tag.split("-")
+        if len(segments) >= 4 and segments[0] == "mq" and segments[1] == "cp":
+            try:
+                feature_id = int(segments[2])
+                phase = segments[3]
+                result.append({
+                    "feature_id": feature_id,
+                    "phase": phase,
+                    "tag": tag,
+                    "timestamp": timestamp,
+                })
+            except ValueError:
+                continue
+    return result
+
+
+async def rollback_to_checkpoint(project_dir: Path, feature_id: int) -> bool:
+    """Hard reset to mq-cp-{feature_id}-pre tag.
+
+    Returns False if the pre-tag does not exist.
+    WARNING: This is a destructive operation — all uncommitted changes will be lost.
+    """
+    tag = f"mq-cp-{feature_id}-pre"
+    rc, _, _ = await _run_git("reset", "--hard", tag, cwd=project_dir, check=False)
+    return rc == 0
+
+
 async def is_git_repo(project_dir: Path) -> bool:
     """Check if the project directory is a git repository."""
     rc, _, _ = await _run_git("rev-parse", "--git-dir", cwd=project_dir, check=False)

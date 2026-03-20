@@ -97,6 +97,7 @@ def _build_settings_response(all_settings: dict[str, str]) -> SettingsResponse:
         model_initializer=all_settings.get("model_initializer") or None,
         model_coding=all_settings.get("model_coding") or None,
         model_testing=all_settings.get("model_testing") or None,
+        model_architect=all_settings.get("model_architect") or None,
         glm_mode=glm_mode,
         ollama_mode=ollama_mode,
         active_provider=get_active_provider(),
@@ -134,6 +135,8 @@ async def update_settings(update: SettingsUpdate):
         set_setting("model_coding", update.model_coding)
     if update.model_testing is not None:
         set_setting("model_testing", update.model_testing)
+    if update.model_architect is not None:
+        set_setting("model_architect", update.model_architect)
 
     if update.active_provider is not None:
         from provider_config import set_active_provider
