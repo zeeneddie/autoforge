@@ -168,6 +168,14 @@ def get_stuck_state_path(project_dir: Path) -> Path:
     return project_dir / ".mq-devengine" / "stuck_state.json"
 
 
+def get_model_config_path(project_dir: Path) -> Path:
+    """Return the path to the per-project ``model_config.yaml``.
+
+    Always stored in ``.mq-devengine/`` (no legacy fallback — new feature).
+    """
+    return project_dir / ".mq-devengine" / "model_config.yaml"
+
+
 def get_expand_settings_path(project_dir: Path, uuid_hex: str) -> Path:
     """Return the path for an ephemeral expand-session settings file.
 

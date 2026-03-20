@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException
 from ..schemas import (
     ProjectCreate,
     ProjectDetail,
+    ProjectModelConfig,
     ProjectPrompts,
     ProjectPromptsUpdate,
     ProjectSettingsUpdate,
@@ -522,3 +523,183 @@ async def update_project_settings(name: str, settings: ProjectSettingsUpdate):
         prompts_dir=str(prompts_dir),
         default_concurrency=get_project_concurrency(name),
     )
+
+
+@router.get("/{name}/checkpoints")
+async def get_feature_checkpoints(name: str) -> list[dict]:
+    """List feature checkpoint tags for a project.
+
+    Used by mq-supervisor for stuck detection and rollback decisions.
+    Returns one record per feature_id with pre/post presence and timestamps.
+    """
+    _init_imports()
+    (_, _, get_project_path, _, _, _, _) = _get_registry_functions()
+    name = validate_project_name(name)
+    project_dir = get_project_path(name)
+    if not project_dir:
+        raise HTTPException(status_code=404, detail=f"Project '{name}' not found")
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    import sys  # noqa: PLC0415
+    root = Path(__file__).parent.parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    import worktree_manager  # noqa: PLC0415
+    checkpoints = await worktree_manager.list_feature_checkpoints(project_dir)
+
+    # Group by feature_id: merge pre/post into one record per feature
+    grouped: dict[int, dict] = {}
+    for cp in checkpoints:
+        fid = cp["feature_id"]
+        if fid not in grouped:
+            grouped[fid] = {
+                "feature_id": fid,
+                "pre": False,
+                "post": False,
+                "pre_ts": None,
+                "post_ts": None,
+            }
+        if cp["phase"] == "pre":
+            grouped[fid]["pre"] = True
+            grouped[fid]["pre_ts"] = cp["timestamp"]
+        elif cp["phase"] == "post":
+            grouped[fid]["post"] = True
+            grouped[fid]["post_ts"] = cp["timestamp"]
+    return list(grouped.values())
+
+
+@router.get("/{name}/model-config", response_model=ProjectModelConfig)
+async def get_project_model_config(name: str):
+    """Get the per-project model configuration.
+
+    Returns the parsed contents of ``.mq-devengine/model_config.yaml``, or an
+    empty config (all fields ``null``) if the file does not exist.
+    """
+    _init_imports()
+    (_, _, get_project_path, _, _, _, _) = _get_registry_functions()
+
+    name = validate_project_name(name)
+    project_dir = get_project_path(name)
+
+    if not project_dir:
+        raise HTTPException(status_code=404, detail=f"Project '{name}' not found")
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    import sys  # noqa: PLC0415
+    root = Path(__file__).parent.parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from model_config import get_project_models  # noqa: PLC0415
+
+    models = get_project_models(project_dir)
+    return ProjectModelConfig(
+        architect=models.get("architect"),
+        initializer=models.get("initializer"),
+        coding=models.get("coding"),
+        testing=models.get("testing"),
+    )
+
+
+@router.put("/{name}/model-config", response_model=ProjectModelConfig)
+async def update_project_model_config(name: str, config: ProjectModelConfig):
+    """Write per-project model configuration to ``.mq-devengine/model_config.yaml``.
+
+    Only roles with non-null values are written; pass ``null`` to remove a role
+    override (it will be omitted from the YAML file).
+    """
+    _init_imports()
+    (_, _, get_project_path, _, _, _, _) = _get_registry_functions()
+
+    name = validate_project_name(name)
+    project_dir = get_project_path(name)
+
+    if not project_dir:
+        raise HTTPException(status_code=404, detail=f"Project '{name}' not found")
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    import sys  # noqa: PLC0415
+
+    import yaml  # noqa: PLC0415
+    root = Path(__file__).parent.parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from devengine_paths import ensure_devengine_dir, get_model_config_path  # noqa: PLC0415
+
+    models: dict[str, str] = {}
+    for role in ("architect", "initializer", "coding", "testing"):
+        value = getattr(config, role)
+        if value is not None:
+            models[role] = value
+
+    ensure_devengine_dir(project_dir)
+    config_path = get_model_config_path(project_dir)
+
+    data: dict = {"version": 1}
+    if models:
+        data["models"] = models
+    else:
+        data["models"] = {}
+
+    try:
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, default_flow_style=False, allow_unicode=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write model config: {e}")
+
+    return ProjectModelConfig(**{k: models.get(k) for k in ("architect", "initializer", "coding", "testing")})
+
+
+@router.post("/{name}/rollback/{feature_id}")
+async def rollback_feature(name: str, feature_id: int) -> dict:
+    """Rollback a feature to its pre-checkpoint git state.
+
+    Blocked with 409 Conflict if the feature is currently in_progress.
+    Used by mq-supervisor RETRY strategy (Fase A Node Repair Operator).
+    """
+    _init_imports()
+    (_, _, get_project_path, _, _, _, _) = _get_registry_functions()
+    name = validate_project_name(name)
+    project_dir = get_project_path(name)
+    if not project_dir:
+        raise HTTPException(status_code=404, detail=f"Project '{name}' not found")
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    # Check feature is not currently in_progress
+    import sys  # noqa: PLC0415
+    root = Path(__file__).parent.parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from sqlalchemy import create_engine  # noqa: PLC0415
+    from sqlalchemy.orm import sessionmaker  # noqa: PLC0415
+
+    from api.database import Feature, get_database_path  # noqa: PLC0415
+
+    db_path = get_database_path(project_dir)
+    engine = create_engine(f"sqlite:///{db_path}")
+    SessionLocal = sessionmaker(bind=engine)
+    session = SessionLocal()
+    try:
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        if not feature:
+            raise HTTPException(status_code=404,
+                detail=f"Feature {feature_id} not found")
+        if feature.in_progress:
+            raise HTTPException(status_code=409,
+                detail=f"Feature {feature_id} is currently in_progress — rollback blocked")
+    finally:
+        session.close()
+
+    import worktree_manager  # noqa: PLC0415
+    success = await worktree_manager.rollback_to_checkpoint(project_dir, feature_id)
+    if not success:
+        raise HTTPException(status_code=404,
+            detail=f"Checkpoint mq-cp-{feature_id}-pre not found")
+    return {
+        "success": True,
+        "feature_id": feature_id,
+        "message": f"Rolled back to mq-cp-{feature_id}-pre",
+    }

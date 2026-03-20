@@ -38,6 +38,7 @@ from api.database import AgentLog, Feature, TestRun, create_database
 from api.dependency_resolver import are_dependencies_satisfied, compute_scheduling_scores
 from progress import has_features
 from server.utils.process_utils import kill_process_tree
+from worktree_manager import create_feature_checkpoint_sync
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,7 @@ class ParallelOrchestrator:
         model_initializer: str | None = None,
         model_coding: str | None = None,
         model_testing: str | None = None,
+        model_architect: str | None = None,
     ):
         """Initialize the orchestrator.
 
@@ -190,26 +192,38 @@ class ParallelOrchestrator:
             model_initializer: Model override for initializer agent (falls back to model)
             model_coding: Model override for coding agents (falls back to model)
             model_testing: Model override for testing agents (falls back to model)
+            model_architect: Model override for architect agent (falls back to model_initializer)
         """
         self.project_dir = project_dir
         self.max_concurrency = min(max(max_concurrency, 1), MAX_PARALLEL_AGENTS)
         self.model = model
-        # Resolve per-role models: CLI flag → registry setting → default model
+        # Resolve per-role models: CLI flag → project config → registry setting → default model
+        from model_config import get_project_models
         from registry import get_setting
+        _project_models = get_project_models(project_dir)
         self.model_initializer = (
             model_initializer
+            or _project_models.get("initializer")
             or get_setting("model_initializer")
             or model
         )
         self.model_coding = (
             model_coding
+            or _project_models.get("coding")
             or get_setting("model_coding")
             or model
         )
         self.model_testing = (
             model_testing
+            or _project_models.get("testing")
             or get_setting("model_testing")
             or model
+        )
+        self.model_architect = (
+            model_architect
+            or _project_models.get("architect")
+            or get_setting("model_architect")
+            or self.model_initializer
         )
         self.yolo_mode = yolo_mode
         self.tdd_mode = tdd_mode
@@ -354,13 +368,13 @@ class ParallelOrchestrator:
             "--agent-type", "architect",
             "--max-iterations", "1",
         ]
-        # Use initializer model for architect (same tier)
-        if self.model_initializer:
-            cmd.extend(["--model", self.model_initializer])
+        # Use architect model (falls back to initializer model)
+        if self.model_architect:
+            cmd.extend(["--model", self.model_architect])
         if self.tdd_mode:
             cmd.append("--tdd")
 
-        print(f"Running architect agent (model: {self.model_initializer or 'default'})...", flush=True)
+        print(f"Running architect agent (model: {self.model_architect or 'default'})...", flush=True)
 
         popen_kwargs: dict[str, Any] = {
             "stdin": subprocess.DEVNULL,
@@ -1482,6 +1496,8 @@ class ParallelOrchestrator:
                     return False, "Feature already in progress"
                 feature.in_progress = True
                 session.commit()
+                # Checkpoint: mark feature start (for mq-supervisor rollback + progress tracking)
+                create_feature_checkpoint_sync(self.project_dir, feature.id, "pre")
         finally:
             session.close()
 
@@ -2236,6 +2252,9 @@ class ParallelOrchestrator:
             features_still_failing = []
             for fid in all_feature_ids:
                 feat = session2.query(Feature).filter(Feature.id == fid).first()
+                # Checkpoint: mark feature completion if passing
+                if feat and feat.passes:
+                    create_feature_checkpoint_sync(self.project_dir, fid, "post")
                 if feat and not feat.passes:
                     features_still_failing.append(fid)
         finally:

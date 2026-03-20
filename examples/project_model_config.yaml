@@ -1,0 +1,73 @@
+# Per-Project Model Configuration
+# =================================
+# Location: {project_dir}/.mq-devengine/model_config.yaml
+#
+# This file lets you choose a different LLM model per agent role for THIS
+# SPECIFIC PROJECT.  Useful when you want a powerful model for architecture
+# decisions but a cheaper/faster model for routine coding tasks.
+#
+# Priority chain (highest wins):
+#   1. CLI flag (--model-architect etc.)  ← for one-off overrides
+#   2. This file                          ← per-project defaults  (you are here)
+#   3. Global settings (UI → Settings)   ← org-wide defaults
+#   4. Built-in default model            ← fallback
+#
+# Agent roles:
+#   architect   — analyses the app spec before initialisation (Sprint 7.6)
+#   initializer — creates features from the app spec (first run)
+#   coding      — implements features one by one
+#   testing     — runs regression tests on passing features
+
+version: 1
+
+# Uncomment the roles you want to override.
+# Any role left commented out inherits from global settings / the default model.
+
+models: {}
+
+  # ==========================================
+  # Example: High-quality architecture,
+  # cost-effective coding and testing
+  # ==========================================
+
+  # architect: claude-opus-4-6
+  # initializer: claude-sonnet-4-6
+  # coding: claude-sonnet-4-6
+  # testing: claude-haiku-4-5-20251001
+
+
+  # ==========================================
+  # Example: Local Ollama models
+  # ==========================================
+
+  # architect: qwen3-coder
+  # initializer: qwen3-coder
+  # coding: qwen3-coder
+  # testing: qwen3-coder
+
+
+  # ==========================================
+  # Example: OpenRouter mixed models
+  # ==========================================
+
+  # architect: anthropic/claude-opus-4
+  # coding: anthropic/claude-sonnet-4-5
+  # testing: google/gemini-flash-1.5
+
+
+# ==========================================
+# Available Claude model IDs (as of 2026-03)
+# ==========================================
+#
+#   claude-opus-4-6              — most capable, highest cost
+#   claude-sonnet-4-6            — balanced capability and speed
+#   claude-haiku-4-5-20251001    — fastest, lowest cost
+#
+# For Vertex AI use @ instead of - in the version suffix:
+#   claude-opus-4-6@20260101
+#
+# For Ollama use the local model name:
+#   qwen3-coder  /  deepseek-coder-v2  /  codellama
+#
+# For OpenRouter use the provider/model format:
+#   anthropic/claude-opus-4  /  google/gemini-flash-1.5

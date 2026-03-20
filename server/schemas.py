@@ -98,6 +98,19 @@ class ProjectSettingsUpdate(BaseModel):
         return v
 
 
+class ProjectModelConfig(BaseModel):
+    """Per-project model configuration stored in .mq-devengine/model_config.yaml."""
+    architect: str | None = None
+    initializer: str | None = None
+    coding: str | None = None
+    testing: str | None = None
+
+    @field_validator('architect', 'initializer', 'coding', 'testing')
+    @classmethod
+    def validate_model(cls, v: str | None) -> str | None:
+        return _validate_model_string(v)
+
+
 # ============================================================================
 # Feature Schemas
 # ============================================================================
@@ -424,6 +437,7 @@ class SettingsResponse(BaseModel):
     model_initializer: str | None = None
     model_coding: str | None = None
     model_testing: str | None = None
+    model_architect: str | None = None
     glm_mode: bool = False  # True if GLM API is configured via .env
     ollama_mode: bool = False  # True if Ollama API is configured via .env
     active_provider: str | None = None  # Active provider profile name
@@ -452,6 +466,7 @@ class SettingsUpdate(BaseModel):
     model_initializer: str | None = None
     model_coding: str | None = None
     model_testing: str | None = None
+    model_architect: str | None = None
     active_provider: str | None = None  # Provider profile name or "none" to clear
     testing_agent_ratio: int | None = None  # 0-3
     playwright_headless: bool | None = None
@@ -464,7 +479,7 @@ class SettingsUpdate(BaseModel):
     cost_preference: str | None = None  # budget/balanced/quality (Sprint 7.7)
     tdd_enabled: bool | None = None  # Red/Green TDD mode for coding agents (Sprint 7.8)
 
-    @field_validator('model', 'model_initializer', 'model_coding', 'model_testing')
+    @field_validator('model', 'model_initializer', 'model_coding', 'model_testing', 'model_architect')
     @classmethod
     def validate_model(cls, v: str | None) -> str | None:
         return _validate_model_string(v)
