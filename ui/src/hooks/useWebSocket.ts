@@ -54,6 +54,8 @@ interface WebSocketState {
   celebration: CelebrationTrigger | null
   // Orchestrator state for Mission Control
   orchestratorStatus: OrchestratorStatus | null
+  // Feature IDs that are done — agent_updates for these are ignored
+  completedFeatureIds: Set<number>
 }
 
 const MAX_LOGS = 100 // Keep last 100 log lines
@@ -76,6 +78,7 @@ export function useProjectWebSocket(projectName: string | null) {
     celebrationQueue: [],
     celebration: null,
     orchestratorStatus: null,
+    completedFeatureIds: new Set(),
   })
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -107,7 +110,7 @@ export function useProjectWebSocket(projectName: string | null) {
       wsRef.current = ws
 
       ws.onopen = () => {
-        setState(prev => ({ ...prev, isConnected: true, activeAgents: [], recentActivity: [] }))
+        setState(prev => ({ ...prev, isConnected: true, activeAgents: [], recentActivity: [], completedFeatureIds: new Set() }))
         reconnectAttempts.current = 0
       }
 
@@ -137,6 +140,7 @@ export function useProjectWebSocket(projectName: string | null) {
                   activeAgents: [],
                   recentActivity: [],
                   orchestratorStatus: null,
+                  completedFeatureIds: new Set(),
                 }),
               }))
               break
@@ -175,11 +179,12 @@ export function useProjectWebSocket(projectName: string | null) {
               break
 
             case 'feature_update':
-              // Remove agent card when its feature moves to Done
+              // Remove agent card and block future agent_updates for this feature
               if (message.passes) {
                 setState(prev => ({
                   ...prev,
                   activeAgents: prev.activeAgents.filter(a => a.featureId !== message.feature_id),
+                  completedFeatureIds: new Set([...prev.completedFeatureIds, message.feature_id]),
                 }))
               }
               break
@@ -207,6 +212,10 @@ export function useProjectWebSocket(projectName: string | null) {
                   a => a.agentIndex === message.agentIndex
                 )
 
+                // Skip card updates for features already marked done — prevents
+                // commit/cleanup agent_updates from re-adding completed cards
+                const featureAlreadyDone = prev.completedFeatureIds.has(message.featureId)
+
                 let newAgents: ActiveAgent[]
                 if (message.state === 'success' || message.state === 'error') {
                   // Remove agent from active list on completion (success or failure)
@@ -223,6 +232,9 @@ export function useProjectWebSocket(projectName: string | null) {
                       a => a.agentIndex !== message.agentIndex
                     )
                   }
+                } else if (featureAlreadyDone) {
+                  // Feature is already done — don't re-add or update the card
+                  newAgents = prev.activeAgents
                 } else if (existingAgentIdx >= 0) {
                   // Update existing agent
                   newAgents = [...prev.activeAgents]
@@ -439,6 +451,7 @@ export function useProjectWebSocket(projectName: string | null) {
       celebrationQueue: [],
       celebration: null,
       orchestratorStatus: null,
+      completedFeatureIds: new Set(),
     })
 
     if (!projectName) {
