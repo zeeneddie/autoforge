@@ -175,7 +175,13 @@ export function useProjectWebSocket(projectName: string | null) {
               break
 
             case 'feature_update':
-              // Feature updates will trigger a refetch via React Query
+              // Remove agent card when its feature moves to Done
+              if (message.passes) {
+                setState(prev => ({
+                  ...prev,
+                  activeAgents: prev.activeAgents.filter(a => a.featureId !== message.feature_id),
+                }))
+              }
               break
 
             case 'agent_update':

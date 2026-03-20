@@ -61,7 +61,7 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
             <DependencyBadge feature={feature} allFeatures={allFeatures} compact />
           </div>
           <span className="font-mono text-sm text-muted-foreground">
-            #{feature.priority}
+            #{feature.id}
           </span>
         </div>
 
