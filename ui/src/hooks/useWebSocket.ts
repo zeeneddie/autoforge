@@ -107,7 +107,7 @@ export function useProjectWebSocket(projectName: string | null) {
       wsRef.current = ws
 
       ws.onopen = () => {
-        setState(prev => ({ ...prev, isConnected: true }))
+        setState(prev => ({ ...prev, isConnected: true, activeAgents: [], recentActivity: [] }))
         reconnectAttempts.current = 0
       }
 
@@ -133,7 +133,7 @@ export function useProjectWebSocket(projectName: string | null) {
                 ...prev,
                 agentStatus: message.status,
                 // Clear active agents and orchestrator status when process stops OR crashes to prevent stale UI
-                ...((message.status === 'stopped' || message.status === 'crashed') && {
+                ...((message.status === 'running' || message.status === 'stopped' || message.status === 'crashed') && {
                   activeAgents: [],
                   recentActivity: [],
                   orchestratorStatus: null,
