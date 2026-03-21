@@ -35,6 +35,7 @@ from .routers import (
     assistant_chat_router,
     devserver_router,
     expand_project_router,
+    export_router,
     features_router,
     filesystem_router,
     planning_router,
@@ -168,6 +169,7 @@ if not ALLOW_REMOTE:
 # Include Routers
 # ============================================================================
 
+app.include_router(export_router)
 app.include_router(projects_router)
 app.include_router(features_router)
 app.include_router(agent_router)
