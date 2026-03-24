@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
-import { useProjects, useFeatures, useAgentStatus, useSettings } from './hooks/useProjects'
+import { useProjects, useFeatures, useAgentStatus, useSettings, usePlanningConfig } from './hooks/useProjects'
 import { useProjectWebSocket } from './hooks/useWebSocket'
 import { useFeatureSound } from './hooks/useFeatureSound'
 import { useCelebration } from './hooks/useCelebration'
@@ -22,6 +22,7 @@ import { ExpandProjectModal } from './components/ExpandProjectModal'
 import { SpecCreationChat } from './components/SpecCreationChat'
 import { SettingsModal } from './components/SettingsModal'
 import { DevServerControl } from './components/DevServerControl'
+import { SprintSwitchButton } from './components/SprintSwitchButton'
 import { ViewToggle, type ViewMode } from './components/ViewToggle'
 import { DependencyGraph } from './components/DependencyGraph'
 import { AnalyticsDashboard } from './components/AnalyticsDashboard'
@@ -88,6 +89,7 @@ function App() {
   const { data: projects, isLoading: projectsLoading } = useProjects()
   const { data: features } = useFeatures(selectedProject)
   const { data: settings } = useSettings()
+  const { data: planningConfig } = usePlanningConfig(selectedProject)
   useAgentStatus(selectedProject) // Keep polling for status updates
   const wsState = useProjectWebSocket(selectedProject)
   const { theme, setTheme, darkMode, toggleDarkMode, themes } = useTheme()
@@ -353,6 +355,10 @@ function App() {
                     status={wsState.devServerStatus}
                     url={wsState.devServerUrl}
                   />
+
+                  {planningConfig?.planning_api_url && (
+                    <SprintSwitchButton projectName={selectedProject} />
+                  )}
 
                   <Button
                     onClick={() => setShowSettings(true)}
