@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
@@ -266,6 +267,25 @@ def import_cycle(
                         reason="removed_from_cycle",
                         feature_id=feature.id,
                     ))
+
+        # Set sort_order on Plane work items for hierarchical display (2.1 → 2.1.1 → 2.1.2 → 2.2 …)
+        def _numeric_sort_key(item) -> list[int]:
+            m = re.match(r'^([\d.]+)', item.name)
+            return [int(x) for x in m.group(1).split('.')] if m else [999]
+
+        items_sorted = sorted(work_items, key=_numeric_sort_key)
+        sort_updated = 0
+        for i, item in enumerate(items_sorted):
+            new_order = (i + 1) * 10000
+            if item.sort_order == float(new_order):
+                continue
+            try:
+                client.update_work_item(item.id, {"sort_order": new_order})
+                sort_updated += 1
+            except Exception:
+                pass  # non-critical
+        if sort_updated:
+            logger.info("Updated sort_order for %d items in cycle", sort_updated)
 
         # Set sequential sibling dependencies: 2.4.2 depends on 2.4.1, etc.
         # Sort siblings by name (numeric prefix order) and chain them.
