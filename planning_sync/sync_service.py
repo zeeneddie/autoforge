@@ -191,6 +191,9 @@ def import_cycle(
                     datetime.fromisoformat(item.updated_at)
                     if item.updated_at else None
                 )
+                # Track Plane parent container UUID for aggregated outbound sync
+                if item.parent and item.parent in feature_context:
+                    existing.planning_parent_work_item_id = item.parent
 
                 if item.parent and item.parent in feature_context:
                     parent_to_sibling_features.setdefault(item.parent, []).append(existing)
@@ -221,6 +224,10 @@ def import_cycle(
                     in_progress=mapped["in_progress"],
                     dependencies=mapped["dependencies"],
                     planning_work_item_id=mapped["planning_work_item_id"],
+                    # Track Plane parent container UUID for aggregated outbound sync
+                    planning_parent_work_item_id=(
+                        item.parent if item.parent and item.parent in feature_context else None
+                    ),
                     planning_synced_at=datetime.now(timezone.utc),
                     planning_updated_at=(
                         datetime.fromisoformat(item.updated_at)
@@ -482,6 +489,61 @@ def outbound_sync(
                         "Failed to push aggregated status for parent %s: %s",
                         parent_id, e,
                     )
+
+        # --- Mode 3: Container sync — aggregate sub-story status onto Plane parent containers ---
+        # Sub-stories have both planning_work_item_id (their own) AND
+        # planning_parent_work_item_id (the Feature container they belong to in Plane).
+        # We never import containers into mq-devEngine, so this is the only way to
+        # keep them up-to-date in Plane.
+        container_children = session.query(Feature).filter(
+            Feature.planning_work_item_id.isnot(None),
+            Feature.planning_parent_work_item_id.isnot(None),
+        ).all()
+
+        if container_children:
+            container_groups: dict[str, list] = defaultdict(list)
+            for feat in container_children:
+                container_groups[feat.planning_parent_work_item_id].append(feat)
+
+            root = Path(__file__).parent.parent
+            if str(root) not in sys.path:
+                sys.path.insert(0, str(root))
+            from registry import get_setting, set_setting
+
+            for parent_uuid, children in container_groups.items():
+                all_pass, any_started = _compute_aggregated_status(children)
+                passes_count = sum(1 for f in children if (f.passes or False))
+                in_progress_count = sum(1 for f in children if (f.in_progress or False))
+                agg_hash = f"container:{passes_count}:{in_progress_count}:{len(children)}"
+
+                hash_key = f"planning_container_hash:{parent_uuid}:{project_dir.name}"
+                if get_setting(hash_key) == agg_hash:
+                    result.skipped += 1
+                    continue
+
+                if all_pass:
+                    target_group = "completed"
+                elif any_started:
+                    target_group = "started"
+                else:
+                    target_group = "unstarted"
+
+                state_id = find_state_id_for_group(target_group, states)
+                if not state_id:
+                    result.skipped += 1
+                    continue
+
+                try:
+                    client.update_work_item(parent_uuid, {"state": state_id})
+                    set_setting(hash_key, agg_hash)
+                    result.pushed += 1
+                    logger.info(
+                        "Container %s → %s (%d/%d children done)",
+                        parent_uuid[:8], target_group, passes_count, len(children),
+                    )
+                except PlanningApiError as e:
+                    result.errors += 1
+                    logger.warning("Failed container sync for %s: %s", parent_uuid[:8], e)
 
         session.commit()
 
