@@ -147,6 +147,18 @@ POLL_INTERVAL = 5  # seconds between checking for ready features
 MAX_FEATURE_RETRIES = 3  # Maximum times to retry a failed feature
 INITIALIZER_TIMEOUT = 1800  # 30 minutes timeout for initializer
 
+_SIBLING_PREFIX_RE = re.compile(r'^(\d+\.\d+)\.\d+')
+
+
+def _get_sibling_prefix(name: str) -> str | None:
+    """Return the x.y prefix for x.y.z feature names, else None.
+
+    Used to enforce sequential scheduling within a sibling group:
+    only one story per x.y group may run at a time.
+    """
+    m = _SIBLING_PREFIX_RE.match(name)
+    return m.group(1) if m else None
+
 
 class ParallelOrchestrator:
     """Orchestrates parallel execution of independent features.
@@ -1045,6 +1057,35 @@ class ParallelOrchestrator:
         if scheduling_scores is None:
             scheduling_scores = compute_scheduling_scores(feature_dicts)
         ready.sort(key=lambda f: (-scheduling_scores.get(f["id"], 0), f["priority"], f["id"]))
+
+        # Sequential sibling constraint: for x.y.z stories, only one per x.y group
+        # may be eligible at a time. If a sibling is already running, skip all others
+        # in the same group. This prevents agents from working on related stories
+        # (same Feature) simultaneously, which risks file conflicts.
+        running_sibling_prefixes: set[str] = set()
+        for fid in running_ids:
+            fname = next((f["name"] for f in feature_dicts if f["id"] == fid), "")
+            p = _get_sibling_prefix(fname)
+            if p:
+                running_sibling_prefixes.add(p)
+
+        seen_prefixes: set[str] = set()
+        sequential_ready: list[dict] = []
+        skipped_siblings = 0
+        for f in ready:
+            p = _get_sibling_prefix(f["name"])
+            if p is None:
+                sequential_ready.append(f)
+            elif p in running_sibling_prefixes:
+                skipped_siblings += 1  # sibling already running
+            elif p in seen_prefixes:
+                skipped_siblings += 1  # another sibling already picked this cycle
+            else:
+                seen_prefixes.add(p)
+                sequential_ready.append(f)
+        ready = sequential_ready
+        if skipped_siblings:
+            skipped_reasons["siblings"] = skipped_siblings
 
         # Summary counts for logging
         passing = skipped_reasons["passes"]

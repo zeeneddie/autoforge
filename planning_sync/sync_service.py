@@ -104,6 +104,9 @@ def import_cycle(
             [v["name"] for v in feature_context.values()],
         )
 
+    # Track siblings per Plane parent for sequential dependency assignment
+    parent_to_sibling_features: dict[str, list] = {}  # plane_parent_id → [Feature]
+
     with _get_db_session(project_dir) as session:
         # Build lookup: planning_work_item_id -> feature_id for dependency resolution
         existing_features = session.query(Feature).filter(
@@ -189,6 +192,9 @@ def import_cycle(
                     if item.updated_at else None
                 )
 
+                if item.parent and item.parent in feature_context:
+                    parent_to_sibling_features.setdefault(item.parent, []).append(existing)
+
                 result.updated += 1
                 result.details.append(PlanningImportDetail(
                     planning_id=item.id,
@@ -226,6 +232,8 @@ def import_cycle(
 
                 # Track for dependency resolution of later items
                 planning_to_feature[item.id] = new_feature.id
+                if item.parent and item.parent in feature_context:
+                    parent_to_sibling_features.setdefault(item.parent, []).append(new_feature)
                 next_priority += 1
 
                 result.imported += 1
@@ -251,6 +259,23 @@ def import_cycle(
                         reason="removed_from_cycle",
                         feature_id=feature.id,
                     ))
+
+        # Set sequential sibling dependencies: 2.4.2 depends on 2.4.1, etc.
+        # Sort siblings by name (numeric prefix order) and chain them.
+        # Only set if the feature has no explicit dependencies yet (don't override).
+        sibling_deps_set = 0
+        for siblings in parent_to_sibling_features.values():
+            if len(siblings) < 2:
+                continue
+            siblings_sorted = sorted(siblings, key=lambda f: f.name)
+            for i in range(1, len(siblings_sorted)):
+                curr = siblings_sorted[i]
+                if not curr.dependencies:
+                    curr.dependencies = [siblings_sorted[i - 1].id]
+                    sibling_deps_set += 1
+
+        if sibling_deps_set:
+            logger.info("Set sequential sibling dependencies for %d features", sibling_deps_set)
 
         session.commit()
 
