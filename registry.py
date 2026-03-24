@@ -362,6 +362,20 @@ def list_registered_projects() -> dict[str, dict[str, Any]]:
         session.close()
 
 
+def get_project_name_for_dir(project_dir) -> str | None:
+    """Look up the registered project name for a given directory path."""
+    target = str(project_dir)
+    _, SessionLocal = _get_engine()
+    session = SessionLocal()
+    try:
+        for project in session.query(Project).all():
+            if project.path == target or project.path.rstrip("/") == target.rstrip("/"):
+                return project.name
+        return None
+    finally:
+        session.close()
+
+
 def get_project_info(name: str) -> dict[str, Any] | None:
     """
     Get full info about a project.

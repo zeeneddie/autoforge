@@ -2764,6 +2764,23 @@ class ParallelOrchestrator:
                                 fid = feature_dict["id"]
                                 print(f"Running story-planner for feature #{fid}: {feature_dict['name']}", flush=True)
                                 await self._run_story_planner(fid)
+                                # Push newly created tasks to Plane as child items
+                                try:
+                                    from registry import get_project_name_for_dir
+                                    from planning_sync.sync_service import sync_tasks_to_plane, _get_db_classes
+                                    pname = get_project_name_for_dir(self.project_dir)
+                                    if pname:
+                                        create_db, Feature = _get_db_classes()
+                                        _, SessionLocal = create_db(self.project_dir)
+                                        s = SessionLocal()
+                                        try:
+                                            feat = s.query(Feature).filter(Feature.id == fid).first()
+                                            if feat and feat.tasks:
+                                                sync_tasks_to_plane(feat, s, pname)
+                                        finally:
+                                            s.close()
+                                except Exception as _e:
+                                    logger.warning("Auto sync_tasks_to_plane failed for feature %d: %s", fid, _e)
 
                     success, msg = self.start_feature_batch(batch_ids)
                     if not success:
@@ -2931,6 +2948,58 @@ async def run_parallel_orchestrator(
         # CRITICAL: Always clean up database resources on exit
         # This forces WAL checkpoint and disposes connections
         orchestrator.cleanup()
+
+
+async def run_story_planner_standalone(
+    project_dir: Path,
+    feature_id: int,
+    model: str | None = None,
+) -> bool:
+    """Run the story-planner agent for a single feature without a full orchestrator.
+
+    Used by the breakdown API endpoint to trigger task generation on demand.
+    Returns True if the planner completed successfully.
+    """
+    cmd = [
+        sys.executable, "-u",
+        str(AUTOFORGE_ROOT / "autonomous_agent_demo.py"),
+        "--project-dir", str(project_dir),
+        "--agent-type", "story-planner",
+        "--feature-id", str(feature_id),
+        "--max-iterations", "1",
+    ]
+    if model:
+        cmd.extend(["--model", model])
+
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=str(AUTOFORGE_ROOT),
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+    )
+
+    loop = asyncio.get_running_loop()
+    try:
+        async def _drain():
+            while True:
+                line = await loop.run_in_executor(None, proc.stdout.readline)
+                if not line:
+                    break
+            proc.wait()
+        await asyncio.wait_for(_drain(), timeout=300)
+    except asyncio.TimeoutError:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        return False
+
+    return proc.returncode == 0
 
 
 def main():

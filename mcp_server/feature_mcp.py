@@ -1612,6 +1612,7 @@ def feature_create_tasks(
                 "test_file": None,
                 "test_count": 0,
                 "test_output": None,
+                "planning_work_item_id": None,
             }
             for i, t in enumerate(tasks)
         ]

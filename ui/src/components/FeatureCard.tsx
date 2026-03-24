@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { CheckCircle2, Circle, Loader2, MessageCircle, ScrollText, ListChecks, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, Circle, Loader2, MessageCircle, ScrollText, ListChecks, AlertTriangle, ListTodo } from 'lucide-react'
 import type { Feature, ActiveAgent, FeatureTask } from '../lib/types'
 import { DependencyBadge } from './DependencyBadge'
 import { AgentAvatar } from './AgentAvatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useBreakdown } from '../hooks/useProjects'
 
 interface FeatureCardProps {
   feature: Feature
@@ -16,6 +17,7 @@ interface FeatureCardProps {
   hasDialogueLogs?: boolean
   onShowDialogue?: (featureId: number) => void
   subItemCount?: number
+  projectName?: string
 }
 
 // Generate consistent color for category
@@ -133,8 +135,9 @@ function TasksPopup({ feature }: { feature: Feature }) {
   )
 }
 
-export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], activeAgent, hasDialogueLogs, onShowDialogue, subItemCount }: FeatureCardProps) {
+export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], activeAgent, hasDialogueLogs, onShowDialogue, subItemCount, projectName }: FeatureCardProps) {
   const [tasksOpen, setTasksOpen] = useState(false)
+  const breakdown = useBreakdown(projectName ?? '')
   const categoryColor = getCategoryColor(feature.category)
   const isBlocked = feature.blocked || (feature.blocking_dependencies && feature.blocking_dependencies.length > 0)
   // Don't show agent overlay on completed features (agent may linger in activeAgents after finishing)
@@ -250,6 +253,20 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
             )}
           </div>
           <div className="flex items-center gap-1">
+            {/* Breakdown knop: pending features zonder tasks, als projectName bekend is */}
+            {!feature.passes && !feature.in_progress && tasks.length === 0 && projectName && (
+              <button
+                onClick={(e) => { e.stopPropagation(); breakdown.mutate(feature.id) }}
+                disabled={breakdown.isPending}
+                title="Breakdown in taken"
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                {breakdown.isPending
+                  ? <Loader2 size={14} className="animate-spin" />
+                  : <ListTodo size={14} />
+                }
+              </button>
+            )}
             {tasks.length > 0 && (
               <button
                 onClick={(e) => { e.stopPropagation(); setTasksOpen(true) }}

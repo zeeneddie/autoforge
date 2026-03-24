@@ -43,7 +43,7 @@ from planning_sync.models import (
     TestRunDetail,
     TestRunSummary,
 )
-from planning_sync.sync_service import import_cycle
+from planning_sync.sync_service import import_cycle, outbound_sync
 from planning_sync.app_spec_generator import generate_app_spec
 from planning_sync.webhook_handler import verify_signature, parse_webhook_event
 from registry import get_all_settings, get_setting, set_setting, get_planning_setting, set_planning_setting, list_registered_projects
@@ -255,6 +255,13 @@ async def import_cycle_endpoint(request: PlanningImportRequest):
                 logger.info("app_spec.txt generated at %s", generated)
             except FileNotFoundError as e:
                 logger.warning("Could not generate app_spec.txt: %s", e)
+
+        # Immediately push feature states to Plane so imported items move Backlog → Todo
+        try:
+            outbound_sync(client, project_dir)
+            logger.info("Post-import outbound sync complete for %s", request.project_name)
+        except Exception:
+            logger.warning("Post-import outbound sync failed", exc_info=True)
 
         return result
     except PlanningApiError as e:

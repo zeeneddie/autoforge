@@ -532,6 +532,69 @@ async def delete_feature(project_name: str, feature_id: int):
         raise HTTPException(status_code=500, detail="Failed to delete feature")
 
 
+@router.post("/{feature_id}/breakdown")
+async def breakdown_feature(project_name: str, feature_id: int):
+    """Run the story-planner agent for a pending feature and push tasks to Plane as child items.
+
+    Idempotent: if tasks already exist, only syncs missing child items to Plane.
+    """
+    project_name = validate_project_name(project_name)
+    project_dir = _get_project_path(project_name)
+
+    if not project_dir:
+        raise HTTPException(status_code=404, detail=f"Project '{project_name}' not found in registry")
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    _, Feature = _get_db_classes()
+
+    # Check current state
+    with get_db_session(project_dir) as session:
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        if not feature:
+            raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
+        if feature.passes:
+            raise HTTPException(status_code=400, detail="Feature is already done")
+        already_has_tasks = bool(feature.tasks)
+
+    if already_has_tasks:
+        # Just sync any missing child items to Plane
+        import sys as _sys
+        root = Path(__file__).parent.parent.parent
+        if str(root) not in _sys.path:
+            _sys.path.insert(0, str(root))
+        from planning_sync.sync_service import sync_tasks_to_plane
+        with get_db_session(project_dir) as session:
+            feature = session.query(Feature).filter(Feature.id == feature_id).first()
+            created = sync_tasks_to_plane(feature, session, project_name)
+        return {"status": "already_broken_down", "plane_items_created": created, "tasks": feature.tasks}
+
+    # Run story-planner agent (blocking, up to 5 min)
+    try:
+        import asyncio as _asyncio
+        import sys as _sys
+        root = Path(__file__).parent.parent.parent
+        if str(root) not in _sys.path:
+            _sys.path.insert(0, str(root))
+        from parallel_orchestrator import run_story_planner_standalone
+        success = await run_story_planner_standalone(project_dir, feature_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="Story-planner agent failed")
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail=f"Story-planner not available: {e}")
+
+    # Push tasks to Plane
+    from planning_sync.sync_service import sync_tasks_to_plane
+    with get_db_session(project_dir) as session:
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        if not feature or not feature.tasks:
+            return {"status": "ok", "tasks": [], "plane_items_created": 0}
+        created = sync_tasks_to_plane(feature, session, project_name)
+        tasks = feature.tasks
+
+    return {"status": "ok", "tasks": tasks, "plane_items_created": created}
+
+
 @router.patch("/{feature_id}/skip")
 async def skip_feature(project_name: str, feature_id: int):
     """

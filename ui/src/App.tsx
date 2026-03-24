@@ -524,6 +524,7 @@ function App() {
                   const f = allF.find(feat => feat.id === featureId)
                   return f?.passes ?? false
                 }}
+                projectName={selectedProject}
               />
             ) : viewMode === 'graph' ? (
               <Card className="overflow-hidden" style={{ height: '600px' }}>

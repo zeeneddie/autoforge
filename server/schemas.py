@@ -124,6 +124,7 @@ class FeatureTask(BaseModel):
     test_file: str | None = None
     test_count: int = 0
     test_output: str | None = None
+    planning_work_item_id: str | None = None  # Plane child issue UUID
 
 
 class FeatureBase(BaseModel):

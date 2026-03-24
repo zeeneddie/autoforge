@@ -29,6 +29,7 @@ interface KanbanColumnProps {
   accordionMode?: boolean
   expandedParent?: string | null
   onToggleParent?: (prefix: string | null) => void
+  projectName?: string
 }
 
 const colorMap = {
@@ -55,6 +56,7 @@ export function KanbanColumn({
   accordionMode = false,
   expandedParent = null,
   onToggleParent,
+  projectName,
 }: KanbanColumnProps) {
   // Create a map of feature ID to active agent for quick lookup
   const agentByFeatureId = new Map<number, ActiveAgent>()
@@ -178,6 +180,7 @@ export function KanbanColumn({
                       hasDialogueLogs={featureHasLogs?.(feature.id) ?? false}
                       onShowDialogue={onShowDialogue}
                       subItemCount={subCount > 0 ? subCount : undefined}
+                      projectName={projectName}
                     />
                   </div>
                 )

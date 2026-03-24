@@ -66,6 +66,7 @@ export interface FeatureTask {
   test_file: string | null
   test_count: number
   test_output: string | null
+  planning_work_item_id: string | null  // Plane child issue UUID
 }
 
 // Feature types

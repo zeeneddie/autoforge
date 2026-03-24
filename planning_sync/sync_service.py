@@ -314,6 +314,86 @@ def import_cycle(
     return result
 
 
+def _build_client_for_project(project_name: str) -> PlanningApiClient:
+    """Build a PlanningApiClient from per-project registry settings."""
+    root = Path(__file__).parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from registry import get_planning_setting, get_setting
+    return PlanningApiClient(
+        base_url=get_setting("planning_api_url") or "",
+        api_key=get_setting("planning_api_key") or "",
+        workspace_slug=get_setting("planning_workspace_slug") or "",
+        project_id=get_planning_setting("planning_project_id", project_name) or "",
+    )
+
+
+def sync_tasks_to_plane(
+    feature,
+    session,
+    project_name: str,
+) -> int:
+    """Create Plane child work items for feature tasks that have no planning_work_item_id yet.
+
+    Idempotent: skips tasks that already have a Plane ID.
+    Returns count of child items created.
+    """
+    if not feature.planning_work_item_id:
+        return 0
+    tasks = feature.tasks or []
+    if not any(not t.get("planning_work_item_id") for t in tasks):
+        return 0  # all tasks already synced
+
+    try:
+        client = _build_client_for_project(project_name)
+    except Exception as e:
+        logger.warning("sync_tasks_to_plane: could not build client: %s", e)
+        return 0
+
+    try:
+        states = client.list_states()
+        unstarted_id = find_state_id_for_group("unstarted", states)
+
+        created = 0
+        new_ids = []
+        for task in tasks:
+            if task.get("planning_work_item_id"):
+                continue
+            try:
+                resp = client.create_work_item({
+                    "name": task["name"],
+                    "description_html": f"<p>{task.get('description', '')}</p>",
+                    "parent": feature.planning_work_item_id,
+                    "state": unstarted_id,
+                    "priority": "none",
+                })
+                if resp and resp.get("id"):
+                    task["planning_work_item_id"] = resp["id"]
+                    new_ids.append(resp["id"])
+                    created += 1
+            except Exception as e:
+                logger.warning("sync_tasks_to_plane: failed to create task '%s': %s", task.get("name"), e)
+
+        # Add child items to the active cycle so they appear in the sprint board
+        if new_ids and feature.cycle_id:
+            try:
+                client.add_work_items_to_cycle(feature.cycle_id, new_ids)
+            except Exception as e:
+                logger.warning("sync_tasks_to_plane: failed to add tasks to cycle: %s", e)
+
+        if created:
+            feature.tasks = list(tasks)  # trigger JSON update
+            session.commit()
+            logger.info(
+                "sync_tasks_to_plane: created %d child items in Plane for feature %d (%s)",
+                created, feature.id, feature.name,
+            )
+    finally:
+        client.close()
+
+    return created
+
+
 def apply_category_mapping(project_dir: Path, project_name: str) -> int:
     """Apply category-to-Plane-work-item mapping to features.
 
@@ -565,6 +645,33 @@ def outbound_sync(
                 except PlanningApiError as e:
                     result.errors += 1
                     logger.warning("Failed container sync for %s: %s", parent_uuid[:8], e)
+
+        # --- Mode 4: sync child task states back to Plane ---
+        task_features = session.query(Feature).filter(
+            Feature.planning_work_item_id.isnot(None),
+        ).all()
+        for feature in task_features:
+            tasks = feature.tasks or []
+            for task in tasks:
+                plane_id = task.get("planning_work_item_id")
+                if not plane_id:
+                    continue
+                target_group = "completed" if task.get("done") else "unstarted"
+                # Use a hash to avoid redundant API calls
+                task_hash_key = f"task_state_hash:{plane_id}"
+                from registry import get_setting as _get_setting, set_setting as _set_setting
+                if _get_setting(task_hash_key) == target_group:
+                    continue
+                state_id = find_state_id_for_group(target_group, states)
+                if not state_id:
+                    continue
+                try:
+                    client.update_work_item(plane_id, {"state": state_id})
+                    _set_setting(task_hash_key, target_group)
+                    result.pushed += 1
+                except PlanningApiError as e:
+                    result.errors += 1
+                    logger.warning("Failed task state sync for %s: %s", plane_id[:8], e)
 
         session.commit()
 

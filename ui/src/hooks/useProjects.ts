@@ -409,6 +409,19 @@ export function useImportPlanningCycle() {
   })
 }
 
+export function useBreakdown(projectName: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (featureId: number) =>
+      fetch(`/api/projects/${encodeURIComponent(projectName)}/features/${featureId}/breakdown`, {
+        method: 'POST',
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['features', projectName] })
+    },
+  })
+}
+
 export function usePlanningSyncStatus(projectName?: string | null) {
   return useQuery({
     queryKey: ['planning-sync-status', projectName],
