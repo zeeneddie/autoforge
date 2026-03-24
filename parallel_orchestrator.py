@@ -430,6 +430,69 @@ class ParallelOrchestrator:
 
         return success
 
+    async def _run_story_planner(self, feature_id: int) -> bool:
+        """Run story-planner agent for a single feature (blocking subprocess).
+
+        Generates implementation tasks via feature_create_tasks.
+        Runs BEFORE the coding agent for this feature when architect_enabled=True
+        and the feature has no tasks yet.
+
+        Returns True if planner completed successfully.
+        """
+        debug_log.log("PLAN", f"Starting story-planner for feature {feature_id}",
+            project_dir=str(self.project_dir))
+
+        cmd = [
+            sys.executable, "-u",
+            str(AUTOFORGE_ROOT / "autonomous_agent_demo.py"),
+            "--project-dir", str(self.project_dir),
+            "--agent-type", "story-planner",
+            "--feature-id", str(feature_id),
+            "--max-iterations", "1",
+        ]
+        if self.model_architect:
+            cmd.extend(["--model", self.model_architect])
+
+        popen_kwargs: dict[str, Any] = {
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "text": True,
+            "encoding": "utf-8",
+            "errors": "replace",
+            "cwd": str(AUTOFORGE_ROOT),
+            "env": {**os.environ, "PYTHONUNBUFFERED": "1"},
+        }
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+        proc = subprocess.Popen(cmd, **popen_kwargs)
+
+        loop = asyncio.get_running_loop()
+        try:
+            async def _stream():
+                while True:
+                    line = await loop.run_in_executor(None, proc.stdout.readline)
+                    if not line:
+                        break
+                    if self.on_output is not None:
+                        self.on_output(feature_id, line.rstrip())
+                proc.wait()
+
+            await asyncio.wait_for(_stream(), timeout=300)  # 5 min max
+        except asyncio.TimeoutError:
+            debug_log.log("PLAN", f"Story-planner timed out for feature {feature_id}")
+            try:
+                kill_process_tree(proc, timeout=5.0)
+            except Exception:
+                pass
+            return False
+
+        success = proc.returncode == 0
+        debug_log.log("PLAN", f"Story-planner finished for feature {feature_id}",
+            return_code=proc.returncode, success=success)
+        return success
+
     def _is_review_enabled(self) -> bool:
         """Check if review agents are enabled.
 
@@ -682,9 +745,18 @@ class ParallelOrchestrator:
         session = self.get_session()
         try:
             session.expire_all()
-            passing = (
+            from sqlalchemy import or_
+            # Pick up both:
+            # 1. passes=True  → regression testing (existing flow)
+            # 2. review_status='pending_review' → first-time AC verification (pure separation)
+            candidates = (
                 session.query(Feature)
-                .filter(Feature.passes == True)
+                .filter(
+                    or_(
+                        Feature.passes == True,
+                        Feature.review_status == 'pending_review',
+                    )
+                )
                 .filter(Feature.in_progress == False)  # Don't test while coding
                 .all()
             )
@@ -692,10 +764,11 @@ class ParallelOrchestrator:
             # Extract data from ORM objects before closing the session to avoid
             # DetachedInstanceError when accessing attributes after session.close().
             passing_data: list[dict] = []
-            for f in passing:
+            for f in candidates:
                 passing_data.append({
                     'id': f.id,
                     'dependencies': f.get_dependencies_safe() if hasattr(f, 'get_dependencies_safe') else [],
+                    'review_status': f.review_status,
                 })
         finally:
             session.close()
@@ -2642,6 +2715,15 @@ class ParallelOrchestrator:
                     batch_ids = [f["id"] for f in batch]
                     batch_names = [f"{f['id']}:{f['name']}" for f in batch]
                     logger.debug("Starting batch: %s", batch_ids)
+
+                    # Run story planner for features without tasks (if architect_enabled)
+                    if self._is_architect_enabled():
+                        for feature_dict in batch:
+                            if not feature_dict.get("tasks"):
+                                fid = feature_dict["id"]
+                                print(f"Running story-planner for feature #{fid}: {feature_dict['name']}", flush=True)
+                                await self._run_story_planner(fid)
+
                     success, msg = self.start_feature_batch(batch_ids)
                     if not success:
                         logger.debug("Failed to start batch %s: %s", batch_ids, msg)

@@ -90,6 +90,32 @@ Use the feature_skip tool with feature_id={id}
 
 Document the SPECIFIC external blocker in `claude-progress.txt`. "Functionality not built" is NEVER a valid reason.
 
+### STEP 3.5: CHECK FOR TASK BREAKDOWN
+
+After getting the feature with `feature_get_by_id`, check if `tasks` is populated:
+
+**If `tasks` is non-empty** (story planner has prepared the breakdown):
+
+Implement task by task in order:
+
+```
+For each task in feature.tasks where done=False:
+  1. Read the task name + description
+  2. Implement the code (one handler / migration / component)
+  3. Write a unit or integration test that proves this task works
+  4. Run the test suite: see {{PROJECT_STACK_INFO}} for commands
+  5. When tests pass: call feature_complete_task(feature_id, task_id, test_file, test_count)
+  6. Move to the next task
+```
+
+Call `feature_mark_for_review` only after `feature_complete_task` returns `all_tasks_done=True`.
+
+**If `tasks` is empty** (no story planner ran — standalone feature):
+
+Proceed directly to STEP 4 (implement the full feature as before).
+
+---
+
 ### STEP 4: IMPLEMENT THE FEATURE
 
 Implement the chosen feature thoroughly:

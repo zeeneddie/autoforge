@@ -37,6 +37,7 @@ from prompts import (
     get_initializer_prompt,
     get_review_prompt,
     get_single_feature_prompt,
+    get_story_planner_prompt,
     get_testing_prompt,
 )
 from rate_limit_utils import (
@@ -258,6 +259,7 @@ async def run_autonomous_agent(
 
     is_initializer = agent_type == "initializer"
     is_architect = agent_type == "architect"
+    is_story_planner = agent_type == "story-planner"
 
     if is_architect:
         print("Running as ARCHITECT agent (pre-initialization architecture analysis)")
@@ -280,6 +282,8 @@ async def run_autonomous_agent(
         print()
         # Copy the app spec into the project directory for the agent to read
         copy_spec_to_project(project_dir)
+    elif is_story_planner:
+        print(f"Running as STORY PLANNER agent (feature #{feature_id})")
     elif agent_type == "testing":
         print("Running as TESTING agent (regression testing)")
         print_progress_summary(project_dir)
@@ -300,7 +304,7 @@ async def run_autonomous_agent(
 
         # Check if all features are already complete (before starting a new session)
         # Skip this check for initializer/architect (they run before features exist)
-        if not is_initializer and not is_architect and iteration == 1:
+        if not is_initializer and not is_architect and not is_story_planner and iteration == 1:
             passing, in_progress, total = count_passing_tests(project_dir)
             if total > 0 and passing == total:
                 print("\n" + "=" * 70)
@@ -323,6 +327,8 @@ async def run_autonomous_agent(
         import os
         if agent_type == "architect":
             agent_id = f"architect-{os.getpid()}"  # Unique ID for architect agents
+        elif agent_type == "story-planner":
+            agent_id = f"planner-{feature_id}-{os.getpid()}"
         elif agent_type == "testing":
             agent_id = f"testing-{os.getpid()}"  # Unique ID for testing agents
         elif agent_type == "reviewer":
@@ -336,7 +342,11 @@ async def run_autonomous_agent(
         client = create_client(project_dir, model, yolo_mode=yolo_mode, agent_id=agent_id, agent_type=agent_type)
 
         # Choose prompt based on agent type
-        if agent_type == "architect":
+        if agent_type == "story-planner":
+            if feature_id is None:
+                raise ValueError("story-planner requires --feature-id")
+            prompt = get_story_planner_prompt(feature_id, project_dir)
+        elif agent_type == "architect":
             prompt = get_architect_prompt(project_dir, tdd_mode=tdd_mode)
         elif agent_type == "initializer":
             prompt = get_initializer_prompt(project_dir, tdd_mode=tdd_mode)

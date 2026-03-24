@@ -43,7 +43,9 @@ export function DependencyBadge({ feature, allFeatures = [], compact = false }: 
               className={`gap-1 font-mono text-xs cursor-pointer hover:opacity-80 ${
                 isBlocked
                   ? 'bg-destructive/10 text-destructive border-destructive/30'
-                  : 'bg-muted text-muted-foreground'
+                  : satisfiedCount === dependencies.length
+                    ? 'bg-green-500/10 text-green-500 border-green-500/30'
+                    : 'bg-muted text-muted-foreground'
               }`}
             >
               {isBlocked ? (
@@ -53,7 +55,10 @@ export function DependencyBadge({ feature, allFeatures = [], compact = false }: 
                 </>
               ) : (
                 <>
-                  <GitBranch size={12} />
+                  {satisfiedCount === dependencies.length
+                    ? <Check size={12} />
+                    : <GitBranch size={12} />
+                  }
                   <span>{satisfiedCount}/{dependencies.length}</span>
                 </>
               )}

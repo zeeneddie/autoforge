@@ -187,11 +187,17 @@ class PlanningSyncLoop:
             total_items = 0
 
             try:
-                from .sync_service import outbound_sync, import_cycle
+                from .sync_service import outbound_sync, import_cycle, outbound_comments_sync
                 outbound_result = await asyncio.to_thread(
                     outbound_sync, client, project_dir
                 )
                 total_items += outbound_result.pushed
+
+                # Push AC labels + escalation reasons as Plane comments
+                comments_result = await asyncio.to_thread(
+                    outbound_comments_sync, client, project_dir
+                )
+                total_items += comments_result["pushed"]
 
                 if cycle_id:
                     inbound_result = await asyncio.to_thread(

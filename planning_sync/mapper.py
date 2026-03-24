@@ -226,14 +226,32 @@ def feature_status_to_planning_update(
     passes: bool,
     in_progress: bool,
     states: list[PlanningState],
+    review_status: str | None = None,
 ) -> dict | None:
     """Convert MQ DevEngine feature status to a Plane work item update dict.
 
     Returns None if no state change is needed.
+
+    State mapping:
+      passes=True                    → completed
+      in_progress=True               → started
+      review_status='pending_review' → started (Plane has no dedicated in_review group;
+                                       tries to find a state named 'In Review' first)
+      otherwise                      → unstarted
     """
     if passes:
         target_group = "completed"
     elif in_progress:
+        target_group = "started"
+    elif review_status == "pending_review":
+        # Try to find a Plane state named "In Review" for better visibility;
+        # fall back to the generic "started" group if not found.
+        in_review_state = next(
+            (s for s in states if s.name.lower() in ("in review", "in_review")),
+            None,
+        )
+        if in_review_state:
+            return {"state": in_review_state.id}
         target_group = "started"
     else:
         target_group = "unstarted"

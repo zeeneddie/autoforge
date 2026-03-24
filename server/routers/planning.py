@@ -44,6 +44,7 @@ from planning_sync.models import (
     TestRunSummary,
 )
 from planning_sync.sync_service import import_cycle
+from planning_sync.app_spec_generator import generate_app_spec
 from planning_sync.webhook_handler import verify_signature, parse_webhook_event
 from registry import get_all_settings, get_setting, set_setting, get_planning_setting, set_planning_setting, list_registered_projects
 
@@ -245,6 +246,15 @@ async def import_cycle_endpoint(request: PlanningImportRequest):
 
         # Save active cycle ID per-project
         set_planning_setting("planning_active_cycle_id", request.cycle_id, request.project_name)
+
+        # Generate app_spec.txt from BMAD artifacts if not yet present
+        spec_path = project_dir / "prompts" / "app_spec.txt"
+        if not spec_path.exists():
+            try:
+                generated = generate_app_spec(project_dir)
+                logger.info("app_spec.txt generated at %s", generated)
+            except FileNotFoundError as e:
+                logger.warning("Could not generate app_spec.txt: %s", e)
 
         return result
     except PlanningApiError as e:

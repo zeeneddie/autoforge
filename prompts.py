@@ -9,6 +9,7 @@ Fallback chain:
 2. Base template: .claude/templates/{name}.template.md
 """
 
+import json
 import re
 import shutil
 from pathlib import Path
@@ -434,6 +435,174 @@ Then approve or reject based on your review.
     return base_prompt
 
 
+_STACK_INFO_FALLBACK = """\
+Look for test configuration files (`vitest.config.*`, `jest.config.*`, `pytest.ini`, `pyproject.toml` with `[tool.pytest]`)
+and run the full test suite before browser verification.
+
+1. If tests exist: run them — e.g., `npx vitest run`, `python -m pytest`, `npm test`
+2. If ALL tests pass: proceed to browser verification (Step 2)
+3. If tests FAIL: mark failing feature(s) with `feature_mark_failing`, fix, re-run, then mark passing
+4. If no automated tests: skip this step and proceed to Step 2\
+"""
+
+
+def _read_pkg_scripts(pkg_path: Path) -> dict[str, str]:
+    try:
+        data = json.loads(pkg_path.read_text(encoding="utf-8"))
+        return data.get("scripts", {})
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _detect_test_runner(app_dir: Path) -> str:
+    """Return 'jest', 'vitest', or '' for an app directory."""
+    if list(app_dir.glob("vitest.config.*")):
+        return "vitest"
+    if list(app_dir.glob("jest.config.*")):
+        return "jest"
+    # Check package.json scripts and jest config section
+    pkg = app_dir / "package.json"
+    if pkg.exists():
+        try:
+            data = json.loads(pkg.read_text(encoding="utf-8"))
+            scripts = data.get("scripts", {})
+            test_cmd = scripts.get("test", "")
+            if "vitest" in test_cmd:
+                return "vitest"
+            if "jest" in test_cmd or "jest" in data:
+                return "jest"
+        except (json.JSONDecodeError, OSError):
+            pass
+    return ""
+
+
+def _detect_turborepo_stack(project_dir: Path) -> str:
+    """Generate test commands for a Turborepo monorepo."""
+    apps_dir = project_dir / "apps"
+    if not apps_dir.is_dir():
+        return _STACK_INFO_FALLBACK
+
+    apps_with_tests: list[tuple[str, str]] = []  # (app_name, runner)
+    has_typecheck = False
+
+    for app_dir in sorted(apps_dir.iterdir()):
+        if not app_dir.is_dir():
+            continue
+        scripts = _read_pkg_scripts(app_dir / "package.json")
+        if "test" not in scripts:
+            continue
+        runner = _detect_test_runner(app_dir)
+        apps_with_tests.append((app_dir.name, runner))
+        if "check-types" in scripts or "type-check" in scripts:
+            has_typecheck = True
+
+    if not apps_with_tests:
+        return _STACK_INFO_FALLBACK
+
+    app_names = " + ".join(f"{n} ({r})" if r else n for n, r in apps_with_tests)
+    lines = [f"**Turborepo project detected: {app_names}**", "", "Run before browser verification:", "", "```bash"]
+    for app_name, runner in apps_with_tests:
+        runner_label = f"({runner})" if runner else ""
+        lines.append(f"# {app_name} {runner_label}".rstrip())
+        lines.append(f"npx turbo run test --filter={app_name} -- --passWithNoTests")
+        lines.append("")
+    if has_typecheck:
+        lines.append("# TypeScript check")
+        lines.append("npx turbo run check-types")
+        lines.append("")
+    lines.append("```")
+    lines.append("")
+
+    # Tech-specific anti-mock hints
+    if (project_dir / "supabase").is_dir():
+        lines.append("**Auth (Supabase):** Use real Supabase test tenant JWT. No mocks of auth middleware.")
+    if any((apps_dir / app / "src" / "prisma").is_dir() for app, _ in apps_with_tests):
+        lines.append("**Database (Prisma):** Use real test database. No mocks of Prisma client.")
+
+    lines.append("")
+    lines.append(
+        "If tests FAIL: mark feature(s) with `feature_mark_failing`, "
+        "investigate, fix, re-run, then mark passing."
+    )
+    return "\n".join(lines)
+
+
+def _detect_python_stack(project_dir: Path) -> str:
+    """Generate pytest command for a Python project."""
+    lines = ["**Python project detected**", "", "Run before browser verification:", "", "```bash"]
+    if (project_dir / "Makefile").exists():
+        lines.append("make test  # or: python -m pytest")
+    else:
+        lines.append("python -m pytest")
+    lines.append("```")
+    lines.append("")
+    lines.append(
+        "If tests FAIL: mark feature(s) with `feature_mark_failing`, "
+        "investigate, fix, re-run, then mark passing."
+    )
+    return "\n".join(lines)
+
+
+def _detect_node_stack(project_dir: Path) -> str:
+    """Generate test command for a plain Node.js project."""
+    scripts = _read_pkg_scripts(project_dir / "package.json")
+    if "test" not in scripts:
+        return _STACK_INFO_FALLBACK
+
+    test_cmd = scripts["test"]
+    pm = "pnpm" if (project_dir / "pnpm-lock.yaml").exists() else "npm"
+    runner = _detect_test_runner(project_dir)
+    label = f"({runner})" if runner else ""
+
+    lines = [f"**Node.js project detected {label}**".rstrip(), "", "Run before browser verification:", "", "```bash"]
+    if "vitest" in test_cmd:
+        lines.append(f"{pm} run test  # vitest run")
+    elif "jest" in test_cmd:
+        lines.append(f"{pm} run test  # jest --passWithNoTests")
+    else:
+        lines.append(f"{pm} run test")
+    lines.append("```")
+    lines.append("")
+    lines.append(
+        "If tests FAIL: mark feature(s) with `feature_mark_failing`, "
+        "investigate, fix, re-run, then mark passing."
+    )
+    return "\n".join(lines)
+
+
+def _detect_stack_info(project_dir: Path | None) -> str:
+    """Auto-detect test stack and return formatted test instructions.
+
+    Supports: Turborepo monorepos, Python (pytest), plain Node.js (Jest/Vitest).
+    Falls back to generic guidance when nothing is detected.
+    """
+    if project_dir is None or not project_dir.is_dir():
+        return _STACK_INFO_FALLBACK
+
+    # Turborepo
+    if (project_dir / "turbo.json").exists():
+        return _detect_turborepo_stack(project_dir)
+
+    # Python
+    if (project_dir / "pytest.ini").exists():
+        return _detect_python_stack(project_dir)
+    pyproject = project_dir / "pyproject.toml"
+    if pyproject.exists() and "[tool.pytest" in pyproject.read_text(encoding="utf-8", errors="ignore"):
+        return _detect_python_stack(project_dir)
+
+    # Plain Node.js
+    if (project_dir / "package.json").exists():
+        return _detect_node_stack(project_dir)
+
+    return _STACK_INFO_FALLBACK
+
+
+def get_story_planner_prompt(feature_id: int, project_dir: Path | None = None) -> str:
+    """Return the story planner prompt with FEATURE_ID injected."""
+    base = load_prompt("story_planner_prompt", project_dir)
+    return base.replace("{{FEATURE_ID}}", str(feature_id))
+
+
 def get_testing_prompt(
     project_dir: Path | None = None,
     testing_feature_id: int | None = None,
@@ -457,16 +626,18 @@ def get_testing_prompt(
     """
     base_prompt = load_prompt("testing_prompt", project_dir)
 
+    # Inject auto-detected stack info (test commands for this project)
+    stack_info = _detect_stack_info(project_dir)
+    base_prompt = base_prompt.replace("{{PROJECT_STACK_INFO}}", stack_info)
+
     # Batch mode: replace the {{TESTING_FEATURE_IDS}} placeholder in the template
     if testing_feature_ids is not None and len(testing_feature_ids) > 0:
         ids_str = ", ".join(str(fid) for fid in testing_feature_ids)
         return base_prompt.replace("{{TESTING_FEATURE_IDS}}", ids_str)
 
-    # Legacy single-feature mode: prepend header and replace placeholder
+    # Legacy single-feature mode: replace placeholder
     if testing_feature_id is not None:
-        # Replace the placeholder with the single ID for template consistency
-        base_prompt = base_prompt.replace("{{TESTING_FEATURE_IDS}}", str(testing_feature_id))
-        return base_prompt
+        return base_prompt.replace("{{TESTING_FEATURE_IDS}}", str(testing_feature_id))
 
     # No feature assignment -- return template with placeholder cleared
     return base_prompt.replace("{{TESTING_FEATURE_IDS}}", "(none assigned)")

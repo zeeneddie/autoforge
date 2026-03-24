@@ -31,7 +31,7 @@ import { ResetProjectModal } from './components/ResetProjectModal'
 import { ProjectSetupRequired } from './components/ProjectSetupRequired'
 import StuckStateModal from './components/StuckStateModal'
 import { getDependencyGraph, startAgent, fetchFeatureLogs } from './lib/api'
-import { Loader2, Settings, Moon, Sun, RotateCcw, BookOpen } from 'lucide-react'
+import { Loader2, Settings, Moon, Sun, RotateCcw } from 'lucide-react'
 import type { ActiveAgent, AgentLogEntry, Feature } from './lib/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -324,9 +324,9 @@ function App() {
           <div className="flex items-center justify-between">
             {/* Logo and Title */}
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="MQ DevEngine" className="h-9 w-9 rounded-full" />
+              <img src="/marqed-icon.svg" alt="MQ" className="h-10 w-10" />
               <h1 className="font-display text-2xl font-bold tracking-tight uppercase">
-                MQ DevEngine
+                DevEngine
               </h1>
             </div>
 
@@ -397,17 +397,6 @@ function App() {
                   )}
                 </>
               )}
-
-              {/* Docs link */}
-              <Button
-                onClick={() => window.open('https://autoforge.cc', '_blank')}
-                variant="outline"
-                size="sm"
-                title="Documentation"
-                aria-label="Open Documentation"
-              >
-                <BookOpen size={18} />
-              </Button>
 
               {/* Theme selector */}
               <ThemeSelector

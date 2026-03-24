@@ -171,7 +171,7 @@ Authentication:
     # Agent type for subprocess mode
     parser.add_argument(
         "--agent-type",
-        choices=["architect", "initializer", "coding", "testing", "reviewer"],
+        choices=["architect", "initializer", "coding", "testing", "reviewer", "story-planner"],
         default=None,
         help="Agent type (used by orchestrator to spawn specialized subprocesses)",
     )

@@ -47,9 +47,8 @@ _CODING_TOOLS = [
     "mcp__features__feature_get_summary",
     "mcp__features__feature_claim_and_get",
     "mcp__features__feature_mark_in_progress",
-    "mcp__features__feature_mark_passing",
     "mcp__features__feature_mark_failing",
-    "mcp__features__feature_mark_for_review",
+    "mcp__features__feature_mark_for_review",  # submits for independent testing (not mark_passing)
     "mcp__features__feature_skip",
     "mcp__features__feature_clear_in_progress",
     # Session memory tools (Sprint 7.4)
@@ -61,6 +60,15 @@ _CODING_TOOLS = [
     # Quality gate (validates ACs are met)
     "mcp__features__feature_validate_quality",
     "mcp__features__feature_get_ready",
+    # Story task tools (task-driven implementation)
+    "mcp__features__feature_complete_task",
+]
+
+_STORY_PLANNER_TOOLS = [
+    "mcp__features__feature_get_by_id",
+    "mcp__features__feature_create_tasks",
+    # Session memory tools — reads architecture decisions
+    "mcp__features__memory_recall",
 ]
 
 _TESTING_TOOLS = [
@@ -69,12 +77,18 @@ _TESTING_TOOLS = [
     "mcp__features__feature_get_summary",
     "mcp__features__feature_mark_passing",
     "mcp__features__feature_mark_failing",
+    # Escalation: testing agent cannot verify AC → human review
+    "mcp__features__feature_escalate",
 ]
 
 _ARCHITECT_TOOLS = [
     # Session memory tools - architect stores architecture decisions + spec constraints
     "mcp__features__memory_store",
     "mcp__features__memory_recall",
+    # AC review: architect labels each AC before coding starts
+    "mcp__features__feature_get_by_id",
+    "mcp__features__feature_get_stats",
+    "mcp__features__feature_set_ac_labels",
 ]
 
 _REVIEWER_TOOLS = [
@@ -146,6 +160,15 @@ AGENT_ROLES: dict[str, dict[str, Any]] = {
         "phase": 3,
         "playwright_tier": "none",
         "builtin_tools": _REVIEWER_BUILTIN_TOOLS,
+    },
+    "story-planner": {
+        "template": "story_planner_prompt",
+        "tools": _STORY_PLANNER_TOOLS,
+        "max_turns": 30,
+        "model_tier": "architect",  # uses haiku/lightweight model
+        "phase": 1,  # runs before coding agents
+        "playwright_tier": "none",
+        "builtin_tools": _READONLY_BUILTIN_TOOLS,
     },
 }
 

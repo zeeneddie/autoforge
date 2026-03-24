@@ -1,9 +1,15 @@
 import { FeatureCard } from './FeatureCard'
-import { Plus, Sparkles, Wand2 } from 'lucide-react'
+import { Plus, Sparkles, Wand2, ChevronDown, ChevronRight } from 'lucide-react'
 import type { Feature, ActiveAgent } from '../lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+
+function parseNumericPrefix(name: string): number[] {
+  const match = name.match(/^(\d+(?:\.\d+)*)/)
+  if (!match) return []
+  return match[1].split('.').map(Number)
+}
 
 interface KanbanColumnProps {
   title: string
@@ -20,6 +26,9 @@ interface KanbanColumnProps {
   showCreateSpec?: boolean
   onShowDialogue?: (featureId: number) => void
   featureHasLogs?: (featureId: number) => boolean
+  accordionMode?: boolean
+  expandedParent?: string | null
+  onToggleParent?: (prefix: string | null) => void
 }
 
 const colorMap = {
@@ -43,9 +52,11 @@ export function KanbanColumn({
   showCreateSpec,
   onShowDialogue,
   featureHasLogs,
+  accordionMode = false,
+  expandedParent = null,
+  onToggleParent,
 }: KanbanColumnProps) {
   // Create a map of feature ID to active agent for quick lookup
-  // Maps ALL batch feature IDs to the same agent
   const agentByFeatureId = new Map<number, ActiveAgent>()
   for (const agent of activeAgents) {
     const ids = agent.featureIds || [agent.featureId]
@@ -53,6 +64,27 @@ export function KanbanColumn({
       agentByFeatureId.set(fid, agent)
     }
   }
+
+  // Accordion logic: compute sub-item counts and filter visible features
+  const subItemCounts = new Map<string, number>()
+  if (accordionMode) {
+    for (const f of features) {
+      const p = parseNumericPrefix(f.name)
+      if (p.length >= 3) {
+        const parentKey = p.slice(0, 2).join('.')
+        subItemCounts.set(parentKey, (subItemCounts.get(parentKey) ?? 0) + 1)
+      }
+    }
+  }
+
+  const visibleFeatures = accordionMode
+    ? features.filter(f => {
+        const p = parseNumericPrefix(f.name)
+        if (p.length < 3) return true  // top-level always visible
+        const parentKey = p.slice(0, 2).join('.')
+        return parentKey === expandedParent
+      })
+    : features
 
   return (
     <Card className={`overflow-hidden ${colorMap[color]} py-0`}>
@@ -106,23 +138,50 @@ export function KanbanColumn({
                 )}
               </div>
             ) : (
-              features.map((feature, index) => (
-                <div
-                  key={feature.id}
-                  className="animate-slide-in"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <FeatureCard
-                    feature={feature}
-                    onClick={() => onFeatureClick(feature)}
-                    isInProgress={color === 'progress'}
-                    allFeatures={allFeatures}
-                    activeAgent={agentByFeatureId.get(feature.id)}
-                    hasDialogueLogs={featureHasLogs?.(feature.id) ?? false}
-                    onShowDialogue={onShowDialogue}
-                  />
-                </div>
-              ))
+              visibleFeatures.map((feature, index) => {
+                const prefix = parseNumericPrefix(feature.name)
+                const isSubItem = accordionMode && prefix.length >= 3
+                const isParent = accordionMode && prefix.length === 2 && (subItemCounts.get(prefix.join('.')) ?? 0) > 0
+                const parentKey = prefix.length === 2 ? prefix.join('.') : null
+                const isExpanded = parentKey !== null && expandedParent === parentKey
+                const subCount = isParent ? (subItemCounts.get(prefix.join('.')) ?? 0) : 0
+
+                return (
+                  <div
+                    key={feature.id}
+                    className={`animate-slide-in ${isSubItem ? 'ml-3 border-r-4 border-orange-400 rounded-r-md' : ''}`}
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    {isParent && (
+                      <button
+                        className="w-full flex items-center justify-end gap-1 pb-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => onToggleParent?.(isExpanded ? null : parentKey)}
+                      >
+                        {isExpanded
+                          ? <><ChevronDown size={13} /><span>{subCount} sub-items</span></>
+                          : <><ChevronRight size={13} /><span>{subCount} sub-items</span></>
+                        }
+                      </button>
+                    )}
+                    <FeatureCard
+                      feature={feature}
+                      onClick={() => {
+                        if (isParent && onToggleParent) {
+                          onToggleParent(isExpanded ? null : parentKey!)
+                        } else {
+                          onFeatureClick(feature)
+                        }
+                      }}
+                      isInProgress={color === 'progress'}
+                      allFeatures={allFeatures}
+                      activeAgent={agentByFeatureId.get(feature.id)}
+                      hasDialogueLogs={featureHasLogs?.(feature.id) ?? false}
+                      onShowDialogue={onShowDialogue}
+                      subItemCount={subCount > 0 ? subCount : undefined}
+                    />
+                  </div>
+                )
+              })
             )}
           </div>
         </div>

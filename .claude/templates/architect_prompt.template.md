@@ -143,6 +143,44 @@ cat > architecture.md << 'ARCH_EOF'
 ARCH_EOF
 ```
 
+### STEP 5.5: AC QUALITY REVIEW (if features exist in the DB)
+
+Before finishing, check if features are already imported (sprint started):
+
+```
+Use feature_get_stats to check total feature count.
+```
+
+If features exist (total > 0), review each feature's acceptance criteria for testability.
+Use `feature_get_by_id` for features you haven't reviewed yet, then call
+`feature_set_ac_labels` with a label for **each** step in that feature.
+
+**Label definitions:**
+- `auto-testable` — can be fully verified by the testing agent via browser automation or API call
+- `needs-fixture` — testable but requires setup: test data, mock service, seeded DB, or env variable
+- `human-only` — requires domain judgment, visual/UX assessment, or unavailable external service
+
+**How to decide:**
+
+| AC type | Label |
+|---|---|
+| Given/When/Then with clear observable outcome | auto-testable |
+| Requires a real payment, email, or third-party OAuth | needs-fixture |
+| "The UX feels intuitive" / "The flow is smooth" | human-only |
+| Requires real user data or production traffic | human-only |
+| Needs a seeded database or mock API | needs-fixture |
+
+**Call for each feature:**
+```
+feature_set_ac_labels(
+  feature_id=<id>,
+  labels=["auto-testable", "needs-fixture", "human-only", ...]  # one per step, in order
+)
+```
+
+If `ac_labels` is already set on a feature, skip it (idempotent).
+If there are more than 20 features, prioritize the current sprint's features.
+
 ### STEP 6: COMMIT AND FINISH
 
 ```bash
@@ -164,12 +202,25 @@ memory_store with category="architecture"|"spec_constraint", key="...", value=".
 memory_recall
 ```
 
+### ALLOWED Feature Tools (AC review only):
+
+```
+# Check if features exist
+feature_get_stats
+
+# Get a feature's steps (ACs) for review
+feature_get_by_id with feature_id=<id>
+
+# Store AC labels (one label per step, in order)
+feature_set_ac_labels with feature_id=<id>, labels=[...]
+```
+
 ### RULES:
 - Store decisions with clear, specific values (not vague)
 - Use descriptive keys that future agents can search for
 - Keep values under 500 characters - be concise
 - Category MUST be "architecture", "spec_constraint", or "pattern"
-- Do NOT use feature tools - you have no access to them
+- Do NOT create, modify, or delete features — only label their ACs
 
 ---
 

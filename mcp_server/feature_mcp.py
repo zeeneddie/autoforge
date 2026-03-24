@@ -1572,5 +1572,261 @@ def feature_record_test(
         session.close()
 
 
+# ---------------------------------------------------------------------------
+# Story Planner Tools — task breakdown per User Story
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def feature_create_tasks(
+    feature_id: Annotated[int, Field(description="The feature/user-story ID", ge=1)],
+    tasks: Annotated[list[dict], Field(description=(
+        "List of task dicts, each with: name (str), description (str). "
+        "Example: [{\"name\": \"Prisma migration\", \"description\": \"Add deletedAt column to User\"}]"
+    ))],
+) -> str:
+    """Store a task breakdown for a User Story (called by story-planner agent).
+
+    Assigns sequential IDs and initialises done=False for each task.
+    Overwrites any existing tasks (idempotent: planner can re-run).
+
+    Args:
+        feature_id: The User Story feature ID
+        tasks: List of {name, description} dicts (3-8 tasks recommended)
+
+    Returns:
+        JSON with task count and stored tasks
+    """
+    session = get_session()
+    try:
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        if feature is None:
+            return json.dumps({"error": f"Feature {feature_id} not found"})
+
+        stored = [
+            {
+                "id": i + 1,
+                "name": t.get("name", f"Task {i + 1}"),
+                "description": t.get("description", ""),
+                "done": False,
+                "test_file": None,
+                "test_count": 0,
+                "test_output": None,
+            }
+            for i, t in enumerate(tasks)
+        ]
+
+        session.execute(
+            text("UPDATE features SET tasks = :tasks WHERE id = :id"),
+            {"tasks": json.dumps(stored), "id": feature_id},
+        )
+        session.commit()
+
+        return json.dumps({
+            "success": True,
+            "feature_id": feature_id,
+            "task_count": len(stored),
+            "tasks": stored,
+            "message": f"Stored {len(stored)} tasks for feature #{feature_id}",
+        })
+    except Exception as e:
+        session.rollback()
+        return json.dumps({"error": f"Failed to create tasks: {str(e)}"})
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def feature_complete_task(
+    feature_id: Annotated[int, Field(description="The feature/user-story ID", ge=1)],
+    task_id: Annotated[int, Field(description="The task ID to mark as done", ge=1)],
+    test_file: Annotated[str | None, Field(description="Path to the test file written for this task")] = None,
+    test_count: Annotated[int, Field(description="Number of tests written/passing for this task", ge=0)] = 0,
+    test_output: Annotated[str | None, Field(description="Last test run output (truncated to 2000 chars)")] = None,
+) -> str:
+    """Mark a single task as done and record its test evidence (called by coding agent).
+
+    Args:
+        feature_id: The User Story feature ID
+        task_id: The task to mark done (use the id from feature_create_tasks)
+        test_file: Path to the test file written for this task
+        test_count: Number of passing tests
+        test_output: Last test output (will be truncated to 2000 chars)
+
+    Returns:
+        JSON with task status + all_tasks_done flag
+    """
+    session = get_session()
+    try:
+        feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        if feature is None:
+            return json.dumps({"error": f"Feature {feature_id} not found"})
+
+        tasks = feature.tasks
+        if not tasks:
+            return json.dumps({"error": f"Feature {feature_id} has no tasks. Call feature_create_tasks first."})
+
+        task = next((t for t in tasks if t["id"] == task_id), None)
+        if task is None:
+            return json.dumps({"error": f"Task {task_id} not found in feature {feature_id}"})
+
+        task["done"] = True
+        task["test_file"] = test_file
+        task["test_count"] = test_count
+        task["test_output"] = (test_output or "")[:2000] if test_output else None
+
+        session.execute(
+            text("UPDATE features SET tasks = :tasks WHERE id = :id"),
+            {"tasks": json.dumps(tasks), "id": feature_id},
+        )
+        session.commit()
+
+        remaining = [t for t in tasks if not t["done"]]
+        all_done = len(remaining) == 0
+
+        return json.dumps({
+            "success": True,
+            "feature_id": feature_id,
+            "task_id": task_id,
+            "task_name": task["name"],
+            "all_tasks_done": all_done,
+            "remaining_count": len(remaining),
+            "remaining_tasks": [t["name"] for t in remaining],
+            "message": (
+                "All tasks complete — call feature_mark_for_review now."
+                if all_done else
+                f"{len(remaining)} task(s) remaining."
+            ),
+        })
+    except Exception as e:
+        session.rollback()
+        return json.dumps({"error": f"Failed to complete task: {str(e)}"})
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def feature_set_ac_labels(feature_id: int, labels: list) -> str:
+    """Set AC quality labels for each acceptance criterion in a feature.
+
+    Called by the architect agent during sprint-level AC review (before coding starts).
+    Labels are parallel to feature.steps: one label per AC.
+
+    Valid labels:
+    - "auto-testable"  : can be fully verified by testing agent via browser/API
+    - "needs-fixture"  : testable but requires test data setup, mock service, or DB seed
+    - "human-only"     : requires domain judgment, visual UX assessment, or external service
+
+    Args:
+        feature_id: The feature to label.
+        labels: List of label strings, same length and order as feature.steps.
+                Example: ["auto-testable", "needs-fixture", "human-only"]
+
+    Returns:
+        JSON with updated label summary.
+    """
+    if not _session_maker:
+        return json.dumps({"error": "Database not initialized"})
+
+    valid = {"auto-testable", "needs-fixture", "human-only"}
+    for label in labels:
+        if label not in valid:
+            return json.dumps({"error": f"Invalid label '{label}'. Must be one of: {sorted(valid)}"})
+
+    session = _session_maker()
+    try:
+        feature = session.query(_Feature).filter(_Feature.id == feature_id).first()
+        if not feature:
+            return json.dumps({"error": f"Feature {feature_id} not found"})
+
+        steps = feature.steps or []
+        if len(labels) != len(steps):
+            return json.dumps({
+                "error": f"Label count ({len(labels)}) must match AC count ({len(steps)}). "
+                         f"Feature has {len(steps)} acceptance criteria."
+            })
+
+        feature.ac_labels = labels
+        session.commit()
+
+        counts = {lbl: labels.count(lbl) for lbl in valid}
+        human_acs = [steps[i] for i, lbl in enumerate(labels) if lbl == "human-only"]
+        return json.dumps({
+            "feature_id": feature_id,
+            "labels_set": len(labels),
+            "auto_testable": counts["auto-testable"],
+            "needs_fixture": counts["needs-fixture"],
+            "human_only": counts["human-only"],
+            "human_only_acs": human_acs,
+            "message": (
+                f"AC labels stored. {counts['human-only']} AC(s) require human review."
+                if counts["human-only"] > 0
+                else "All ACs are auto-testable or need-fixture — no human review required."
+            ),
+        })
+    except Exception as e:
+        session.rollback()
+        return json.dumps({"error": f"Failed to set AC labels: {str(e)}"})
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def feature_escalate(feature_id: int, reason: str, escalation_type: str) -> str:
+    """Escalate a feature to human review when testing agent cannot verify an AC.
+
+    Called by the testing agent when:
+    - An AC requires domain judgment that cannot be automated (type: human-judgment)
+    - An AC requires an external service that is unavailable (type: external-dependency)
+    - An AC description is too vague to write a reliable test (type: ac-unclear)
+    - Browser automation is unavailable or insufficient (type: no-browser)
+
+    Sets review_status to "needs_human_review" so the feature appears
+    as BLOCKED in mq-devEngine UI for the product owner to resolve.
+
+    Args:
+        feature_id: The feature that cannot be fully verified.
+        reason: Specific description of why the AC cannot be verified.
+                Example: "AC3 'UX feels intuitive' requires human visual judgment"
+        escalation_type: One of: human-judgment | external-dependency | ac-unclear | no-browser
+
+    Returns:
+        JSON confirming escalation.
+    """
+    if not _session_maker:
+        return json.dumps({"error": "Database not initialized"})
+
+    valid_types = {"human-judgment", "external-dependency", "ac-unclear", "no-browser"}
+    if escalation_type not in valid_types:
+        return json.dumps({"error": f"Invalid escalation_type '{escalation_type}'. Must be one of: {sorted(valid_types)}"})
+
+    session = _session_maker()
+    try:
+        feature = session.query(_Feature).filter(_Feature.id == feature_id).first()
+        if not feature:
+            return json.dumps({"error": f"Feature {feature_id} not found"})
+
+        feature.review_status = "needs_human_review"
+        feature.escalation_reason = f"[{escalation_type}] {reason}"
+        session.commit()
+
+        return json.dumps({
+            "feature_id": feature_id,
+            "feature_name": feature.name,
+            "escalation_type": escalation_type,
+            "reason": reason,
+            "status": "needs_human_review",
+            "message": (
+                f"Feature #{feature_id} escalated to human review. "
+                f"Product owner will see it as BLOCKED in mq-devEngine."
+            ),
+        })
+    except Exception as e:
+        session.rollback()
+        return json.dumps({"error": f"Failed to escalate feature: {str(e)}"})
+    finally:
+        session.close()
+
+
 if __name__ == "__main__":
     mcp.run()

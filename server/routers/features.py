@@ -107,6 +107,10 @@ def feature_to_response(f, passing_ids: set[int] | None = None) -> FeatureRespon
         in_progress=f.in_progress if f.in_progress is not None else False,
         blocked=blocked,
         blocking_dependencies=blocking,
+        tasks=f.tasks if isinstance(f.tasks, list) else [],
+        review_status=f.review_status,
+        ac_labels=f.ac_labels if isinstance(f.ac_labels, list) else [],
+        escalation_reason=f.escalation_reason,
     )
 
 
