@@ -320,7 +320,7 @@ function App() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card/80 backdrop-blur-md text-foreground border-b-2 border-border">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="w-full px-6 py-4">
           <div className="flex items-center justify-between">
             {/* Logo and Title */}
             <div className="flex items-center gap-3">
@@ -422,7 +422,7 @@ function App() {
 
       {/* Main Content */}
       <main
-        className="max-w-7xl mx-auto px-4 py-8"
+        className="w-full px-6 py-8"
         style={{ paddingBottom: debugOpen ? debugPanelHeight + 32 : COLLAPSED_DEBUG_PANEL_CLEARANCE }}
       >
         {!selectedProject ? (
