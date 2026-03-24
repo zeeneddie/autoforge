@@ -120,9 +120,9 @@ async def list_features(project_name: str):
     List all features for a project organized by status.
 
     Returns features in three lists:
-    - pending: passes=False, not currently being worked on
-    - in_progress: features currently being worked on (tracked via agent output)
-    - done: passes=True
+    - pending: passes=False, not currently being worked on (filtered to active cycle)
+    - in_progress: features currently being worked on (all cycles)
+    - done: passes=True (filtered to active cycle)
     """
     project_name = validate_project_name(project_name)
     project_dir = _get_project_path(project_name)
@@ -140,6 +140,14 @@ async def list_features(project_name: str):
 
     _, Feature = _get_db_classes()
 
+    # Get active cycle to scope pending/done columns
+    import sys
+    root = __import__("pathlib").Path(__file__).parent.parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from registry import get_planning_setting
+    active_cycle_id = get_planning_setting("planning_active_cycle_id", project_name)
+
     try:
         with get_db_session(project_dir) as session:
             all_features = session.query(Feature).order_by(Feature.priority).all()
@@ -154,11 +162,16 @@ async def list_features(project_name: str):
             for f in all_features:
                 feature_response = feature_to_response(f, passing_ids)
                 if f.passes:
-                    done.append(feature_response)
+                    # Done: only show active sprint features (when cycle filtering is active)
+                    if active_cycle_id is None or f.cycle_id == active_cycle_id:
+                        done.append(feature_response)
                 elif f.in_progress:
+                    # In Progress: always show all (agent may be mid-sprint)
                     in_progress.append(feature_response)
                 else:
-                    pending.append(feature_response)
+                    # Pending: only show active sprint features
+                    if active_cycle_id is None or f.cycle_id == active_cycle_id:
+                        pending.append(feature_response)
 
             return FeatureListResponse(
                 pending=pending,

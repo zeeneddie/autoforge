@@ -61,6 +61,7 @@ class Feature(Base):
     # NULL/empty = no dependencies (backwards compatible)
     dependencies = Column(JSON, nullable=True, default=None)
     # Planning sync fields
+    cycle_id = Column(String(36), nullable=True, index=True)  # Plane cycle UUID (sprint)
     planning_work_item_id = Column(String(36), nullable=True, unique=True, index=True)
     planning_parent_work_item_id = Column(String(36), nullable=True, index=True)
     planning_synced_at = Column(DateTime, nullable=True)
@@ -673,6 +674,19 @@ def _migrate_add_tasks_column(engine) -> None:
             conn.commit()
 
 
+def _migrate_add_cycle_id_column(engine) -> None:
+    """Add cycle_id column to features table (sprint-scoped feature view)."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if "cycle_id" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN cycle_id VARCHAR(36) DEFAULT NULL"
+            ))
+            conn.commit()
+
+
 def _migrate_add_ac_labels_column(engine) -> None:
     """Add ac_labels + escalation_reason columns (AC review by architect agent)."""
     with engine.connect() as conn:
@@ -810,6 +824,9 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add ac_labels + escalation_reason (AC review + testing escalation)
     _migrate_add_ac_labels_column(engine)
+
+    # Migrate to add cycle_id (sprint-scoped feature view)
+    _migrate_add_cycle_id_column(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

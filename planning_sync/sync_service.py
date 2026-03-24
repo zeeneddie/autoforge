@@ -229,6 +229,7 @@ def import_cycle(
                     planning_parent_work_item_id=(
                         item.parent if item.parent and item.parent in feature_context else None
                     ),
+                    cycle_id=cycle_id,
                     planning_synced_at=datetime.now(timezone.utc),
                     planning_updated_at=(
                         datetime.fromisoformat(item.updated_at)
