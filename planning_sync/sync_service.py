@@ -307,20 +307,19 @@ def import_cycle(
         if sibling_deps_set:
             logger.info("Set sequential sibling dependencies for %d features", sibling_deps_set)
 
-        # Auto-mark container features (those with children in this cycle) as passes=True.
-        # Containers are skipped during import — they are not implemented by agents.
-        # Mark them passing so sub-features with container-parent deps can start.
+        # Mark container features as in_progress (not passing yet).
+        # A container moves to Done only when ALL sub-features pass — handled by
+        # feature_mark_passing auto-complete logic (name-prefix matching).
         containers_marked = 0
         for container_planning_id in cycle_parent_ids:
             container_feat = session.query(Feature).filter(
                 Feature.planning_work_item_id == container_planning_id
             ).first()
             if container_feat and not container_feat.passes:
-                container_feat.passes = True
-                container_feat.in_progress = False
+                container_feat.in_progress = True
                 containers_marked += 1
         if containers_marked:
-            logger.info("Marked %d container features as passing", containers_marked)
+            logger.info("Marked %d container features as in_progress (awaiting subs)", containers_marked)
 
         session.commit()
 
