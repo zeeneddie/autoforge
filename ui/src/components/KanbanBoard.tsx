@@ -62,6 +62,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandProject, activeAgents = [], onCreateSpec, hasSpec = true, onShowDialogue, featureHasLogs, projectName }: KanbanBoardProps) {
   const [expandedPending, setExpandedPending] = useState<string | null>(null)
+  const [expandedInProgress, setExpandedInProgress] = useState<string | null>(null)
   const [expandedDone, setExpandedDone] = useState<string | null>(null)
 
   const hasFeatures = features && (features.pending.length + features.in_progress.length + features.done.length) > 0
@@ -115,13 +116,16 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
       <KanbanColumn
         title="In Progress"
         count={features.in_progress.length}
-        features={features.in_progress}
+        features={sortHierarchical(features.in_progress)}
         allFeatures={allFeatures}
         activeAgents={activeAgents}
         color="progress"
         onFeatureClick={onFeatureClick}
         onShowDialogue={onShowDialogue}
         featureHasLogs={featureHasLogs}
+        accordionMode={true}
+        expandedParent={expandedInProgress}
+        onToggleParent={setExpandedInProgress}
       />
       <KanbanColumn
         title="Done"

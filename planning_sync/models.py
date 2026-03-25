@@ -31,7 +31,7 @@ class PlanningCycle(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     owned_by: str | None = None
-    status: str | None = None  # current, upcoming, completed, draft
+    status: str | None = None  # current, upcoming, overdue, completed, draft
     progress: float = 0
     total_issues: int = 0
     completed_issues: int = 0
@@ -156,7 +156,7 @@ class PlanningCycleSummary(BaseModel):
     name: str
     start_date: str | None = None
     end_date: str | None = None
-    status: str | None = None
+    status: str | None = None  # current, upcoming, overdue, completed, draft
     total_issues: int = 0
     completed_issues: int = 0
 
@@ -217,6 +217,8 @@ class SprintStats(BaseModel):
 
     total: int = 0
     passing: int = 0
+    in_progress: int = 0
+    blocked: int = 0
     failed: int = 0
     total_test_runs: int = 0
     overall_pass_rate: float = 0.0

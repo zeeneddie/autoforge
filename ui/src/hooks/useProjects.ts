@@ -4,7 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import type { FeatureCreate, FeatureUpdate, ModelsResponse, ProjectSettingsUpdate, ProvidersListResponse, Settings, SettingsUpdate, PlanningConfigUpdate } from '../lib/types'
+import type { FeatureCreate, FeatureUpdate, ModelsResponse, ProjectSettingsUpdate, ProvidersListResponse, Settings, SettingsUpdate, PlanningConfigUpdate, BurndownResponse } from '../lib/types'
 
 // ============================================================================
 // Projects
@@ -492,6 +492,17 @@ export function useReleaseNotesContent(projectName: string | null, filename: str
     queryFn: () => api.getReleaseNotesContent(projectName!, filename!),
     enabled: !!projectName && !!filename,
     staleTime: 300000,
+    retry: 1,
+  })
+}
+
+export function useBurndown(projectName: string | null) {
+  return useQuery<BurndownResponse>({
+    queryKey: ['burndown', projectName],
+    queryFn: () => api.getBurndown(projectName!),
+    enabled: !!projectName,
+    refetchInterval: 60000,
+    staleTime: 30000,
     retry: 1,
   })
 }

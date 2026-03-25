@@ -10,6 +10,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy.orm.attributes import flag_modified
+
 from .client import PlanningApiClient, PlanningApiError
 from .mapper import feature_status_to_planning_update, find_state_id_for_group, state_group_for_id, work_item_to_feature_dict
 from .models import PlanningImportDetail, PlanningImportResult, PlanningOutboundResult
@@ -289,21 +291,36 @@ def import_cycle(
             logger.info("Updated sort_order for %d items in cycle", sort_updated)
 
         # Set sequential sibling dependencies: 2.4.2 depends on 2.4.1, etc.
-        # Sort siblings by name (numeric prefix order) and chain them.
-        # Only set if the feature has no explicit dependencies yet (don't override).
+        # Always override — parent-container deps (set by mapper) are replaced
+        # by proper sibling chain. First sibling gets no deps.
         sibling_deps_set = 0
-        for siblings in parent_to_sibling_features.values():
+        for parent_uuid, siblings in parent_to_sibling_features.items():
+            siblings_sorted = sorted(siblings, key=lambda f: f.name)
+            # First sibling: clear container-parent dep (it depends on nothing)
+            siblings_sorted[0].dependencies = None
             if len(siblings) < 2:
                 continue
-            siblings_sorted = sorted(siblings, key=lambda f: f.name)
             for i in range(1, len(siblings_sorted)):
-                curr = siblings_sorted[i]
-                if not curr.dependencies:
-                    curr.dependencies = [siblings_sorted[i - 1].id]
-                    sibling_deps_set += 1
+                siblings_sorted[i].dependencies = [siblings_sorted[i - 1].id]
+                sibling_deps_set += 1
 
         if sibling_deps_set:
             logger.info("Set sequential sibling dependencies for %d features", sibling_deps_set)
+
+        # Auto-mark container features (those with children in this cycle) as passes=True.
+        # Containers are skipped during import — they are not implemented by agents.
+        # Mark them passing so sub-features with container-parent deps can start.
+        containers_marked = 0
+        for container_planning_id in cycle_parent_ids:
+            container_feat = session.query(Feature).filter(
+                Feature.planning_work_item_id == container_planning_id
+            ).first()
+            if container_feat and not container_feat.passes:
+                container_feat.passes = True
+                container_feat.in_progress = False
+                containers_marked += 1
+        if containers_marked:
+            logger.info("Marked %d container features as passing", containers_marked)
 
         session.commit()
 
@@ -350,26 +367,35 @@ def sync_tasks_to_plane(
         logger.warning("sync_tasks_to_plane: could not build client: %s", e)
         return 0
 
+    # Derive numeric prefix from feature name ("3.1 Foo" → "3.1")
+    import re as _re
+    _pfx_match = _re.match(r'^(\d+(?:\.\d+)*)', feature.name)
+    feature_prefix = _pfx_match.group(1) if _pfx_match else None
+
     try:
         states = client.list_states()
         unstarted_id = find_state_id_for_group("unstarted", states)
 
         created = 0
         new_ids = []
-        for task in tasks:
+        for idx, task in enumerate(tasks):
             if task.get("planning_work_item_id"):
                 continue
+            sub_name = (
+                f"{feature_prefix}.{idx + 1} {task['name']}"
+                if feature_prefix else task["name"]
+            )
             try:
                 resp = client.create_work_item({
-                    "name": task["name"],
+                    "name": sub_name,
                     "description_html": f"<p>{task.get('description', '')}</p>",
                     "parent": feature.planning_work_item_id,
                     "state": unstarted_id,
                     "priority": "none",
                 })
-                if resp and resp.get("id"):
-                    task["planning_work_item_id"] = resp["id"]
-                    new_ids.append(resp["id"])
+                if resp and resp.id:
+                    task["planning_work_item_id"] = resp.id
+                    new_ids.append(resp.id)
                     created += 1
             except Exception as e:
                 logger.warning("sync_tasks_to_plane: failed to create task '%s': %s", task.get("name"), e)
@@ -382,11 +408,90 @@ def sync_tasks_to_plane(
                 logger.warning("sync_tasks_to_plane: failed to add tasks to cycle: %s", e)
 
         if created:
-            feature.tasks = list(tasks)  # trigger JSON update
+            feature.tasks = list(tasks)
+            flag_modified(feature, "tasks")
             session.commit()
             logger.info(
                 "sync_tasks_to_plane: created %d child items in Plane for feature %d (%s)",
                 created, feature.id, feature.name,
+            )
+    finally:
+        client.close()
+
+    return created
+
+
+def sync_sub_features_to_plane(
+    parent_feature,
+    session,
+    project_name: str,
+) -> int:
+    """Create Plane child work items for Option-B sub-features (Feature DB records).
+
+    Finds Feature records whose planning_parent_work_item_id matches the parent's
+    planning_work_item_id and that have no planning_work_item_id yet.
+    Idempotent: skips sub-features already synced.
+    Returns count of child items created.
+    """
+    if not parent_feature.planning_work_item_id:
+        return 0
+
+    try:
+        from api.database import Feature as _Feature  # local import to avoid circular deps
+    except Exception:
+        _Feature = None
+
+    if _Feature is None:
+        return 0
+
+    sub_features = session.query(_Feature).filter(
+        _Feature.planning_parent_work_item_id == parent_feature.planning_work_item_id,
+        _Feature.planning_work_item_id.is_(None),
+    ).all()
+
+    if not sub_features:
+        return 0
+
+    try:
+        client = _build_client_for_project(project_name)
+    except Exception as e:
+        logger.warning("sync_sub_features_to_plane: could not build client: %s", e)
+        return 0
+
+    try:
+        states = client.list_states()
+        unstarted_id = find_state_id_for_group("unstarted", states)
+
+        created = 0
+        new_ids = []
+        for sub in sub_features:
+            try:
+                resp = client.create_work_item({
+                    "name": sub.name,
+                    "description_html": f"<p>{sub.description}</p>",
+                    "parent": parent_feature.planning_work_item_id,
+                    "state": unstarted_id,
+                    "priority": "none",
+                })
+                if resp and resp.id:
+                    sub.planning_work_item_id = resp.id
+                    new_ids.append(resp.id)
+                    created += 1
+            except Exception as e:
+                logger.warning("sync_sub_features_to_plane: failed for '%s': %s", sub.name, e)
+
+        # Add sub-features to the active cycle
+        if new_ids and parent_feature.cycle_id:
+            try:
+                client.add_work_items_to_cycle(parent_feature.cycle_id, new_ids)
+            except Exception as e:
+                logger.warning("sync_sub_features_to_plane: failed to add to cycle: %s", e)
+
+        if created:
+            session.commit()
+            logger.info(
+                "sync_sub_features_to_plane: created %d child items in Plane for feature %d (%s)",
+                created, parent_feature.id, parent_feature.name,
             )
     finally:
         client.close()

@@ -2757,30 +2757,60 @@ class ParallelOrchestrator:
                     batch_names = [f"{f['id']}:{f['name']}" for f in batch]
                     logger.debug("Starting batch: %s", batch_ids)
 
-                    # Run story planner for features without tasks (if architect_enabled)
+                    # Run story planner for features without tasks/sub-features (if architect_enabled)
                     if self._is_architect_enabled():
                         for feature_dict in batch:
                             if not feature_dict.get("tasks"):
                                 fid = feature_dict["id"]
+                                # Skip if sub-features already exist in DB (Option B: already planned)
+                                try:
+                                    from planning_sync.sync_service import _get_db_classes
+                                    import re as _re
+                                    _create_db, _Feature = _get_db_classes()
+                                    _, _SessionLocal = _create_db(self.project_dir)
+                                    _s = _SessionLocal()
+                                    try:
+                                        _pfx = _re.match(r'^(\d+(?:\.\d+)*)', feature_dict.get("name", ""))
+                                        _parent_prefix = _pfx.group(1) if _pfx else None
+                                        _has_sub = _parent_prefix and _s.query(_Feature).filter(
+                                            _Feature.name.like(f"{_parent_prefix}.%")
+                                        ).count() > 0
+                                    finally:
+                                        _s.close()
+                                except Exception:
+                                    _has_sub = False
+
+                                if _has_sub:
+                                    logger.debug("Skipping story-planner for feature %d: sub-features already exist", fid)
+                                    continue
+
                                 print(f"Running story-planner for feature #{fid}: {feature_dict['name']}", flush=True)
                                 await self._run_story_planner(fid)
-                                # Push newly created tasks to Plane as child items
+                                # Push newly created sub-features (Option B) or tasks (legacy) to Plane
                                 try:
                                     from registry import get_project_name_for_dir
-                                    from planning_sync.sync_service import sync_tasks_to_plane, _get_db_classes
+                                    from planning_sync.sync_service import (
+                                        sync_tasks_to_plane,
+                                        sync_sub_features_to_plane,
+                                        _get_db_classes,
+                                    )
                                     pname = get_project_name_for_dir(self.project_dir)
                                     if pname:
-                                        create_db, Feature = _get_db_classes()
-                                        _, SessionLocal = create_db(self.project_dir)
-                                        s = SessionLocal()
+                                        _create_db2, _Feature2 = _get_db_classes()
+                                        _, _SL2 = _create_db2(self.project_dir)
+                                        _s2 = _SL2()
                                         try:
-                                            feat = s.query(Feature).filter(Feature.id == fid).first()
-                                            if feat and feat.tasks:
-                                                sync_tasks_to_plane(feat, s, pname)
+                                            feat = _s2.query(_Feature2).filter(_Feature2.id == fid).first()
+                                            if feat:
+                                                # Option B: sync Feature sub-records
+                                                synced = sync_sub_features_to_plane(feat, _s2, pname)
+                                                # Legacy fallback: sync JSON tasks if no sub-features were created
+                                                if synced == 0 and feat.tasks:
+                                                    sync_tasks_to_plane(feat, _s2, pname)
                                         finally:
-                                            s.close()
+                                            _s2.close()
                                 except Exception as _e:
-                                    logger.warning("Auto sync_tasks_to_plane failed for feature %d: %s", fid, _e)
+                                    logger.warning("Auto sync after story-planner failed for feature %d: %s", fid, _e)
 
                     success, msg = self.start_feature_batch(batch_ids)
                     if not success:
@@ -2971,6 +3001,10 @@ async def run_story_planner_standalone(
     if model:
         cmd.extend(["--model", model])
 
+    # Remove CLAUDECODE to allow nested Claude Code session
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    env["PYTHONUNBUFFERED"] = "1"
+
     proc = subprocess.Popen(
         cmd,
         stdin=subprocess.DEVNULL,
@@ -2980,7 +3014,7 @@ async def run_story_planner_standalone(
         encoding="utf-8",
         errors="replace",
         cwd=str(AUTOFORGE_ROOT),
-        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        env=env,
     )
 
     loop = asyncio.get_running_loop()

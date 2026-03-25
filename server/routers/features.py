@@ -6,7 +6,9 @@ API endpoints for feature/test case management.
 """
 
 import logging
+from collections import defaultdict
 from contextlib import contextmanager
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -16,6 +18,8 @@ from ..schemas import (
     AgentLogResponse,
     AgentLogsListResponse,
     AgentRunSummary,
+    BurndownDataPoint,
+    BurndownResponse,
     DependencyGraphEdge,
     DependencyGraphNode,
     DependencyGraphResponse,
@@ -312,6 +316,89 @@ async def create_features_bulk(project_name: str, bulk: FeatureBulkCreate):
     except Exception:
         logger.exception("Failed to bulk create features")
         raise HTTPException(status_code=500, detail="Failed to bulk create features")
+
+
+@router.get("/burndown", response_model=BurndownResponse)
+async def get_burndown(project_name: str):
+    """Return sprint burn-down time series for the active cycle.
+
+    Uses passed_at timestamps to compute daily cumulative completions.
+    Returns one data point per day from the first passing date to today.
+    """
+    project_name = validate_project_name(project_name)
+    project_dir = _get_project_path(project_name)
+    if not project_dir or not project_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Project '{project_name}' not found")
+
+    from devengine_paths import get_features_db_path
+    db_file = get_features_db_path(project_dir)
+    if not db_file.exists():
+        return BurndownResponse(points=[], total=0)
+
+    _, Feature = _get_db_classes()
+
+    import sys
+    root = __import__("pathlib").Path(__file__).parent.parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from registry import get_planning_setting
+    active_cycle_id = get_planning_setting("planning_active_cycle_id", project_name)
+
+    try:
+        with get_db_session(project_dir) as session:
+            cycle_features = session.query(Feature).filter(
+                Feature.cycle_id == active_cycle_id if active_cycle_id else Feature.id.isnot(None)
+            ).all()
+
+            if not cycle_features:
+                return BurndownResponse(points=[], total=0)
+
+            total = len(cycle_features)
+
+            # Group passed_at by date
+            passed_by_date: dict[date, int] = defaultdict(int)
+            for f in cycle_features:
+                if f.passes and f.passed_at:
+                    d = f.passed_at.date() if hasattr(f.passed_at, 'date') else date.fromisoformat(str(f.passed_at)[:10])
+                    passed_by_date[d] += 1
+
+            if not passed_by_date:
+                # No data yet — return empty with total
+                return BurndownResponse(points=[], total=total)
+
+            start = min(passed_by_date.keys())
+            end = date.today()
+
+            points = []
+            cumulative = 0
+            current = start
+            while current <= end:
+                cumulative += passed_by_date.get(current, 0)
+                points.append(BurndownDataPoint(
+                    date=current.isoformat(),
+                    total=total,
+                    remaining=total - cumulative,
+                    passed=cumulative,
+                ))
+                current += timedelta(days=1)
+
+            # Sprint name from sync status
+            sprint_name = None
+            try:
+                from registry import get_planning_setting as gps
+                from planning_sync.background import get_sync_manager
+                mgr = get_sync_manager()
+                status = mgr.get_status(project_name)
+                sprint_name = status.get("active_cycle_name")
+            except Exception:
+                pass
+
+            return BurndownResponse(points=points, total=total, sprint_name=sprint_name)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to get burndown data")
+        raise HTTPException(status_code=500, detail="Failed to get burndown data")
 
 
 @router.get("/graph", response_model=DependencyGraphResponse)

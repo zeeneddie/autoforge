@@ -117,11 +117,18 @@ class PlanningSyncLoop:
                     )
                 ).all()
                 linked_ids = []
+                in_progress = 0
+                blocked = 0
                 for f in linked:
                     total += 1
                     linked_ids.append(f.id)
                     if f.passes:
                         passing += 1
+                    elif f.in_progress:
+                        in_progress += 1
+                    elif f.dependencies and not f.passes:
+                        # Check if blocked by an incomplete dependency
+                        blocked += 1
 
                 if linked_ids:
                     stats = session.query(
@@ -145,6 +152,8 @@ class PlanningSyncLoop:
             status["sprint_stats"] = {
                 "total": total,
                 "passing": passing,
+                "in_progress": in_progress,
+                "blocked": blocked,
                 "failed": total - passing,
                 "total_test_runs": total_test_runs,
                 "overall_pass_rate": round(pass_rate, 1),

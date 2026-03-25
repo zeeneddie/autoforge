@@ -213,6 +213,21 @@ class DependencyGraphResponse(BaseModel):
     edges: list[DependencyGraphEdge]
 
 
+class BurndownDataPoint(BaseModel):
+    """Single day in a sprint burn-down chart."""
+    date: str          # ISO date string "2026-03-24"
+    total: int         # total features in sprint
+    remaining: int     # features not yet passing on this day
+    passed: int        # cumulative passed by end of day
+
+
+class BurndownResponse(BaseModel):
+    """Sprint burn-down time series."""
+    points: list[BurndownDataPoint]
+    total: int
+    sprint_name: str | None = None
+
+
 class DependencyUpdate(BaseModel):
     """Request schema for updating a feature's dependencies."""
     dependency_ids: list[int] = Field(..., max_length=20)  # Security: limit

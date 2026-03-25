@@ -29,6 +29,7 @@ orchestrator, not by agents. Agents receive pre-assigned feature IDs.
 
 import json
 import os
+import re
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -345,7 +346,8 @@ def feature_mark_passing(
         # Atomic update with state guard - prevents double-pass in parallel mode
         result = session.execute(text("""
             UPDATE features
-            SET passes = 1, in_progress = 0
+            SET passes = 1, in_progress = 0,
+                passed_at = COALESCE(passed_at, CURRENT_TIMESTAMP)
             WHERE id = :id AND passes = 0
         """), {"id": feature_id})
         session.commit()
@@ -361,7 +363,29 @@ def feature_mark_passing(
 
         # Get the feature name for the response
         feature = session.query(Feature).filter(Feature.id == feature_id).first()
-        return json.dumps({"success": True, "feature_id": feature_id, "name": feature.name})
+
+        # Auto-complete parent container when all its sub-features are passing.
+        # Detects depth-3+ names like "3.1.2 Foo" and finds parent "3.1 Bar".
+        parent_prefix = None
+        if feature:
+            _m = re.match(r'^(\d+(?:\.\d+)+)\.\d+', feature.name)
+            if _m:
+                parent_prefix = _m.group(1)
+        if parent_prefix:
+            _siblings = session.query(Feature).filter(
+                Feature.name.like(f"{parent_prefix}.%")
+            ).all()
+            if _siblings and all(s.passes for s in _siblings):
+                _parent = session.query(Feature).filter(
+                    Feature.name.like(f"{parent_prefix} %")
+                ).first()
+                if _parent and not _parent.passes:
+                    session.execute(text(
+                        "UPDATE features SET passes = 1, in_progress = 0 WHERE id = :id AND passes = 0"
+                    ), {"id": _parent.id})
+                    session.commit()
+
+        return json.dumps({"success": True, "feature_id": feature_id, "name": feature.name if feature else str(feature_id)})
     except Exception as e:
         session.rollback()
         return json.dumps({"error": f"Failed to mark feature passing: {str(e)}"})
@@ -1633,6 +1657,95 @@ def feature_create_tasks(
     except Exception as e:
         session.rollback()
         return json.dumps({"error": f"Failed to create tasks: {str(e)}"})
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def feature_create_sub_features(
+    feature_id: Annotated[int, Field(description="The parent User Story feature ID", ge=1)],
+    tasks: Annotated[list[dict], Field(description=(
+        "List of task dicts, each with: name (str), description (str), "
+        "acceptance_criteria (list[str], optional). "
+        "Example: [{\"name\": \"Prisma migration\", \"description\": \"Add deletedAt column\"}]"
+    ))],
+    sequential: Annotated[bool, Field(description=(
+        "If True (default), chain deps so task N+1 waits for task N. "
+        "Set False for fully independent tasks."
+    ))] = True,
+) -> str:
+    """Create Feature DB sub-records for a User Story (Option B story planning).
+
+    Creates proper Feature records (3.1.1, 3.1.2, ...) instead of JSON tasks.
+    Each sub-feature can be assigned to a different agent and tracked individually.
+    Sequential dependencies are auto-chained (3.1.2 waits for 3.1.1, etc.).
+    The parent feature auto-completes when all sub-features pass.
+
+    Args:
+        feature_id: Parent User Story feature ID
+        tasks: List of {name, description} dicts (3-8 tasks recommended)
+        sequential: Chain dependencies sequentially (default True)
+
+    Returns:
+        JSON with created sub-feature IDs and names
+    """
+    session = get_session()
+    try:
+        parent = session.query(Feature).filter(Feature.id == feature_id).first()
+        if parent is None:
+            return json.dumps({"error": f"Feature {feature_id} not found"})
+
+        # Extract numeric prefix from parent name ("3.1 Foo" → "3.1")
+        _pfx = re.match(r'^(\d+(?:\.\d+)*)', parent.name)
+        parent_prefix = _pfx.group(1) if _pfx else str(feature_id)
+
+        # Check if sub-features already exist for this parent (idempotency guard)
+        existing = session.query(Feature).filter(
+            Feature.name.like(f"{parent_prefix}.%")
+        ).count()
+        if existing > 0:
+            return json.dumps({"error": f"Sub-features already exist for {parent_prefix}. Delete them first to re-plan."})
+
+        created_ids: list[int] = []
+        created_names: list[str] = []
+
+        for idx, task in enumerate(tasks):
+            sub_name = f"{parent_prefix}.{idx + 1} {task['name']}"
+            deps = [created_ids[-1]] if sequential and created_ids else []
+            ac = task.get("acceptance_criteria") or []
+            if isinstance(ac, str):
+                ac = [ac]
+
+            sub = Feature(
+                priority=parent.priority * 100 + idx,
+                category=parent.category,
+                name=sub_name,
+                description=task.get("description", ""),
+                steps=[],
+                passes=False,
+                in_progress=False,
+                dependencies=deps if deps else None,
+                cycle_id=parent.cycle_id,
+                planning_parent_work_item_id=parent.planning_work_item_id,
+                acceptance_criteria=ac if ac else None,
+            )
+            session.add(sub)
+            session.flush()  # populate sub.id without committing
+            created_ids.append(sub.id)
+            created_names.append(sub_name)
+
+        session.commit()
+        return json.dumps({
+            "success": True,
+            "parent_feature_id": feature_id,
+            "sub_feature_count": len(created_ids),
+            "sub_feature_ids": created_ids,
+            "sub_feature_names": created_names,
+            "message": f"Created {len(created_ids)} sub-features for story #{feature_id} ({parent_prefix}.*)",
+        })
+    except Exception as e:
+        session.rollback()
+        return json.dumps({"error": f"Failed to create sub-features: {str(e)}"})
     finally:
         session.close()
 

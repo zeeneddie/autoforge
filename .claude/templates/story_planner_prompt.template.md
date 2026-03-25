@@ -47,16 +47,17 @@ Create **3–8 tasks** ordered by implementation dependency (infrastructure firs
 - Each task MUST be testable with a unit or integration test
 - Name should be specific: `"DeleteAccountCommand handler"` not `"backend work"`
 - Description should reference exact file paths / class names when known from architecture memory
+- Add `acceptance_criteria` list if the task has verifiable outputs (e.g. ["Migration adds deletedAt column", "Unit test green"])
 - Estimated size: 30–90 minutes of development work
 - Max 8 tasks — if you need more, the story is **too large**
 
 ### If the story is too large (> 8 tasks needed)
 
-Do NOT call `feature_create_tasks` with more than 8 tasks.
-Instead, call `feature_create_tasks` with a single task that describes the split:
+Do NOT call `feature_create_sub_features` with more than 8 tasks.
+Instead, call `feature_create_sub_features` with a single task that describes the split:
 
 ```
-feature_create_tasks(
+feature_create_sub_features(
   feature_id=<ID>,
   tasks=[
     {
@@ -69,15 +70,17 @@ feature_create_tasks(
 
 The orchestrator will surface this to the product owner. Do not implement anything.
 
-### STEP 5: Store the task breakdown
+### STEP 5: Store the task breakdown as sub-features
 
-Call `feature_create_tasks` with the task list:
+Call `feature_create_sub_features` with the task list. Tasks will be created as proper Feature records
+(3.1.1, 3.1.2, …) that agents can pick up independently, with sequential dependencies auto-chained:
 
 ```
-feature_create_tasks(
+feature_create_sub_features(
   feature_id=<ID>,
+  sequential=True,
   tasks=[
-    {"name": "...", "description": "..."},
+    {"name": "...", "description": "...", "acceptance_criteria": ["AC1", "AC2"]},
     ...
   ]
 )
@@ -85,15 +88,17 @@ feature_create_tasks(
 
 ### STEP 6: Done
 
-You are finished. Do NOT implement anything. The coding agent will take over.
+You are finished. Do NOT implement anything. The coding agent will take over from the sub-features.
 
 ---
 
 ## IMPORTANT REMINDERS
 
-- **Do NOT write any code** — your only output is the task list via `feature_create_tasks`
+- **Do NOT write any code** — your only output is the task list via `feature_create_sub_features`
 - Use architecture memory for exact class/file names — don't invent conventions
 - If the story description says `[Feature: X]` — use that as domain context, not scope
 - The ACs in the feature are for the **testing agent** — your tasks are for the **coding agent**
 - Tasks should be atomic enough that each can have its own unit test
 - If the story is trivially small (1–2 tasks), that's fine — don't pad
+- Use `sequential=True` (default) for most stories — coding tasks depend on each other
+- Use `sequential=False` only for fully independent tasks (e.g., parallel UI components)

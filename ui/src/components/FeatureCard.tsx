@@ -17,6 +17,7 @@ interface FeatureCardProps {
   hasDialogueLogs?: boolean
   onShowDialogue?: (featureId: number) => void
   subItemCount?: number
+  subItemsDone?: number
   projectName?: string
 }
 
@@ -135,7 +136,7 @@ function TasksPopup({ feature }: { feature: Feature }) {
   )
 }
 
-export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], activeAgent, hasDialogueLogs, onShowDialogue, subItemCount, projectName }: FeatureCardProps) {
+export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], activeAgent, hasDialogueLogs, onShowDialogue, subItemCount, subItemsDone, projectName }: FeatureCardProps) {
   const [tasksOpen, setTasksOpen] = useState(false)
   const breakdown = useBreakdown(projectName ?? '')
   const categoryColor = getCategoryColor(feature.category)
@@ -223,6 +224,38 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Sub-feature progress bar (for parent features with Feature DB sub-records) */}
+        {subItemCount !== undefined && subItemCount > 0 && (
+          <div className="space-y-0.5">
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>Sub-features</span>
+              <span className="font-mono">{subItemsDone ?? 0}/{subItemCount}</span>
+            </div>
+            <div className="h-1 bg-muted rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${(subItemsDone ?? 0) === subItemCount ? 'bg-primary' : 'bg-primary/60'}`}
+                style={{ width: `${((subItemsDone ?? 0) / subItemCount) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Inline task progress bar (visible on card without opening modal) */}
+        {tasks.length > 0 && (
+          <div className="space-y-0.5">
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>Taken</span>
+              <span className="font-mono">{tasksDone}/{tasks.length}</span>
+            </div>
+            <div className="h-1 bg-muted rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${tasksDone === tasks.length ? 'bg-primary' : 'bg-primary/60'}`}
+                style={{ width: `${(tasksDone / tasks.length) * 100}%` }}
+              />
             </div>
           </div>
         )}

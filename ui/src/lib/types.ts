@@ -730,6 +730,8 @@ export interface PlanningImportDetail {
 export interface SprintStats {
   total: number
   passing: number
+  in_progress: number
+  blocked: number
   failed: number
   total_test_runs?: number
   overall_pass_rate?: number
@@ -810,6 +812,20 @@ export interface SprintCompletionResult {
   change_log: string
   release_notes_path: string | null
   error: string | null
+}
+
+// Burn-down chart types
+export interface BurndownDataPoint {
+  date: string       // ISO date string e.g. "2026-03-20"
+  total: number      // Total features in sprint
+  remaining: number  // Features not yet passing
+  passed: number     // Cumulative passing features
+}
+
+export interface BurndownResponse {
+  points: BurndownDataPoint[]
+  total: number
+  sprint_name: string | null
 }
 
 // Stuck State types

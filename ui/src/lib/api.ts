@@ -45,6 +45,7 @@ import type {
   ReleaseNotesContent,
   ProvidersListResponse,
   StuckStateData,
+  BurndownResponse,
 } from './types'
 
 const API_BASE = '/api'
@@ -672,6 +673,11 @@ export async function getReleaseNotesContent(
 ): Promise<ReleaseNotesContent> {
   const params = new URLSearchParams({ project_name: projectName, filename })
   return fetchJSON(`/planning/release-notes/content?${params}`)
+}
+
+// Burn-down API
+export async function getBurndown(projectName: string): Promise<BurndownResponse> {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/features/burndown`)
 }
 
 // Stuck State API

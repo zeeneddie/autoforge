@@ -66,7 +66,7 @@ _CODING_TOOLS = [
 
 _STORY_PLANNER_TOOLS = [
     "mcp__features__feature_get_by_id",
-    "mcp__features__feature_create_tasks",
+    "mcp__features__feature_create_sub_features",
     # Session memory tools — reads architecture decisions
     "mcp__features__memory_recall",
 ]

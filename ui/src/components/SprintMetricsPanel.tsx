@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { usePlanningSyncStatus, useTestReport } from '../hooks/useProjects'
-import { Trophy, Activity, Zap, AlertCircle } from 'lucide-react'
+import { usePlanningSyncStatus, useTestReport, useBurndown } from '../hooks/useProjects'
+import { Trophy, Activity, Zap, AlertCircle, Clock, Ban, TrendingDown } from 'lucide-react'
+import { BurndownChart } from './BurndownChart'
 
 interface SprintMetricsPanelProps {
   projectName: string
@@ -10,6 +11,7 @@ interface SprintMetricsPanelProps {
 export function SprintMetricsPanel({ projectName }: SprintMetricsPanelProps) {
   const { data: syncStatus, isLoading: syncLoading } = usePlanningSyncStatus()
   const { data: report, isLoading: reportLoading } = useTestReport(projectName, true)
+  const { data: burndown } = useBurndown(projectName)
 
   if (syncLoading || reportLoading) {
     return (
@@ -48,26 +50,61 @@ export function SprintMetricsPanel({ projectName }: SprintMetricsPanelProps) {
               </div>
               {stats && (
                 <>
+                  {/* Stacked progress bar: Done | In Progress | Blocked | Pending */}
                   <div>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-muted-foreground">Features Passing</span>
-                      <span className="font-medium">{stats.passing} / {stats.total}</span>
+                      <span className="text-muted-foreground">Sprint voortgang</span>
+                      <span className="font-medium">{stats.passing} / {stats.total} klaar</span>
                     </div>
-                    <div className="h-3 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-500 rounded-full transition-all"
-                        style={{
-                          width: stats.total > 0 ? `${(stats.passing / stats.total) * 100}%` : '0%',
-                        }}
-                      />
+                    <div className="h-3 bg-muted rounded-full overflow-hidden flex">
+                      {stats.total > 0 && (
+                        <>
+                          <div
+                            className="h-full bg-green-500 transition-all"
+                            style={{ width: `${(stats.passing / stats.total) * 100}%` }}
+                            title={`${stats.passing} passing`}
+                          />
+                          <div
+                            className="h-full bg-primary/70 transition-all"
+                            style={{ width: `${((stats.in_progress ?? 0) / stats.total) * 100}%` }}
+                            title={`${stats.in_progress ?? 0} in progress`}
+                          />
+                          <div
+                            className="h-full bg-orange-400 transition-all"
+                            style={{ width: `${((stats.blocked ?? 0) / stats.total) * 100}%` }}
+                            title={`${stats.blocked ?? 0} blocked`}
+                          />
+                        </>
+                      )}
+                    </div>
+                    {/* Legend */}
+                    <div className="flex gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{stats.passing} klaar</span>
+                      {(stats.in_progress ?? 0) > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary/70 inline-block" />{stats.in_progress} actief</span>}
+                      {(stats.blocked ?? 0) > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />{stats.blocked} geblokkeerd</span>}
                     </div>
                   </div>
-                  {stats.failed > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-red-600">
-                      <AlertCircle size={14} />
-                      {stats.failed} feature{stats.failed !== 1 ? 's' : ''} failing
-                    </div>
-                  )}
+                  {/* Alert badges */}
+                  <div className="flex flex-wrap gap-2">
+                    {stats.failed > 0 && (
+                      <div className="flex items-center gap-1.5 text-sm text-red-600">
+                        <AlertCircle size={14} />
+                        {stats.failed} failing
+                      </div>
+                    )}
+                    {(stats.in_progress ?? 0) > 0 && (
+                      <div className="flex items-center gap-1.5 text-sm text-primary">
+                        <Clock size={14} />
+                        {stats.in_progress} in progress
+                      </div>
+                    )}
+                    {(stats.blocked ?? 0) > 0 && (
+                      <div className="flex items-center gap-1.5 text-sm text-orange-600">
+                        <Ban size={14} />
+                        {stats.blocked} geblokkeerd
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
               {!stats && (
@@ -83,6 +120,26 @@ export function SprintMetricsPanel({ projectName }: SprintMetricsPanelProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Burn-down Chart */}
+      {burndown && (burndown.points.length > 0 || burndown.total > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingDown size={18} className="text-blue-500" />
+                Burn-down
+              </CardTitle>
+              {burndown.sprint_name && (
+                <span className="text-xs text-muted-foreground">{burndown.sprint_name}</span>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <BurndownChart points={burndown.points} total={burndown.total} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Test Activity */}
       <Card>

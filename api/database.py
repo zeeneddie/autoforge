@@ -90,6 +90,8 @@ class Feature(Base):
     # Escalation: set by testing agent when an AC cannot be verified
     # review_status = "needs_human_review" when escalated
     escalation_reason = Column(Text, nullable=True, default=None)
+    # Burn-down tracking: timestamp when feature was first marked as passing
+    passed_at = Column(DateTime, nullable=True, default=None)
 
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
@@ -687,6 +689,25 @@ def _migrate_add_cycle_id_column(engine) -> None:
             conn.commit()
 
 
+def _migrate_add_passed_at_column(engine) -> None:
+    """Add passed_at column for burn-down chart tracking."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "passed_at" not in columns:
+            conn.execute(text(
+                "ALTER TABLE features ADD COLUMN passed_at DATETIME DEFAULT NULL"
+            ))
+            # Backfill: use planning_updated_at for already-passing features if available,
+            # otherwise use planning_synced_at as a proxy timestamp
+            conn.execute(text("""
+                UPDATE features
+                SET passed_at = COALESCE(planning_updated_at, planning_synced_at)
+                WHERE passes = 1 AND passed_at IS NULL
+            """))
+            conn.commit()
+
+
 def _migrate_add_ac_labels_column(engine) -> None:
     """Add ac_labels + escalation_reason columns (AC review by architect agent)."""
     with engine.connect() as conn:
@@ -827,6 +848,9 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add cycle_id (sprint-scoped feature view)
     _migrate_add_cycle_id_column(engine)
+
+    # Migrate to add passed_at (burn-down tracking)
+    _migrate_add_passed_at_column(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

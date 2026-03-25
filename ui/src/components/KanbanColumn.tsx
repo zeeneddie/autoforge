@@ -1,5 +1,5 @@
 import { FeatureCard } from './FeatureCard'
-import { Plus, Sparkles, Wand2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Sparkles, Wand2, ChevronDown, ChevronRight, Circle, Loader2, CheckCircle2 } from 'lucide-react'
 import type { Feature, ActiveAgent } from '../lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -67,15 +67,28 @@ export function KanbanColumn({
     }
   }
 
-  // Accordion logic: compute sub-item counts and filter visible features
+  // Accordion logic: compute sub-item counts from allFeatures (cross-column aware)
   const subItemCounts = new Map<string, number>()
+  const subItemDoneCounts = new Map<string, number>()
   if (accordionMode) {
-    for (const f of features) {
+    for (const f of allFeatures) {
       const p = parseNumericPrefix(f.name)
       if (p.length >= 3) {
         const parentKey = p.slice(0, 2).join('.')
         subItemCounts.set(parentKey, (subItemCounts.get(parentKey) ?? 0) + 1)
+        if (f.passes) {
+          subItemDoneCounts.set(parentKey, (subItemDoneCounts.get(parentKey) ?? 0) + 1)
+        }
       }
+    }
+  }
+
+  // Keys of parents that exist in THIS column (for accordion grouping)
+  const parentKeysInThisColumn = new Set<string>()
+  if (accordionMode) {
+    for (const f of features) {
+      const p = parseNumericPrefix(f.name)
+      if (p.length === 2) parentKeysInThisColumn.add(p.join('.'))
     }
   }
 
@@ -84,7 +97,10 @@ export function KanbanColumn({
         const p = parseNumericPrefix(f.name)
         if (p.length < 3) return true  // top-level always visible
         const parentKey = p.slice(0, 2).join('.')
-        return parentKey === expandedParent
+        // If parent is in this column: only show when expanded
+        if (parentKeysInThisColumn.has(parentKey)) return parentKey === expandedParent
+        // Parent is in a different column: show at top level (not hidden)
+        return true
       })
     : features
 
@@ -142,11 +158,37 @@ export function KanbanColumn({
             ) : (
               visibleFeatures.map((feature, index) => {
                 const prefix = parseNumericPrefix(feature.name)
-                const isSubItem = accordionMode && prefix.length >= 3
-                const isParent = accordionMode && prefix.length === 2 && (subItemCounts.get(prefix.join('.')) ?? 0) > 0
+                const isSubItem = accordionMode && prefix.length >= 3 && parentKeysInThisColumn.has(prefix.slice(0, 2).join('.'))
+                const featureTasks = feature.tasks ?? []
+                const isParent = accordionMode && prefix.length === 2 &&
+                  ((subItemCounts.get(prefix.join('.')) ?? 0) > 0 || featureTasks.length > 0)
                 const parentKey = prefix.length === 2 ? prefix.join('.') : null
                 const isExpanded = parentKey !== null && expandedParent === parentKey
-                const subCount = isParent ? (subItemCounts.get(prefix.join('.')) ?? 0) : 0
+                const subCount = isParent
+                  ? (subItemCounts.get(prefix.join('.')) ?? 0) + featureTasks.length
+                  : 0
+                const subDoneCount = isParent
+                  ? (subItemDoneCounts.get(prefix.join('.')) ?? 0) + featureTasks.filter(t => t.done).length
+                  : 0
+
+                // Cross-column sub-items: children of this parent that live in other columns
+                const crossColumnSubItems = isParent && isExpanded
+                  ? allFeatures
+                      .filter(f => {
+                        const fp = parseNumericPrefix(f.name)
+                        return fp.length >= 3 && fp.slice(0, 2).join('.') === parentKey && !features.includes(f)
+                      })
+                      .sort((a, b) => {
+                        const pa = parseNumericPrefix(a.name)
+                        const pb = parseNumericPrefix(b.name)
+                        const len = Math.max(pa.length, pb.length)
+                        for (let i = 0; i < len; i++) {
+                          const va = pa[i] ?? -1, vb = pb[i] ?? -1
+                          if (va !== vb) return va - vb
+                        }
+                        return 0
+                      })
+                  : []
 
                 return (
                   <div
@@ -180,8 +222,56 @@ export function KanbanColumn({
                       hasDialogueLogs={featureHasLogs?.(feature.id) ?? false}
                       onShowDialogue={onShowDialogue}
                       subItemCount={subCount > 0 ? subCount : undefined}
+                      subItemsDone={subCount > 0 ? subDoneCount : undefined}
                       projectName={projectName}
                     />
+                    {/* Cross-column sub-items: Feature DB children in other columns */}
+                    {crossColumnSubItems.length > 0 && (
+                      <div className="ml-3 mt-1 space-y-1 border-l-2 border-orange-300 pl-2">
+                        {crossColumnSubItems.map(sub => {
+                          const isDone = sub.passes
+                          const isInProg = sub.in_progress
+                          return (
+                            <button
+                              key={sub.id}
+                              onClick={() => onFeatureClick(sub)}
+                              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-muted/60 transition-colors group"
+                            >
+                              {isDone
+                                ? <CheckCircle2 size={13} className="text-primary shrink-0" />
+                                : isInProg
+                                  ? <Loader2 size={13} className="animate-spin text-primary shrink-0" />
+                                  : <Circle size={13} className="text-muted-foreground shrink-0" />
+                              }
+                              <span className="text-xs text-muted-foreground group-hover:text-foreground truncate flex-1">
+                                {sub.name}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {/* Task sub-items from feature.tasks (stored as JSON on the feature) */}
+                    {isParent && isExpanded && featureTasks.length > 0 && (
+                      <div className="ml-3 mt-1 space-y-1 border-l-2 border-orange-300 pl-2">
+                        {featureTasks.map((task, taskIdx) => {
+                          const taskNum = `${prefix.slice(0, 2).join('.')}.${taskIdx + 1}`
+                          return (
+                            <div
+                              key={task.id}
+                              className="flex items-center gap-2 px-2 py-1.5 rounded bg-muted/20"
+                            >
+                              {task.done
+                                ? <CheckCircle2 size={13} className="text-primary shrink-0" />
+                                : <Circle size={13} className="text-muted-foreground shrink-0" />
+                              }
+                              <span className="text-xs font-mono text-muted-foreground shrink-0">{taskNum}</span>
+                              <span className="text-xs text-muted-foreground truncate flex-1">{task.name}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )
               })
