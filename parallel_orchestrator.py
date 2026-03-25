@@ -42,6 +42,31 @@ from worktree_manager import create_feature_checkpoint_sync
 
 logger = logging.getLogger(__name__)
 
+
+def _sync_parent_container_orchestrator(session, feature_name: str) -> None:
+    """Derive parent container's in_progress/passes from children. Called by orchestrator."""
+    from sqlalchemy import text as _text
+    _m = re.match(r'^(\d+(?:\.\d+)+)\.\d+', feature_name)
+    if not _m:
+        return
+    parent_prefix = _m.group(1)
+    siblings = session.query(Feature).filter(Feature.name.like(f"{parent_prefix}.%")).all()
+    if not siblings:
+        return
+    parent = session.query(Feature).filter(Feature.name.like(f"{parent_prefix} %")).first()
+    if not parent:
+        return
+    all_pass = all(s.passes for s in siblings)
+    any_in_progress = any(s.in_progress for s in siblings)
+    if all_pass:
+        session.execute(_text("UPDATE features SET passes=1, in_progress=0 WHERE id=:id AND passes=0"), {"id": parent.id})
+    elif any_in_progress:
+        session.execute(_text("UPDATE features SET in_progress=1, passes=0 WHERE id=:id AND passes=0"), {"id": parent.id})
+    else:
+        session.execute(_text("UPDATE features SET in_progress=0, passes=0 WHERE id=:id AND passes=0"), {"id": parent.id})
+    session.commit()
+
+
 # Noise filter regex for log persistence — matches empty lines and separator lines
 _LOG_NOISE_RE = re.compile(r'^(?:\s*$|[=\-]{3,}\s*$)')
 
@@ -1610,6 +1635,8 @@ class ParallelOrchestrator:
                     return False, "Feature already in progress"
                 feature.in_progress = True
                 session.commit()
+                # Propagate in_progress to parent container (Option B: container derives from children)
+                _sync_parent_container_orchestrator(session, feature.name)
                 # Checkpoint: mark feature start (for mq-supervisor rollback + progress tracking)
                 create_feature_checkpoint_sync(self.project_dir, feature.id, "pre")
         finally:

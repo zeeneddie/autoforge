@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, Circle, Loader2, MessageCircle, ScrollText, ListChecks, AlertTriangle, ListTodo } from 'lucide-react'
+import { CheckCircle2, Circle, Loader2, MessageCircle, ScrollText, ListChecks, AlertTriangle, ListTodo, Layers } from 'lucide-react'
 import type { Feature, ActiveAgent, FeatureTask } from '../lib/types'
 import { DependencyBadge } from './DependencyBadge'
 import { AgentAvatar } from './AgentAvatar'
@@ -18,6 +18,7 @@ interface FeatureCardProps {
   onShowDialogue?: (featureId: number) => void
   subItemCount?: number
   subItemsDone?: number
+  isContainer?: boolean
   projectName?: string
 }
 
@@ -136,7 +137,7 @@ function TasksPopup({ feature }: { feature: Feature }) {
   )
 }
 
-export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], activeAgent, hasDialogueLogs, onShowDialogue, subItemCount, subItemsDone, projectName }: FeatureCardProps) {
+export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], activeAgent, hasDialogueLogs, onShowDialogue, subItemCount, subItemsDone, isContainer, projectName }: FeatureCardProps) {
   const [tasksOpen, setTasksOpen] = useState(false)
   const breakdown = useBreakdown(projectName ?? '')
   const categoryColor = getCategoryColor(feature.category)
@@ -263,7 +264,19 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
         {/* Status */}
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
-            {isInProgress ? (
+            {isContainer ? (
+              /* Container/story: status derived from sub-features, no spinner */
+              <>
+                <Layers size={16} className={feature.passes ? 'text-primary' : isInProgress ? 'text-primary/70' : 'text-muted-foreground'} />
+                <span className={`font-medium ${feature.passes ? 'text-primary' : isInProgress ? 'text-primary/70' : 'text-muted-foreground'}`}>
+                  {feature.passes
+                    ? 'Story klaar'
+                    : isInProgress
+                      ? `In uitvoering · ${subItemsDone ?? 0}/${subItemCount ?? '?'}`
+                      : `Story · ${subItemsDone ?? 0}/${subItemCount ?? '?'} klaar`}
+                </span>
+              </>
+            ) : isInProgress ? (
               <>
                 <Loader2 size={16} className="animate-spin text-primary" />
                 <span className="text-primary font-medium">Processing...</span>

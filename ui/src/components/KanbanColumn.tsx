@@ -226,6 +226,7 @@ export function KanbanColumn({
                       onShowDialogue={onShowDialogue}
                       subItemCount={subCount > 0 ? subCount : undefined}
                       subItemsDone={subCount > 0 ? subDoneCount : undefined}
+                      isContainer={isParent}
                       projectName={projectName}
                     />
                     {/* Cross-column sub-items: Feature DB children in other columns */}

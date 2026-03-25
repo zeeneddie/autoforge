@@ -54,6 +54,49 @@ from api.migration import migrate_json_to_sqlite
 PROJECT_DIR = Path(os.environ.get("PROJECT_DIR", ".")).resolve()
 
 
+def _sync_parent_container(session, feature_name: str) -> None:
+    """Derive parent container's in_progress/passes from its children's current state.
+
+    Rule:
+    - ALL children passes=True  → container passes=True,  in_progress=False  (Done)
+    - ANY child  in_progress=True → container in_progress=True,  passes=False   (In Progress)
+    - Otherwise                   → container in_progress=False, passes=False   (Pending)
+    """
+    _m = re.match(r'^(\d+(?:\.\d+)+)\.\d+', feature_name)
+    if not _m:
+        return
+    parent_prefix = _m.group(1)
+
+    siblings = session.query(Feature).filter(Feature.name.like(f"{parent_prefix}.%")).all()
+    if not siblings:
+        return
+
+    parent = session.query(Feature).filter(Feature.name.like(f"{parent_prefix} %")).first()
+    if not parent:
+        return
+
+    all_pass = all(s.passes for s in siblings)
+    any_in_progress = any(s.in_progress for s in siblings)
+
+    if all_pass:
+        session.execute(
+            text("UPDATE features SET passes=1, in_progress=0, passed_at=COALESCE(passed_at, CURRENT_TIMESTAMP) WHERE id=:id AND passes=0"),
+            {"id": parent.id},
+        )
+    elif any_in_progress:
+        session.execute(
+            text("UPDATE features SET in_progress=1, passes=0 WHERE id=:id AND passes=0"),
+            {"id": parent.id},
+        )
+    else:
+        # All children pending/blocked — container back to Pending
+        session.execute(
+            text("UPDATE features SET in_progress=0, passes=0 WHERE id=:id AND passes=0"),
+            {"id": parent.id},
+        )
+    session.commit()
+
+
 # Pydantic models for input validation
 class MarkPassingInput(BaseModel):
     """Input for marking a feature as passing."""
@@ -364,26 +407,9 @@ def feature_mark_passing(
         # Get the feature name for the response
         feature = session.query(Feature).filter(Feature.id == feature_id).first()
 
-        # Auto-complete parent container when all its sub-features are passing.
-        # Detects depth-3+ names like "3.1.2 Foo" and finds parent "3.1 Bar".
-        parent_prefix = None
+        # Sync parent container state from all siblings (handles Done + In Progress cases)
         if feature:
-            _m = re.match(r'^(\d+(?:\.\d+)+)\.\d+', feature.name)
-            if _m:
-                parent_prefix = _m.group(1)
-        if parent_prefix:
-            _siblings = session.query(Feature).filter(
-                Feature.name.like(f"{parent_prefix}.%")
-            ).all()
-            if _siblings and all(s.passes for s in _siblings):
-                _parent = session.query(Feature).filter(
-                    Feature.name.like(f"{parent_prefix} %")
-                ).first()
-                if _parent and not _parent.passes:
-                    session.execute(text(
-                        "UPDATE features SET passes = 1, in_progress = 0 WHERE id = :id AND passes = 0"
-                    ), {"id": _parent.id})
-                    session.commit()
+            _sync_parent_container(session, feature.name)
 
         return json.dumps({"success": True, "feature_id": feature_id, "name": feature.name if feature else str(feature_id)})
     except Exception as e:
@@ -544,6 +570,9 @@ def feature_mark_in_progress(
 
         # Fetch the claimed feature
         feature = session.query(Feature).filter(Feature.id == feature_id).first()
+        # Propagate in_progress to parent container (if this is a sub-feature)
+        if feature:
+            _sync_parent_container(session, feature.name)
         return json.dumps(feature.to_dict())
     except Exception as e:
         session.rollback()
@@ -636,6 +665,8 @@ def feature_clear_in_progress(
         session.commit()
 
         session.refresh(feature)
+        # Recompute parent container state when a sub-feature is cleared
+        _sync_parent_container(session, feature.name)
         return json.dumps(feature.to_dict())
     except Exception as e:
         session.rollback()
