@@ -154,6 +154,15 @@ export function KanbanColumn({
     }
   }
 
+  // Drop story group headers that have no sub-items in this column
+  // (container might be IN_PROG while all children are in Pending — header would float alone)
+  const keysWithSubItems = new Set(
+    renderItems.filter(i => i.type === 'subItem').map(i => (i as Extract<RenderItem, { type: 'subItem' }>).parentKey)
+  )
+  const visibleItems = renderItems.filter(
+    i => i.type !== 'storyGroup' || keysWithSubItems.has((i as Extract<RenderItem, { type: 'storyGroup' }>).parentKey)
+  )
+
   return (
     <Card className={`overflow-hidden ${colorMap[color]} py-0`}>
       {/* Header */}
@@ -206,7 +215,7 @@ export function KanbanColumn({
                 )}
               </div>
             ) : (
-              renderItems.map((item, index) => {
+              visibleItems.map((item, index) => {
                 // ── Story group header ────────────────────────────────────
                 if (item.type === 'storyGroup') {
                   const totalCount = subItemCounts.get(item.parentKey) ?? 0
