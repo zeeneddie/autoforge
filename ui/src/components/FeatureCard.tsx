@@ -149,6 +149,9 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
   const tasksDone = tasks.filter(t => t.done).length
   const isEscalated = feature.review_status === 'needs_human_review'
   const humanOnlyCount = (feature.ac_labels ?? []).filter(l => l === 'human-only').length
+  // Show as in-progress if column says so, OR if an agent is actively working on it
+  // (agent may clear in_progress 1-2 min before marking passes, causing transient Pending)
+  const isActuallyInProgress = isInProgress || hasActiveAgent
 
   return (
     <>
@@ -267,16 +270,16 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
             {isContainer ? (
               /* Container/story: status derived from sub-features, no spinner */
               <>
-                <Layers size={16} className={feature.passes ? 'text-primary' : isInProgress ? 'text-primary/70' : 'text-muted-foreground'} />
-                <span className={`font-medium ${feature.passes ? 'text-primary' : isInProgress ? 'text-primary/70' : 'text-muted-foreground'}`}>
+                <Layers size={16} className={feature.passes ? 'text-primary' : isActuallyInProgress ? 'text-primary/70' : 'text-muted-foreground'} />
+                <span className={`font-medium ${feature.passes ? 'text-primary' : isActuallyInProgress ? 'text-primary/70' : 'text-muted-foreground'}`}>
                   {feature.passes
                     ? 'Story klaar'
-                    : isInProgress
+                    : isActuallyInProgress
                       ? `In uitvoering · ${subItemsDone ?? 0}/${subItemCount ?? '?'}`
                       : `Story · ${subItemsDone ?? 0}/${subItemCount ?? '?'} klaar`}
                 </span>
               </>
-            ) : isInProgress ? (
+            ) : isActuallyInProgress ? (
               <>
                 <Loader2 size={16} className="animate-spin text-primary" />
                 <span className="text-primary font-medium">Processing...</span>
