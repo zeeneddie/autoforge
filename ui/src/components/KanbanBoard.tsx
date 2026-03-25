@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { KanbanColumn } from './KanbanColumn'
 import type { Feature, FeatureListResponse, ActiveAgent } from '../lib/types'
 import { Card, CardContent } from '@/components/ui/card'
@@ -61,13 +60,9 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandProject, activeAgents = [], onCreateSpec, hasSpec = true, onShowDialogue, featureHasLogs, projectName }: KanbanBoardProps) {
-  const [expandedPending, setExpandedPending] = useState<string | null>(null)
-  const [expandedInProgress, setExpandedInProgress] = useState<string | null>(null)
-  const [expandedDone, setExpandedDone] = useState<string | null>(null)
-
   const hasFeatures = features && (features.pending.length + features.in_progress.length + features.done.length) > 0
 
-  // Combine all features for dependency status calculation
+  // Combine all features for dependency status + story group cross-column awareness
   const allFeatures = features
     ? [...features.pending, ...features.in_progress, ...features.done]
     : []
@@ -108,9 +103,6 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
         showCreateSpec={!hasSpec && !hasFeatures}
         onShowDialogue={onShowDialogue}
         featureHasLogs={featureHasLogs}
-        accordionMode={true}
-        expandedParent={expandedPending}
-        onToggleParent={setExpandedPending}
         projectName={projectName}
       />
       <KanbanColumn
@@ -123,9 +115,6 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
         onFeatureClick={onFeatureClick}
         onShowDialogue={onShowDialogue}
         featureHasLogs={featureHasLogs}
-        accordionMode={true}
-        expandedParent={expandedInProgress}
-        onToggleParent={setExpandedInProgress}
       />
       <KanbanColumn
         title="Done"
@@ -137,9 +126,6 @@ export function KanbanBoard({ features, onFeatureClick, onAddFeature, onExpandPr
         onFeatureClick={onFeatureClick}
         onShowDialogue={onShowDialogue}
         featureHasLogs={featureHasLogs}
-        accordionMode={true}
-        expandedParent={expandedDone}
-        onToggleParent={setExpandedDone}
       />
     </div>
   )

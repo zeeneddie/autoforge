@@ -1,5 +1,5 @@
 import { FeatureCard } from './FeatureCard'
-import { Plus, Sparkles, Wand2, ChevronDown, ChevronRight, Circle, Loader2, CheckCircle2 } from 'lucide-react'
+import { Plus, Sparkles, Wand2, Layers } from 'lucide-react'
 import type { Feature, ActiveAgent } from '../lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,45 @@ function parseNumericPrefix(name: string): number[] {
   if (!match) return []
   return match[1].split('.').map(Number)
 }
+
+// ── Story group header ────────────────────────────────────────────────────────
+
+interface StoryGroupHeaderProps {
+  parentName: string
+  totalCount: number
+  doneCount: number
+  onClick: () => void
+}
+
+function StoryGroupHeader({ parentName, totalCount, doneCount, onClick }: StoryGroupHeaderProps) {
+  const pct = totalCount > 0 ? (doneCount / totalCount) * 100 : 0
+  const allDone = doneCount === totalCount && totalCount > 0
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left px-3 py-2 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors border border-border/50"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Layers size={13} className={allDone ? 'text-primary shrink-0' : 'text-muted-foreground shrink-0'} />
+          <span className="text-xs font-semibold truncate text-foreground">{parentName}</span>
+        </div>
+        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 font-mono ${allDone ? 'border-primary text-primary' : ''}`}>
+          {doneCount}/{totalCount}
+        </Badge>
+      </div>
+      <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${allDone ? 'bg-primary' : 'bg-primary/60'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </button>
+  )
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface KanbanColumnProps {
   title: string
@@ -26,17 +65,21 @@ interface KanbanColumnProps {
   showCreateSpec?: boolean
   onShowDialogue?: (featureId: number) => void
   featureHasLogs?: (featureId: number) => boolean
-  accordionMode?: boolean
-  expandedParent?: string | null
-  onToggleParent?: (prefix: string | null) => void
   projectName?: string
 }
+
+type RenderItem =
+  | { type: 'storyGroup'; parentKey: string; parentName: string }
+  | { type: 'subItem'; feature: Feature; parentKey: string }
+  | { type: 'card'; feature: Feature }
 
 const colorMap = {
   pending: 'border-t-4 border-t-muted',
   progress: 'border-t-4 border-t-primary',
   done: 'border-t-4 border-t-primary',
 }
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function KanbanColumn({
   title,
@@ -53,56 +96,63 @@ export function KanbanColumn({
   showCreateSpec,
   onShowDialogue,
   featureHasLogs,
-  accordionMode = false,
-  expandedParent = null,
-  onToggleParent,
   projectName,
 }: KanbanColumnProps) {
-  // Create a map of feature ID to active agent for quick lookup
+  // Agent lookup map
   const agentByFeatureId = new Map<number, ActiveAgent>()
   for (const agent of activeAgents) {
     const ids = agent.featureIds || [agent.featureId]
-    for (const fid of ids) {
-      agentByFeatureId.set(fid, agent)
-    }
+    for (const fid of ids) agentByFeatureId.set(fid, agent)
   }
 
-  // Accordion logic: compute sub-item counts from allFeatures (cross-column aware)
+  // Global sub-item counts across ALL columns (from allFeatures)
   const subItemCounts = new Map<string, number>()
   const subItemDoneCounts = new Map<string, number>()
-  if (accordionMode) {
-    for (const f of allFeatures) {
-      const p = parseNumericPrefix(f.name)
-      if (p.length >= 3) {
-        const parentKey = p.slice(0, 2).join('.')
-        subItemCounts.set(parentKey, (subItemCounts.get(parentKey) ?? 0) + 1)
-        if (f.passes) {
-          subItemDoneCounts.set(parentKey, (subItemDoneCounts.get(parentKey) ?? 0) + 1)
-        }
+  for (const f of allFeatures) {
+    const p = parseNumericPrefix(f.name)
+    if (p.length >= 3) {
+      const parentKey = p.slice(0, 2).join('.')
+      subItemCounts.set(parentKey, (subItemCounts.get(parentKey) ?? 0) + 1)
+      if (f.passes) subItemDoneCounts.set(parentKey, (subItemDoneCounts.get(parentKey) ?? 0) + 1)
+    }
+  }
+
+  // Cache: parentKey → parent Feature (from allFeatures)
+  const parentFeatureByKey = new Map<string, Feature>()
+  for (const f of allFeatures) {
+    const p = parseNumericPrefix(f.name)
+    if (p.length === 2) parentFeatureByKey.set(p.join('.'), f)
+  }
+
+  // Build render list — one pass through sorted features
+  const renderedGroupKeys = new Set<string>()
+  const renderItems: RenderItem[] = []
+
+  for (const f of features) {
+    const p = parseNumericPrefix(f.name)
+    const depth = p.length
+
+    if (depth === 2 && (subItemCounts.get(p.join('.')) ?? 0) > 0) {
+      // Container feature with DB sub-records → story group header, not a card
+      const key = p.join('.')
+      if (!renderedGroupKeys.has(key)) {
+        renderedGroupKeys.add(key)
+        renderItems.push({ type: 'storyGroup', parentKey: key, parentName: f.name })
       }
+    } else if (depth >= 3 && (subItemCounts.get(p.slice(0, 2).join('.')) ?? 0) > 0) {
+      // Sub-feature with a known container
+      const parentKey = p.slice(0, 2).join('.')
+      if (!renderedGroupKeys.has(parentKey)) {
+        // Container lives in a different column — insert the header before the first sub-item here
+        renderedGroupKeys.add(parentKey)
+        const parent = parentFeatureByKey.get(parentKey)
+        renderItems.push({ type: 'storyGroup', parentKey, parentName: parent?.name ?? parentKey })
+      }
+      renderItems.push({ type: 'subItem', feature: f, parentKey })
+    } else {
+      renderItems.push({ type: 'card', feature: f })
     }
   }
-
-  // Keys of parents that exist in THIS column (for accordion grouping)
-  const parentKeysInThisColumn = new Set<string>()
-  if (accordionMode) {
-    for (const f of features) {
-      const p = parseNumericPrefix(f.name)
-      if (p.length === 2) parentKeysInThisColumn.add(p.join('.'))
-    }
-  }
-
-  const visibleFeatures = accordionMode
-    ? features.filter(f => {
-        const p = parseNumericPrefix(f.name)
-        if (p.length < 3) return true  // top-level always visible
-        const parentKey = p.slice(0, 2).join('.')
-        // If parent is in this column: only show when expanded
-        if (parentKeysInThisColumn.has(parentKey)) return parentKey === expandedParent
-        // Parent is in a different column: show at top level (not hidden)
-        return true
-      })
-    : features
 
   return (
     <Card className={`overflow-hidden ${colorMap[color]} py-0`}>
@@ -156,69 +206,48 @@ export function KanbanColumn({
                 )}
               </div>
             ) : (
-              visibleFeatures.map((feature, index) => {
-                const prefix = parseNumericPrefix(feature.name)
-                const isSubItem = accordionMode && prefix.length >= 3 && parentKeysInThisColumn.has(prefix.slice(0, 2).join('.'))
-                const featureTasks = feature.tasks ?? []
-                const dbSubCount = subItemCounts.get(prefix.join('.')) ?? 0
-                // If Feature DB sub-records exist, JSON tasks are superseded — don't double-count
-                const hasDbSubs = dbSubCount > 0
-                const isParent = accordionMode && prefix.length === 2 &&
-                  (dbSubCount > 0 || featureTasks.length > 0)
-                const parentKey = prefix.length === 2 ? prefix.join('.') : null
-                const isExpanded = parentKey !== null && expandedParent === parentKey
-                const subCount = isParent
-                  ? dbSubCount + (hasDbSubs ? 0 : featureTasks.length)
-                  : 0
-                const subDoneCount = isParent
-                  ? (subItemDoneCounts.get(prefix.join('.')) ?? 0) + (hasDbSubs ? 0 : featureTasks.filter(t => t.done).length)
-                  : 0
+              renderItems.map((item, index) => {
+                // ── Story group header ────────────────────────────────────
+                if (item.type === 'storyGroup') {
+                  const totalCount = subItemCounts.get(item.parentKey) ?? 0
+                  const doneCount = subItemDoneCounts.get(item.parentKey) ?? 0
+                  const parentFeature = parentFeatureByKey.get(item.parentKey)
+                  return (
+                    <div key={`group-${item.parentKey}`} className="pt-1 first:pt-0">
+                      <StoryGroupHeader
+                        parentName={item.parentName}
+                        totalCount={totalCount}
+                        doneCount={doneCount}
+                        onClick={() => parentFeature && onFeatureClick(parentFeature)}
+                      />
+                    </div>
+                  )
+                }
 
-                // Cross-column sub-items: children of this parent that live in other columns
-                const crossColumnSubItems = isParent && isExpanded
-                  ? allFeatures
-                      .filter(f => {
-                        const fp = parseNumericPrefix(f.name)
-                        return fp.length >= 3 && fp.slice(0, 2).join('.') === parentKey && !features.includes(f)
-                      })
-                      .sort((a, b) => {
-                        const pa = parseNumericPrefix(a.name)
-                        const pb = parseNumericPrefix(b.name)
-                        const len = Math.max(pa.length, pb.length)
-                        for (let i = 0; i < len; i++) {
-                          const va = pa[i] ?? -1, vb = pb[i] ?? -1
-                          if (va !== vb) return va - vb
-                        }
-                        return 0
-                      })
-                  : []
+                // ── Sub-item or regular card ───────────────────────────────
+                const feature = item.feature
+                const isSubItem = item.type === 'subItem'
+                const p = parseNumericPrefix(feature.name)
+                const featureTasks = feature.tasks ?? []
+
+                // For depth-2 card items only (containers without dbSubs, or plain features)
+                const isDepth2 = p.length === 2
+                const dbSubCountForThis = isDepth2 ? (subItemCounts.get(p.join('.')) ?? 0) : 0
+                const hasDbSubs = dbSubCountForThis > 0
+                // isParent = depth-2 card that has JSON tasks (no DB subs — those become storyGroup)
+                const isParent = isDepth2 && !hasDbSubs && featureTasks.length > 0
+                const subCount = isParent ? featureTasks.length : 0
+                const subDoneCount = isParent ? featureTasks.filter(t => t.done).length : 0
 
                 return (
                   <div
                     key={feature.id}
-                    className={`animate-slide-in ${isSubItem ? 'ml-3 border-r-4 border-orange-400 rounded-r-md' : ''}`}
+                    className={`animate-slide-in ${isSubItem ? 'ml-3 border-l-2 border-orange-300 pl-2' : ''}`}
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
-                    {isParent && (
-                      <button
-                        className="w-full flex items-center justify-end gap-1 pb-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={() => onToggleParent?.(isExpanded ? null : parentKey)}
-                      >
-                        {isExpanded
-                          ? <><ChevronDown size={13} /><span>{subCount} sub-items</span></>
-                          : <><ChevronRight size={13} /><span>{subCount} sub-items</span></>
-                        }
-                      </button>
-                    )}
                     <FeatureCard
                       feature={feature}
-                      onClick={() => {
-                        if (isParent && onToggleParent) {
-                          onToggleParent(isExpanded ? null : parentKey!)
-                        } else {
-                          onFeatureClick(feature)
-                        }
-                      }}
+                      onClick={() => onFeatureClick(feature)}
                       isInProgress={color === 'progress'}
                       allFeatures={allFeatures}
                       activeAgent={agentByFeatureId.get(feature.id)}
@@ -229,53 +258,6 @@ export function KanbanColumn({
                       isContainer={isParent}
                       projectName={projectName}
                     />
-                    {/* Cross-column sub-items: Feature DB children in other columns */}
-                    {crossColumnSubItems.length > 0 && (
-                      <div className="ml-3 mt-1 space-y-1 border-l-2 border-orange-300 pl-2">
-                        {crossColumnSubItems.map(sub => {
-                          const isDone = sub.passes
-                          const isInProg = sub.in_progress
-                          return (
-                            <button
-                              key={sub.id}
-                              onClick={() => onFeatureClick(sub)}
-                              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-muted/60 transition-colors group"
-                            >
-                              {isDone
-                                ? <CheckCircle2 size={13} className="text-primary shrink-0" />
-                                : isInProg
-                                  ? <Loader2 size={13} className="animate-spin text-primary shrink-0" />
-                                  : <Circle size={13} className="text-muted-foreground shrink-0" />
-                              }
-                              <span className="text-xs text-muted-foreground group-hover:text-foreground truncate flex-1">
-                                {sub.name}
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                    {/* Task sub-items from feature.tasks — only when no Feature DB sub-records exist */}
-                    {isParent && isExpanded && featureTasks.length > 0 && !hasDbSubs && (
-                      <div className="ml-3 mt-1 space-y-1 border-l-2 border-orange-300 pl-2">
-                        {featureTasks.map((task, taskIdx) => {
-                          const taskNum = `${prefix.slice(0, 2).join('.')}.${taskIdx + 1}`
-                          return (
-                            <div
-                              key={task.id}
-                              className="flex items-center gap-2 px-2 py-1.5 rounded bg-muted/20"
-                            >
-                              {task.done
-                                ? <CheckCircle2 size={13} className="text-primary shrink-0" />
-                                : <Circle size={13} className="text-muted-foreground shrink-0" />
-                              }
-                              <span className="text-xs font-mono text-muted-foreground shrink-0">{taskNum}</span>
-                              <span className="text-xs text-muted-foreground truncate flex-1">{task.name}</span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
                   </div>
                 )
               })
