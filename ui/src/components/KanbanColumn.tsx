@@ -160,15 +160,18 @@ export function KanbanColumn({
                 const prefix = parseNumericPrefix(feature.name)
                 const isSubItem = accordionMode && prefix.length >= 3 && parentKeysInThisColumn.has(prefix.slice(0, 2).join('.'))
                 const featureTasks = feature.tasks ?? []
+                const dbSubCount = subItemCounts.get(prefix.join('.')) ?? 0
+                // If Feature DB sub-records exist, JSON tasks are superseded — don't double-count
+                const hasDbSubs = dbSubCount > 0
                 const isParent = accordionMode && prefix.length === 2 &&
-                  ((subItemCounts.get(prefix.join('.')) ?? 0) > 0 || featureTasks.length > 0)
+                  (dbSubCount > 0 || featureTasks.length > 0)
                 const parentKey = prefix.length === 2 ? prefix.join('.') : null
                 const isExpanded = parentKey !== null && expandedParent === parentKey
                 const subCount = isParent
-                  ? (subItemCounts.get(prefix.join('.')) ?? 0) + featureTasks.length
+                  ? dbSubCount + (hasDbSubs ? 0 : featureTasks.length)
                   : 0
                 const subDoneCount = isParent
-                  ? (subItemDoneCounts.get(prefix.join('.')) ?? 0) + featureTasks.filter(t => t.done).length
+                  ? (subItemDoneCounts.get(prefix.join('.')) ?? 0) + (hasDbSubs ? 0 : featureTasks.filter(t => t.done).length)
                   : 0
 
                 // Cross-column sub-items: children of this parent that live in other columns
@@ -251,8 +254,8 @@ export function KanbanColumn({
                         })}
                       </div>
                     )}
-                    {/* Task sub-items from feature.tasks (stored as JSON on the feature) */}
-                    {isParent && isExpanded && featureTasks.length > 0 && (
+                    {/* Task sub-items from feature.tasks — only when no Feature DB sub-records exist */}
+                    {isParent && isExpanded && featureTasks.length > 0 && !hasDbSubs && (
                       <div className="ml-3 mt-1 space-y-1 border-l-2 border-orange-300 pl-2">
                         {featureTasks.map((task, taskIdx) => {
                           const taskNum = `${prefix.slice(0, 2).join('.')}.${taskIdx + 1}`

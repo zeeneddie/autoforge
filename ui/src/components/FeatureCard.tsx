@@ -244,8 +244,8 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
           </div>
         )}
 
-        {/* Inline task progress bar (visible on card without opening modal) */}
-        {tasks.length > 0 && (
+        {/* Inline task progress bar — only when no Feature DB sub-records (avoids duplication) */}
+        {tasks.length > 0 && !(subItemCount !== undefined && subItemCount > 0) && (
           <div className="space-y-0.5">
             <div className="flex justify-between text-[10px] text-muted-foreground">
               <span>Taken</span>
@@ -300,7 +300,8 @@ export function FeatureCard({ feature, onClick, isInProgress, allFeatures = [], 
                 }
               </button>
             )}
-            {tasks.length > 0 && (
+            {/* Only show tasks button when no Feature DB sub-records exist (avoids duplication) */}
+            {tasks.length > 0 && !(subItemCount !== undefined && subItemCount > 0) && (
               <button
                 onClick={(e) => { e.stopPropagation(); setTasksOpen(true) }}
                 className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted transition-colors"
