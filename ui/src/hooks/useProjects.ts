@@ -444,6 +444,17 @@ export function useTogglePlanningSync() {
   })
 }
 
+export function useForceOutboundSync() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (projectName: string) => api.forceOutboundSync(projectName),
+    onSuccess: (_data, projectName) => {
+      queryClient.invalidateQueries({ queryKey: ['planning-sync-status', projectName] })
+    },
+  })
+}
+
 export function useCompleteSprint() {
   const queryClient = useQueryClient()
 

@@ -209,12 +209,15 @@ def _feature_skip(project_dir: Path, feature_id: int) -> dict[str, Any]:
 
 
 def _feature_clear_in_progress(project_dir: Path, feature_id: int) -> dict[str, Any]:
+    """Checkpoint: stamp cleared_at, do NOT clear in_progress.
+    Feature stays In Progress until the agent process exits."""
+    from datetime import datetime, timezone
     db_url = _ensure_db(project_dir)
     with atomic_transaction(db_url) as session:
         feature = session.query(Feature).filter(Feature.id == feature_id).first()
         if not feature:
             return {"error": f"Feature {feature_id} not found"}
-        feature.in_progress = False
+        feature.cleared_at = datetime.now(timezone.utc)
         return {"success": True, "feature_id": feature_id}
 
 

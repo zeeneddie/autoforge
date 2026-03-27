@@ -639,6 +639,13 @@ export async function togglePlanningSync(projectName?: string): Promise<Planning
   })
 }
 
+export async function forceOutboundSync(projectName: string): Promise<{ pushed: number; skipped: number; errors: number; project_name: string }> {
+  return fetchJSON('/planning/sync/force-outbound', {
+    method: 'POST',
+    body: JSON.stringify({ project_name: projectName }),
+  })
+}
+
 export async function completeSprint(projectName: string): Promise<SprintCompletionResult> {
   return fetchJSON('/planning/complete-sprint', {
     method: 'POST',

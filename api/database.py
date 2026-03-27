@@ -92,6 +92,10 @@ class Feature(Base):
     escalation_reason = Column(Text, nullable=True, default=None)
     # Burn-down tracking: timestamp when feature was first marked as passing
     passed_at = Column(DateTime, nullable=True, default=None)
+    # Agent checkpoint: timestamp when feature_clear_in_progress was last called.
+    # Does NOT clear in_progress — feature stays In Progress until agent exits.
+    # Used for debugging the pre-test checkpoint pattern.
+    cleared_at = Column(DateTime, nullable=True, default=None)
 
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
@@ -121,6 +125,7 @@ class Feature(Base):
             "tasks": self.tasks if self.tasks else [],
             "ac_labels": self.ac_labels if self.ac_labels else [],
             "escalation_reason": self.escalation_reason,
+            "cleared_at": self.cleared_at.isoformat() if self.cleared_at else None,
         }
 
     def get_dependencies_safe(self) -> list[int]:
@@ -708,6 +713,16 @@ def _migrate_add_passed_at_column(engine) -> None:
             conn.commit()
 
 
+def _migrate_add_cleared_at_column(engine) -> None:
+    """Add cleared_at column — records when feature_clear_in_progress was called (does not clear in_progress)."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(features)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "cleared_at" not in columns:
+            conn.execute(text("ALTER TABLE features ADD COLUMN cleared_at DATETIME DEFAULT NULL"))
+            conn.commit()
+
+
 def _migrate_add_ac_labels_column(engine) -> None:
     """Add ac_labels + escalation_reason columns (AC review by architect agent)."""
     with engine.connect() as conn:
@@ -851,6 +866,9 @@ def create_database(project_dir: Path) -> tuple:
 
     # Migrate to add passed_at (burn-down tracking)
     _migrate_add_passed_at_column(engine)
+
+    # Migrate to add cleared_at (pre-test checkpoint tracking, in_progress stays True)
+    _migrate_add_cleared_at_column(engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

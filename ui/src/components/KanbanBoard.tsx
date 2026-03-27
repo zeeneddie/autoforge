@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
  * "Some feature"         → []
  */
 function parseNumericPrefix(name: string): number[] {
-  const match = name.match(/^(\d+(?:\.\d+)*)/)
+  const match = name.match(/^(?:Story\s+)?(\d+(?:\.\d+)*)/)
   if (!match) return []
   return match[1].split('.').map(Number)
 }

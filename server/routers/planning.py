@@ -323,6 +323,48 @@ async def toggle_sync(project_name: Optional[str] = Query(None)):
     return await get_sync_status(project_name)
 
 
+class ForceSyncRequest(BaseModel):
+    """Request to force an immediate outbound sync to MQ Planning."""
+    project_name: str
+
+
+class ForceSyncResult(BaseModel):
+    """Result of a forced outbound sync."""
+    pushed: int
+    skipped: int
+    errors: int
+    project_name: str
+
+
+@router.post("/sync/force-outbound", response_model=ForceSyncResult)
+async def force_outbound_sync(request: ForceSyncRequest):
+    """Force an immediate outbound sync — push all feature states to MQ Planning now.
+
+    Bypasses the planning_last_status_hash check so all features are re-evaluated
+    and pushed regardless of whether the status changed since the last sync.
+    """
+    project_dir = get_project_path(request.project_name)
+    if not project_dir:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project '{request.project_name}' not found in registry",
+        )
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    client = _build_client(request.project_name)
+    try:
+        result = outbound_sync(client, project_dir)
+        return ForceSyncResult(
+            pushed=result.pushed,
+            skipped=result.skipped,
+            errors=result.errors,
+            project_name=request.project_name,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Outbound sync failed: {e}")
+
+
 # --- Sprint Completion ---
 
 

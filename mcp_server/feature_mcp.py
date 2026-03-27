@@ -638,13 +638,18 @@ def feature_claim_and_get(
 def feature_clear_in_progress(
     feature_id: Annotated[int, Field(description="The ID of the feature to clear in-progress status", ge=1)]
 ) -> str:
-    """Clear in-progress status from a feature.
+    """Record a pre-test checkpoint — does NOT change in_progress.
 
-    Use this when abandoning a feature or manually unsticking a stuck feature.
-    The feature will return to the pending queue.
+    Stamps cleared_at with the current timestamp so debugging tools can see
+    when this was called.  in_progress remains True so the feature stays in
+    the "In Progress" column while the agent runs its final tests.
+
+    The orchestrator's _handle_agent_completion clears in_progress automatically
+    when the agent process exits (success or crash) — no need to call this tool
+    to unstick features.  Just let the agent exit and the orchestrator handles it.
 
     Args:
-        feature_id: The ID of the feature to clear in-progress status
+        feature_id: The ID of the feature to checkpoint
 
     Returns:
         JSON with the updated feature details, or error if not found.
@@ -656,21 +661,20 @@ def feature_clear_in_progress(
         if feature is None:
             return json.dumps({"error": f"Feature with ID {feature_id} not found"})
 
-        # Atomic update - idempotent, safe in parallel mode
+        # Only stamp cleared_at — do NOT touch in_progress.
+        # Feature stays In Progress until the agent process exits.
         session.execute(text("""
             UPDATE features
-            SET in_progress = 0
+            SET cleared_at = CURRENT_TIMESTAMP
             WHERE id = :id
         """), {"id": feature_id})
         session.commit()
 
         session.refresh(feature)
-        # Recompute parent container state when a sub-feature is cleared
-        _sync_parent_container(session, feature.name)
         return json.dumps(feature.to_dict())
     except Exception as e:
         session.rollback()
-        return json.dumps({"error": f"Failed to clear in-progress status: {str(e)}"})
+        return json.dumps({"error": f"Failed to checkpoint feature: {str(e)}"})
     finally:
         session.close()
 
@@ -1726,8 +1730,9 @@ def feature_create_sub_features(
         if parent is None:
             return json.dumps({"error": f"Feature {feature_id} not found"})
 
-        # Extract numeric prefix from parent name ("3.1 Foo" → "3.1")
-        _pfx = re.match(r'^(\d+(?:\.\d+)*)', parent.name)
+        # Extract numeric prefix from parent name
+        # Handles plain ("3.1 Foo" → "3.1") and "Story X.XX — ..." format ("Story 1.01 — Foo" → "1.01")
+        _pfx = re.match(r'^(?:Story\s+)?(\d+(?:\.\d+)*)', parent.name)
         parent_prefix = _pfx.group(1) if _pfx else str(feature_id)
 
         # Check if sub-features already exist for this parent (idempotency guard)

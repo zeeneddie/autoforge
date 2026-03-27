@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Loader2, AlertCircle, Check, Moon, Sun, ChevronDown, ChevronRight } from 'lucide-react'
-import { useSettings, useUpdateSettings, useAvailableModels, useProviders, usePlanningConfig, useUpdatePlanningConfig, useTestPlanningConnection, usePlanningCycles, useImportPlanningCycle, usePlanningSyncStatus, useTogglePlanningSync, useCompleteSprint } from '../hooks/useProjects'
+import { useSettings, useUpdateSettings, useAvailableModels, useProviders, usePlanningConfig, useUpdatePlanningConfig, useTestPlanningConnection, usePlanningCycles, useImportPlanningCycle, usePlanningSyncStatus, useTogglePlanningSync, useCompleteSprint, useForceOutboundSync } from '../hooks/useProjects'
 import { useTheme, THEMES } from '../hooks/useTheme'
 import {
   Dialog,
@@ -544,6 +544,8 @@ function PlanningSettingsSection({ selectedProject }: { selectedProject: string 
   const importCycle = useImportPlanningCycle()
   const { data: syncStatus } = usePlanningSyncStatus(selectedProject)
   const toggleSync = useTogglePlanningSync()
+  const forceSync = useForceOutboundSync()
+  const [forceSyncResult, setForceSyncResult] = useState<{ pushed: number; skipped: number; errors: number } | null>(null)
   const completeSprint = useCompleteSprint()
   const [completionResult, setCompletionResult] = useState<SprintCompletionResult | null>(null)
 
@@ -874,6 +876,32 @@ function PlanningSettingsSection({ selectedProject }: { selectedProject: string 
                         Webhooks: {syncStatus.webhook_count} received
                         {syncStatus.last_webhook_at && ` (last: ${new Date(syncStatus.last_webhook_at).toLocaleTimeString()})`}
                       </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Force sync button */}
+                {selectedProject && (
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={forceSync.isPending}
+                      onClick={() => {
+                        setForceSyncResult(null)
+                        forceSync.mutate(selectedProject, {
+                          onSuccess: (result) => setForceSyncResult(result),
+                        })
+                      }}
+                    >
+                      {forceSync.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+                      Force Sync Now
+                    </Button>
+                    {forceSyncResult && (
+                      <span className="text-xs text-muted-foreground">
+                        {forceSyncResult.pushed} pushed, {forceSyncResult.skipped} skipped
+                        {forceSyncResult.errors > 0 && `, ${forceSyncResult.errors} errors`}
+                      </span>
                     )}
                   </div>
                 )}
