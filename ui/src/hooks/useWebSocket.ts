@@ -13,6 +13,7 @@ import type {
   OrchestratorStatus,
   OrchestratorEvent,
 } from '../lib/types'
+import { handlePostCheckMessage as handlePostCheckMessageFromWS } from './usePostChecks'
 
 // Activity item for the feed
 interface ActivityItem {
@@ -352,6 +353,11 @@ export function useProjectWebSocket(projectName: string | null) {
                 devServerStatus: message.status,
                 devServerUrl: message.url,
               }))
+              break
+
+            case 'post_check_update':
+              // Forward to PostCheck store (Sprint 0: deterministic post-checks)
+              handlePostCheckMessageFromWS(message)
               break
 
             case 'pong':

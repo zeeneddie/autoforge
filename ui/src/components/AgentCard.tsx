@@ -2,6 +2,7 @@ import { MessageCircle, ScrollText, X, Copy, Check, Code, FlaskConical } from 'l
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AgentAvatar } from './AgentAvatar'
+import { PostCheckStepper } from './PostCheckStepper'
 import type { ActiveAgent, AgentLogEntry, AgentType } from '../lib/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -143,6 +144,9 @@ export function AgentCard({ agent, onShowLogs, onShowDialogue }: AgentCardProps)
             </>
           )}
         </div>
+
+        {/* Post-check stepper (Sprint 0) */}
+        <PostCheckStepper featureId={agent.featureId} className="pt-1" />
 
         {/* Thought bubble */}
         {agent.thought && (
