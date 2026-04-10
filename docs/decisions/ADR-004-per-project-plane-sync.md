@@ -8,7 +8,7 @@
 
 MQ DevEngine ondersteunt meerdere projecten tegelijk (bijv. `klaverjas_app` en `mq-discovery`). De MQ Planning sync configuratie (cycle_id, project_id, workspace, sync_enabled) wordt momenteel **globaal** opgeslagen in de registry (`~/.mq-devengine/registry.db` via `set_setting()`/`get_setting()`).
 
-Dit veroorzaakt een kritiek probleem: de background sync loop importeert work items uit één Plane cycle naar **alle** projecten. In de praktijk lekte de klaverjas "Sprint A: Auth + Teams" cycle (34 features) herhaaldelijk in de `mq-discovery` features database.
+Dit veroorzaakt een kritiek probleem: de background sync loop importeert work items uit één mq-planning cycle naar **alle** projecten. In de praktijk lekte de klaverjas "Sprint A: Auth + Teams" cycle (34 features) herhaaldelijk in de `mq-discovery` features database.
 
 ### Huidige architectuur (gebroken)
 

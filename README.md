@@ -26,7 +26,7 @@ Onboarding → Discovery Tool → MQ Planning (SSOT) ←→ MQ DevEngine
 6. **Separation of duties** -- Each tool has exactly one responsibility: Onboarding (analyze), Discovery (gather), PM Dashboard (monitor), MQ Planning (plan), MQ DevEngine (build).
 7. **Two audiences** -- PMs see Discovery Tool + PM Dashboard + MQ Planning. Developers manage Onboarding + MQ DevEngine. Developers share outcomes with PMs via MQ Planning and the PM Dashboard.
 8. **Confidence scoring** -- AI marks uncertain items visually so humans know where to focus review attention.
-9. **Two-track review** -- Business review (PM approves content) + Technical review (tech lead approves architecture via Git PR). Both required before Plane push.
+9. **Two-track review** -- Business review (PM approves content) + Technical review (tech lead approves architecture via Git PR). Both required before MQ Planning push.
 10. **Progressive disclosure** -- Start broad, go deeper where the human chooses. Sessions are resumable across days.
 11. **Phased onboarding** -- New clients start read-only, growing toward full CRUD as they mature. CRUD level is configurable per client.
 
@@ -476,7 +476,7 @@ Uitgebreide documentatie is beschikbaar in de [`docs/`](docs/) folder:
 - [**GitHub Setup**](docs/github-setup.md) -- GitHub Organization setup (marqed-ai), repository structuur, fork management
 
 ### Architecture Decision Records (ADR)
-- [**ADR-001: MQ Planning Integratie**](docs/decisions/ADR-001-plane-integration.md) -- Waarom Plane als PM frontend ipv zelf bouwen
+- [**ADR-001: MQ Planning Integratie**](docs/decisions/ADR-001-plane-integration.md) -- Waarom MQ Planning (fork van Plane) als PM frontend ipv zelf bouwen
 - [**ADR-002: Analyse Pipeline**](docs/decisions/ADR-002-analysis-pipeline.md) -- Waar analyse, review en executie plaatsvindt
 - [**ADR-003: Data Mapping**](docs/decisions/ADR-003-data-mapping.md) -- Entity/state/priority mapping tussen Onboarding, MQ Planning en MQ DevEngine
 - [**ADR-004: Per-Project Planning Sync**](docs/decisions/ADR-004-per-project-plane-sync.md) -- Per-project sync configuratie, voorkomt cross-project data lekkage

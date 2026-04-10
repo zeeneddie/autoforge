@@ -19,7 +19,7 @@ Totaal: 4 sprints aan eigen PM-development.
 
 ## Beslissing
 
-Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) als project management frontend (MQ Planning). Integreer via de REST API + webhooks.
+Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) als project management frontend, geforkt als **mq-planning** (marqed-ai/mq-planning). Integreer via de REST API + webhooks.
 
 ## Alternatieven Overwogen
 
@@ -43,7 +43,7 @@ Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) a
 - **Pro:** Al onderdeel van git workflow
 - **Con:** Beperkte PM features, geen echte sprint/cycle support, geen epics
 
-### 5. MQ Planning integratie (gekozen)
+### 5. MQ Planning integratie (gekozen — fork van Plane als marqed-ai/mq-planning)
 
 - **Pro:** Self-hosted, open-source, complete PM features (epics, cycles, modules, kanban, burndown), actieve community, REST API + webhooks
 - **Con:** Extra infra (Docker + PostgreSQL + Redis), twee UIs
@@ -60,11 +60,11 @@ Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) a
 
 | Risico | Impact | Mitigatie |
 |--------|--------|-----------|
-| Extra infra (Docker + PostgreSQL + Redis) | Medium | MQ Planning draait in Docker Compose, eenvoudige setup |
+| Extra infra (Docker + PostgreSQL + Redis) | Medium | mq-planning draait in Docker Compose, eenvoudige setup |
 | MQ Planning downtime | Laag | Features zijn lokaal in SQLite, orchestrator werkt door |
 | Rate limit (60 req/min) | Laag | Budget: ~14 req/min, voldoende voor <50 items |
 | Twee UIs (MQ Planning + MQ DevEngine) | Medium | Later: deep links of embedded views |
-| MQ Planning API deprecation (`/issues/` -> `/work-items/`) | Medium | Direct op nieuwe endpoints bouwen |
+| mq-planning API deprecation (`/issues/` -> `/work-items/`) | Medium | Direct op nieuwe endpoints bouwen |
 
 ## Gevolgen
 
@@ -92,4 +92,4 @@ Gebruik [Plane](https://github.com/makeplane/plane) (open-source, self-hosted) a
 - Nieuwe module: `planning_sync/` (client, mapper, sync service, webhook handler)
 - 3 extra kolommen op Feature tabel (planning_work_item_id, planning_synced_at, planning_updated_at)
 - Nieuwe API router: `/api/planning/*`
-- MQ Planning configuratie in registry settings + `.env`
+- mq-planning configuratie in registry settings + `.env`

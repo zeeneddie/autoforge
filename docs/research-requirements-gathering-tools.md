@@ -11,11 +11,11 @@
 
 After two rounds of exhaustive research covering 50+ tools across every platform and directory we could find:
 
-1. **No single open-source tool exists** that combines: conversational/wizard-based requirements gathering, hierarchical work item output (Epics > Features > Stories > Tasks), existing backlog import/refinement, and Plane integration. This is a genuine, validated gap in the market.
+1. **No single open-source tool exists** that combines: conversational/wizard-based requirements gathering, hierarchical work item output (Epics > Features > Stories > Tasks), existing backlog import/refinement, and mq-planning integration. This is a genuine, validated gap in the market.
 
 2. **The open-source requirements management landscape is bifurcated:** Traditional RM tools (StrictDoc, Doorstop, rmToo, OSRMT) are document-centric with outdated UIs and no AI. Modern PM tools (Plane, Taiga, OpenProject, Huly) handle backlogs but have no requirements discovery/gathering workflow. Feedback tools (Fider, ClearFlask, Astuto) collect user input but do not decompose it into work items. AI tools (MetaGPT, StoryMachine) generate from scratch but cannot import or refine existing backlogs.
 
-3. **Two viable build paths exist:** (a) Fork Eververse (MIT, Next.js/React/Supabase) and extend with conversational AI + Plane integration, or (b) Build purpose-built using assistant-ui/CopilotKit components + FastAPI backend + Plane Python SDK. Both are medium-effort with high differentiation potential.
+3. **Two viable build paths exist:** (a) Fork Eververse (MIT, Next.js/React/Supabase) and extend with conversational AI + mq-planning integration, or (b) Build purpose-built using assistant-ui/CopilotKit components + FastAPI backend + mq-planning client (Plane Python SDK). Both are medium-effort with high differentiation potential.
 
 ---
 
@@ -34,8 +34,8 @@ After two rounds of exhaustive research covering 50+ tools across every platform
 - **What It Does:** Open-source product management platform. Explore problems, ideate solutions, prioritize features (RICE scoring), plan roadmaps (Gantt/calendar), AI-powered feedback summarization and sentiment analysis.
 - **Backlog Import:** Integrations for push/pull with Jira, GitHub, Linear. No CSV/Markdown import.
 - **Hierarchy:** Features and roadmap items. Does NOT explicitly support Epic > Feature > Story > Task as distinct entity types.
-- **Fit Score:** 40% -- Best existing foundation. Missing: conversational requirements gathering, hierarchical decomposition, Plane integration, wizard/guided workflow, backlog import from CSV/Markdown.
-- **Fork Viability:** HIGH. MIT license. Modern stack matches our needs. Would need: (1) conversational/wizard-based elicitation flow, (2) hierarchical work item decomposition, (3) Plane API integration via plane-sdk, (4) backlog import from CSV/Markdown/Plane, (5) AI-powered story splitting/refinement.
+- **Fit Score:** 40% -- Best existing foundation. Missing: conversational requirements gathering, hierarchical decomposition, mq-planning integration, wizard/guided workflow, backlog import from CSV/Markdown.
+- **Fork Viability:** HIGH. MIT license. Modern stack matches our needs. Would need: (1) conversational/wizard-based elicitation flow, (2) hierarchical work item decomposition, (3) mq-planning API integration via mq-planning client, (4) backlog import from CSV/Markdown/mq-planning, (5) AI-powered story splitting/refinement.
 
 ---
 
@@ -49,7 +49,7 @@ After two rounds of exhaustive research covering 50+ tools across every platform
 - **Backlog Import:** YES -- ReqIF import/export (bidirectional with Doors, Polarion, etc.), Excel export, CSV capability. Tool-specific ReqIF profiles.
 - **Web UI:** YES -- built-in web server for viewing and editing requirements. Changes write back to .sdoc files.
 - **Hierarchy:** YES -- hierarchical tree of requirement documents with parent-child traceability.
-- **Fit Score:** 35% -- Strongest import/export and traceability. Missing: modern React UI (uses Jinja templates), agile work item format, Plane integration, AI assistance, conversational flow.
+- **Fit Score:** 35% -- Strongest import/export and traceability. Missing: modern React UI (uses Jinja templates), agile work item format, mq-planning integration, AI assistance, conversational flow.
 - **Fork Viability:** MEDIUM. Apache 2.0 license. Python backend compatible with our stack. But the Jinja-based UI would need replacement with React, and the document-centric model needs adaptation for agile workflows.
 
 ---
@@ -64,7 +64,7 @@ After two rounds of exhaustive research covering 50+ tools across every platform
 - **Web UI:** Commercial MGX (mgx.dev). Open-source HuggingFace Space demo.
 - **Backlog Import:** NO -- greenfield generation only from one-line prompts.
 - **Hierarchy:** Generates PRDs with product goals > user stories > competitive analysis > requirements.
-- **Fit Score:** 30% -- Excellent AI engine for requirements generation. Missing: iterative refinement of existing backlogs, Plane integration, non-technical-user-friendly UI, guided wizard UX.
+- **Fit Score:** 30% -- Excellent AI engine for requirements generation. Missing: iterative refinement of existing backlogs, mq-planning integration, non-technical-user-friendly UI, guided wizard UX.
 - **Fork Viability:** LOW for full fork (massive codebase). MEDIUM for extracting the PRD/user-story generation pipeline and wrapping it.
 
 ---
@@ -113,7 +113,7 @@ After two rounds of exhaustive research covering 50+ tools across every platform
 - **Last Active:** 2025
 - **What It Does:** AI-powered MVP plan generation. Takes requirements brief or PDF upload. Outputs technical spec, architecture, user-flow diagrams, task breakdown, PRD. Multi-model chat console.
 - **Backlog Import:** PDF upload of existing requirements.
-- **Fit Score:** 30% -- Right idea (natural language to structured output). Missing: iterative refinement, hierarchical decomposition to Plane format, existing backlog import beyond PDF.
+- **Fit Score:** 30% -- Right idea (natural language to structured output). Missing: iterative refinement, hierarchical decomposition to mq-planning format, existing backlog import beyond PDF.
 - **Fork Viability:** MODERATE. Apache 2.0. React/Vite/Tailwind close to our stack. Express backend needs replacement with FastAPI.
 
 ---
@@ -130,7 +130,7 @@ After two rounds of exhaustive research covering 50+ tools across every platform
 - **Last Active:** Active
 - **Backlog Import:** YES -- from Trello, Asana, GitHub, Jira.
 - **Hierarchy:** Epics > User Stories > Tasks, Sprint/Kanban views.
-- **Fit Score:** 30% -- Strong backlog management with import. Missing: requirements gathering/discovery workflow, AI, Plane integration. Legacy frontend (AngularJS/CoffeeScript).
+- **Fit Score:** 30% -- Strong backlog management with import. Missing: requirements gathering/discovery workflow, AI, mq-planning integration. Legacy frontend (AngularJS/CoffeeScript).
 - **Fork Viability:** LOW. AGPL license. Legacy tech stack. Heavy adaptation needed.
 
 ---
@@ -143,7 +143,7 @@ After two rounds of exhaustive research covering 50+ tools across every platform
 - **Last Active:** Active
 - **Backlog Import:** YES -- work package import/export.
 - **Hierarchy:** Configurable work package types with relationships.
-- **Fit Score:** 25% -- Enterprise PM. Requirements tracing through work packages. Missing: requirements discovery workflow, AI, Plane integration. Very heavy (8GB+ RAM recommended).
+- **Fit Score:** 25% -- Enterprise PM. Requirements tracing through work packages. Missing: requirements discovery workflow, AI, mq-planning integration. Very heavy (8GB+ RAM recommended).
 - **Fork Viability:** LOW. GPL. Ruby/Angular stack. Enterprise-weight.
 
 ---
@@ -461,15 +461,15 @@ After two rounds of exhaustive research covering 50+ tools across every platform
 | Graphical web UI for non-technical users | Partial | Eververse, Taiga, Worklenz |
 | Conversational/wizard-based requirements gathering | DOES NOT EXIST | Typebot pattern (not requirements-specific) |
 | Hierarchical output: Epic > Feature > Story > Task | Partial | Taiga (Epic > Story > Task), OpenProject |
-| Import existing backlogs (Plane, Jira, CSV, Markdown) | Partial | Taiga (Jira/Trello), StrictDoc (ReqIF/CSV) |
+| Import existing backlogs (mq-planning, Jira, CSV, Markdown) | Partial | Taiga (Jira/Trello), StrictDoc (ReqIF/CSV) |
 | Refine/split/reorganize existing work items | DOES NOT EXIST | No tool does this |
 | AI-powered requirements decomposition | DOES NOT EXIST | MetaGPT (greenfield only), StoryMachine (CLI) |
 | AI-powered iterative refinement of existing items | DOES NOT EXIST | None |
-| Push to MQ Planning via API | DOES NOT EXIST | MQ DevEngine is the only known MQ Planning integration builder |
+| Push to mq-planning via API | DOES NOT EXIST | MQ DevEngine is the only known mq-planning integration builder |
 | Permissive license (MIT/Apache) | Available | Eververse (MIT), StrictDoc (Apache 2.0), CopilotKit (MIT) |
 | Modern tech stack (React/Next.js + Python) | Available | Eververse, CopilotKit, assistant-ui |
 
-**Key finding: The combination of "conversational AI gathering + existing backlog import + hierarchical decomposition + Plane output" does not exist anywhere in the open-source world.**
+**Key finding: The combination of "conversational AI gathering + existing backlog import + hierarchical decomposition + mq-planning output" does not exist anywhere in the open-source world.**
 
 ---
 
@@ -478,7 +478,7 @@ After two rounds of exhaustive research covering 50+ tools across every platform
 ### APPROACH A: assistant-ui + Custom FastAPI Backend (RECOMMENDED for MVP)
 **Effort:** Medium (3-5 day sprint for MVP)
 
-Build a custom requirements gathering application using assistant-ui React components + FastAPI backend + Plane Python SDK.
+Build a custom requirements gathering application using assistant-ui React components + FastAPI backend + mq-planning client (Plane Python SDK).
 
 ```
 User <-> assistant-ui Chat UI <-> FastAPI /api/requirements/* <-> Claude/OpenAI API
@@ -489,18 +489,18 @@ User <-> assistant-ui Chat UI <-> FastAPI /api/requirements/* <-> Claude/OpenAI 
                                    +-----+-----+
                                    |           |
                                    v           v
-                            plane-sdk     CSV/Markdown
-                          (push to Plane)   (export)
+                       mq-planning client  CSV/Markdown
+                      (push to mq-planning)  (export)
 ```
 
-**Why:** Stack alignment (React + TypeScript + shadcn/ui + FastAPI). MIT license. Component library gives full control. Leverages existing Plane sync infrastructure.
+**Why:** Stack alignment (React + TypeScript + shadcn/ui + FastAPI). MIT license. Component library gives full control. Leverages existing mq-planning sync infrastructure.
 
 ---
 
 ### APPROACH B: Fork Eververse + Extend (RECOMMENDED for full product)
 **Effort:** Medium-High (multi-sprint)
 
-Fork Eververse and add: conversational wizard, backlog import, AI decomposition, Plane SDK integration.
+Fork Eververse and add: conversational wizard, backlog import, AI decomposition, mq-planning client integration.
 
 **Why:** MIT license. Next.js/React/shadcn/ui/Supabase. Already has AI integrations, feedback management, roadmapping. Active (Jan 2026).
 
@@ -543,23 +543,23 @@ Use StrictDoc's Python backend for requirements management (import/export, trace
 
 ## Final Recommendation
 
-**For fastest MVP: APPROACH A** (assistant-ui + FastAPI + Plane SDK). Build a standalone tool with:
+**For fastest MVP: APPROACH A** (assistant-ui + FastAPI + mq-planning client). Build a standalone tool with:
 1. Conversational AI chat interface (assistant-ui components)
 2. FastAPI backend with Claude/OpenAI for AI-powered conversation
-3. Backlog import from Plane (via plane-sdk), CSV, and Markdown
+3. Backlog import from mq-planning (via mq-planning client), CSV, and Markdown
 4. AI decomposes requirements into Epic > Feature > Story > Task hierarchy
 5. Refinement workflow: split stories, add acceptance criteria, estimate complexity
-6. One-click push to Plane via plane-sdk
+6. One-click push to mq-planning via mq-planning client
 
-**For full product vision: APPROACH B** (Fork Eververse). Gets us a complete product management platform with MIT license and modern stack, that we extend with our unique conversational requirements gathering + Plane integration.
+**For full product vision: APPROACH B** (Fork Eververse). Gets us a complete product management platform with MIT license and modern stack, that we extend with our unique conversational requirements gathering + mq-planning integration.
 
-**The tool fills a genuine market gap.** No existing open-source tool combines conversational AI requirements gathering with existing backlog refinement and structured Plane output. This is differentiated and buildable.
+**The tool fills a genuine market gap.** No existing open-source tool combines conversational AI requirements gathering with existing backlog refinement and structured mq-planning output. This is differentiated and buildable.
 
 ---
 
 ## Tool Comparison Matrix
 
-| Tool | Stars | License | Stack Match | Web UI | Conversational | Hierarchy | Import | Plane | Fit |
+| Tool | Stars | License | Stack Match | Web UI | Conversational | Hierarchy | Import | mq-planning | Fit |
 |------|-------|---------|-------------|--------|---------------|-----------|--------|-------|-----|
 | Eververse | 346 | MIT | Excellent | Yes | No | Partial | Partial | No | 40% |
 | StrictDoc | 248 | Apache 2.0 | Good (Python) | Yes | No | Yes | Yes (ReqIF/CSV) | No | 35% |

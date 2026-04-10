@@ -4,7 +4,7 @@
 **Status:** planned
 **Depends on:** STORY-003
 
-Create SQLAlchemy models for the `sessions` table with columns for id (UUID primary key), name, mode (brownpaper or greenpaper enum), status, created_at, updated_at, and plane_project_id. Include proper indexing and enum validation.
+Create SQLAlchemy models for the `sessions` table with columns for id (UUID primary key), name, mode (brownpaper or greenpaper enum), status, created_at, updated_at, and planning_project_id. Include proper indexing and enum validation.
 
 ## Acceptance Criteria
 

@@ -11,7 +11,7 @@
     vision interviews). The AI decomposes high-level ideas into a strict hierarchy of
     Epics, Features, Stories, and Tasks, each with acceptance criteria, confidence scores,
     and function point estimates. All output is pushed to MQ Planning (the single source of truth
-    for work item management) via the Plane Python SDK.
+    for work item management) via the mq-planning API (Plane Python SDK).
 
     The second capability is a PM Dashboard that provides a hierarchical overview with
     four-level drill-down navigation (Application, Epic, Feature, Story), aggregated metrics
@@ -40,7 +40,7 @@
       <runtime>Python 3.12 with FastAPI and uvicorn</runtime>
       <database>PostgreSQL 15 in Docker with SQLAlchemy 2.0 and Alembic migrations</database>
       <ai>Anthropic Python SDK (Claude API with streaming and structured outputs)</ai>
-      <pm_integration>Plane Python SDK v0.2.0 for bidirectional sync</pm_integration>
+      <pm_integration>mq-planning client (Plane Python SDK v0.2.0) for bidirectional sync</pm_integration>
       <realtime>Server-Sent Events (SSE) via sse-starlette</realtime>
       <validation>Pydantic v2 for request/response models</validation>
       <port>8000</port>
@@ -66,7 +66,7 @@
       - Node.js 20+ with npm
       - Docker and Docker Compose for PostgreSQL
       - Anthropic API key (ANTHROPIC_API_KEY environment variable)
-      - Plane instance with API key (optional, for Plane integration features)
+      - mq-planning instance with API key (optional, for mq-planning integration features)
     </environment_setup>
   </prerequisites>
 
@@ -84,7 +84,7 @@
          health check, and environment variables for database credentials. Single
          command startup via docker-compose up.
       3. Environment configuration: .env file with ANTHROPIC_API_KEY, DATABASE_URL,
-         PLANE_API_URL, PLANE_API_KEY, PLANE_WORKSPACE_SLUG, and PLANE_PROJECT_ID.
+         PLANNING_API_URL, PLANNING_API_KEY, PLANNING_WORKSPACE_SLUG, and PLANNING_PROJECT_ID.
          python-dotenv loads variables at startup. .env.example with placeholder values.
       4. CORS middleware: FastAPI CORSMiddleware configured to allow the frontend origin
          (http://localhost:3000) during development. Configurable allowed origins via
@@ -123,27 +123,27 @@
           for type safety.
     </database>
 
-    <plane_integration>
-      14. Plane SDK setup: Install and configure plane-sdk Python package. Initialize
+    <planning_integration>
+      14. mq-planning client setup: Install and configure mq-planning client (plane-sdk). Initialize
           PlanningClient with API URL, API key, workspace slug from environment variables.
           Singleton client instance available via dependency injection.
-      15. Plane authentication: Verify Plane API credentials on startup or first use.
+      15. mq-planning authentication: Verify mq-planning API credentials on startup or first use.
           GET /api/planning/test-connection endpoint that validates credentials and returns
           workspace info. Clear error messages for invalid credentials.
-      16. Read Plane modules: GET /api/planning/modules endpoint that fetches all modules
-          from the configured Plane project. Returns module ID, name, description, and
+      16. Read mq-planning modules: GET /api/planning/modules endpoint that fetches all modules
+          from the configured mq-planning project. Returns module ID, name, description, and
           work item count. Used to display existing epics in brownpaper mode.
-      17. Read Plane work items: GET /api/planning/work-items endpoint with optional
+      17. Read mq-planning work items: GET /api/planning/work-items endpoint with optional
           module_id filter. Returns work items with ID, name, description, state,
           priority, parent ID, and sub-work-item count. Pagination support.
-      18. Read Plane cycles: GET /api/planning/cycles endpoint that fetches all cycles
+      18. Read mq-planning cycles: GET /api/planning/cycles endpoint that fetches all cycles
           from the configured project. Returns cycle ID, name, start/end dates, and
           work item count. Used for cycle assignment during export.
-      19. Write work items to Plane: POST /api/planning/push endpoint that creates
+      19. Write work items to mq-planning: POST /api/planning/push endpoint that creates
           modules (from epics), work items (from features), and sub-work items (from
-          stories/tasks) in Plane. Supports optional cycle assignment. Returns created
+          stories/tasks) in mq-planning. Supports optional cycle assignment. Returns created
           item IDs for reference tracking.
-    </plane_integration>
+    </planning_integration>
 
     <ai_chat_backend>
       20. Claude SDK setup: Initialize Anthropic client with API key from environment.
@@ -161,7 +161,7 @@
           sliding window with phase transition markers preserved.
       24. System prompt construction: Build system prompts dynamically based on current
           session phase, mode (brownpaper/greenpaper), and available context (onboarding
-          data, existing Plane backlog). System prompt includes output format instructions
+          data, existing mq-planning backlog). System prompt includes output format instructions
           for the current phase.
       25. Claude API error handling: Catch and handle rate limit errors (429) with
           exponential backoff. Handle context window exceeded errors by trimming history.
@@ -212,8 +212,8 @@
       35. Interview about changes: After confirming existing findings, Claude interviews
           the user about desired changes, new features, and priorities. Combines
           confirmed Onboarding data with new requirements into a unified hierarchy.
-      36. Load existing Plane backlog: Optionally load existing modules and work items
-          from Plane as additional context. Presents existing backlog alongside
+      36. Load existing mq-planning backlog: Optionally load existing modules and work items
+          from mq-planning as additional context. Presents existing backlog alongside
           Onboarding findings for a complete picture of current state.
     </brownpaper_mode>
 
@@ -379,10 +379,10 @@
           All configuration read from environment with sensible defaults. Required
           variables (ANTHROPIC_API_KEY, DATABASE_URL) validated on startup with
           clear error messages if missing.
-      76. MQ Planning configuration UI: Settings page with inputs for Plane API URL, API
+      76. MQ Planning configuration UI: Settings page with inputs for mq-planning API URL, API
           key, workspace slug, and project ID. Test connection button validates
           credentials. Configuration stored in .env or via API endpoint
-          PUT /api/config/plane.
+          PUT /api/config/planning.
       77. Claude configuration UI: Settings page section for Claude model selection,
           max tokens, and temperature. Dropdown for model with options:
           claude-sonnet-4-5-20250514, claude-opus-4-20250514. Configuration applied
@@ -421,7 +421,7 @@
         - mode: VARCHAR(20) NOT NULL CHECK (mode IN ('brownpaper', 'greenpaper'))
         - status: VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed', 'exported', 'deleted'))
         - current_phase: INTEGER NOT NULL DEFAULT 1 CHECK (current_phase BETWEEN 1 AND 6)
-        - planning_project_id: VARCHAR(100) NULLABLE (Plane project UUID for integration)
+        - planning_project_id: VARCHAR(100) NULLABLE (mq-planning project UUID for integration)
         - onboarding_path: TEXT NULLABLE (filesystem path to Onboarding output directory)
         - total_input_tokens: INTEGER NOT NULL DEFAULT 0
         - total_output_tokens: INTEGER NOT NULL DEFAULT 0
@@ -446,7 +446,7 @@
         - confidence: FLOAT NOT NULL DEFAULT 0.5 CHECK (confidence BETWEEN 0.0 AND 1.0)
         - fp_estimate: INTEGER NOT NULL DEFAULT 0 (IFPUG function point estimate)
         - sort_order: INTEGER NOT NULL DEFAULT 0 (ordering among siblings)
-        - planning_work_item_id: VARCHAR(100) NULLABLE (Plane ID after export)
+        - planning_work_item_id: VARCHAR(100) NULLABLE (mq-planning ID after export)
         - created_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         - updated_at: TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         INDEXES:
@@ -601,40 +601,40 @@
         Purpose: Summary statistics for session header and export preparation
     </entities>
 
-    <plane>
+    <planning>
       - GET /api/planning/test-connection
         Returns: { connected: true, workspace: "...", project: "..." } or error
-        Purpose: Validate MQ Planning credentials before use
+        Purpose: Validate mq-planning credentials before use
 
       - GET /api/planning/modules
         Query params: project_id (optional, uses default)
-        Returns: List of Plane modules with id, name, description, work_item_count
+        Returns: List of mq-planning modules with id, name, description, work_item_count
         Purpose: Load existing epics for brownpaper mode context
 
       - GET /api/planning/work-items
         Query params: module_id (optional), state (optional), limit, offset
-        Returns: Paginated list of Plane work items with details
+        Returns: Paginated list of mq-planning work items with details
         Purpose: Load existing work items for brownpaper mode context
 
       - GET /api/planning/cycles
         Query params: project_id (optional)
-        Returns: List of Plane cycles with id, name, start_date, end_date, work_item_count
+        Returns: List of mq-planning cycles with id, name, start_date, end_date, work_item_count
         Purpose: Cycle selection for export assignment
 
       - POST /api/planning/push
         Body: { session_id, cycle_id? (optional cycle assignment), dry_run? (boolean, default false) }
         Returns: { created: { modules: N, work_items: N, sub_work_items: N }, errors: [...], dry_run: bool }
-        Purpose: Push session hierarchy to Plane. Dry run mode validates without creating items
-    </plane>
+        Purpose: Push session hierarchy to mq-planning. Dry run mode validates without creating items
+    </planning>
 
     <config>
       - GET /api/config
-        Returns: { plane: { connected: bool, workspace: "..." }, claude: { model: "...", max_tokens: N },
+        Returns: { planning: { connected: bool, workspace: "..." }, claude: { model: "...", max_tokens: N },
                    features: { brownpaper_enabled: bool, greenpaper_enabled: bool } }
         Purpose: Read non-sensitive application configuration
 
       - PUT /api/config
-        Body: { plane?: { api_url?, api_key?, workspace_slug?, project_id? },
+        Body: { planning?: { api_url?, api_key?, workspace_slug?, project_id? },
                 claude?: { model?, max_tokens?, temperature? } }
         Returns: Updated configuration (API keys masked)
         Purpose: Update application configuration
@@ -686,7 +686,7 @@
 
     <modals_overlays>
       - New Session dialog: mode selection (brownpaper/greenpaper radio), name input,
-        Plane project dropdown (optional), Onboarding path input (brownpaper only)
+        mq-planning project dropdown (optional), Onboarding path input (brownpaper only)
       - Settings modal: MQ Planning connection, Claude configuration, keyboard shortcuts reference
       - Export confirmation: preview of what will be pushed to MQ Planning, cycle selection dropdown,
         dry run checkbox, push button
@@ -801,7 +801,7 @@
       1. User lands on the session list page (GET /api/sessions)
       2. Clicks "New Session" button, modal opens
       3. Selects "Greenpaper" mode (new build), enters session name
-      4. Optionally selects a Plane project from dropdown
+      4. Optionally selects an mq-planning project from dropdown
       5. Clicks "Start Discovery", session is created (POST /api/sessions)
       6. Redirected to split-screen view: empty chat left, empty tree right
       7. Phase 1 indicator shows "Context Gathering"
@@ -844,13 +844,13 @@
       2. Clicks "Export to MQ Planning" button in header
       3. Export confirmation modal shows: summary of what will be created
          (e.g., 4 modules, 12 work items, 35 sub-work items)
-      4. User optionally selects a Plane cycle for assignment
+      4. User optionally selects an mq-planning cycle for assignment
       5. User clicks "Dry Run" to validate without creating items
       6. Dry run shows: "All items valid, ready to push"
       7. User clicks "Push to MQ Planning" primary button
       8. Progress indicator shows items being created (POST /api/planning/push)
       9. Completion message: "Created 4 modules, 12 work items, 35 sub-work items"
-      10. Session status updated to "exported", tree nodes show Plane IDs
+      10. Session status updated to "exported", tree nodes show mq-planning IDs
     </user_flow_4>
 
     <user_flow_5>
@@ -885,17 +885,17 @@
     </step>
 
     <step number="2">
-      <title>Plane Integration and Claude API Setup</title>
+      <title>mq-planning Integration and Claude API Setup</title>
       <tasks>
-        - Install and configure plane-sdk Python package
-        - Implement Plane client wrapper with credential validation
-        - Create Plane API endpoints: test-connection, modules, work-items, cycles
+        - Install and configure plane-sdk Python package (mq-planning client)
+        - Implement mq-planning client wrapper with credential validation
+        - Create mq-planning API endpoints: test-connection, modules, work-items, cycles
         - Install and configure anthropic Python SDK
         - Implement Claude streaming chat endpoint with SSE response
         - Create conversation history management with token tracking
         - Build system prompt construction for each of the 6 phases
         - Implement Claude API error handling with retry logic
-        - Create configuration endpoints for Plane and Claude settings
+        - Create configuration endpoints for mq-planning and Claude settings
       </tasks>
     </step>
 
@@ -960,8 +960,8 @@
     </criterion>
 
     <criterion number="3">
-      Plane SDK integration works: test-connection validates credentials, modules endpoint
-      returns existing Plane modules, work-items endpoint returns items with pagination,
+      mq-planning integration works: test-connection validates credentials, modules endpoint
+      returns existing mq-planning modules, work-items endpoint returns items with pagination,
       cycles endpoint returns available cycles.
     </criterion>
 
@@ -1027,7 +1027,7 @@
 
     <criterion number="14">
       Push to MQ Planning creates modules (from epics), work items (from features), and
-      sub-work items (from stories) in the configured Plane project. Dry run mode
+      sub-work items (from stories) in the configured mq-planning project. Dry run mode
       validates without creating items. Optional cycle assignment works correctly.
     </criterion>
 

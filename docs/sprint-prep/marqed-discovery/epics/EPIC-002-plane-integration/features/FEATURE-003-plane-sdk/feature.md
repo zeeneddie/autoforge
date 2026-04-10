@@ -4,11 +4,11 @@
 **Status:** planned
 **Depends on:** FEATURE-001
 
-Install and configure the Plane Python SDK with authenticated API access. Implement read endpoints for modules (epics), work items (features), and cycles (sprints) so the discovery tool can load existing backlog context from MQ Planning projects.
+Install and configure the mq-planning client (Plane Python SDK) with authenticated API access. Implement read endpoints for modules (epics), work items (features), and cycles (sprints) so the discovery tool can load existing backlog context from mq-planning projects.
 
 ## Acceptance Criteria
 
-- [ ] MQ Planning SDK installed and version pinned
+- [ ] mq-planning client installed and version pinned
 - [ ] API authentication via environment variables
 - [ ] Read modules endpoint returns module list with item counts
 - [ ] Read work items endpoint returns items with state and priority
