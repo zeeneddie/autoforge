@@ -16,10 +16,10 @@ De opstartvolgorde is: MQ Planning → MQ DevEngine → Sync configureren → Ag
 
 ## MQ Planning opstarten (Docker)
 
-MQ Planning (Plane) draait als een set Docker containers. Start vanuit de Plane project directory:
+MQ Planning draait als een set Docker containers (fork van Plane). Start vanuit de mq-planning project directory:
 
 ```bash
-cd /home/eddie/Projects/plane
+cd /home/eddie/Projects/mq-planning
 docker compose up -d
 ```
 
@@ -192,7 +192,7 @@ Open Settings (tandwiel icoon) in de MQ DevEngine UI en vul de MQ Planning secti
 | Setting | Beschrijving | Voorbeeld |
 |---------|-------------|-----------|
 | `planning_api_url` | MQ Planning API base URL | `http://localhost:8080/api/v1` |
-| `planning_api_key` | MQ Planning API key (uit MQ Planning profiel settings) | `plane_api_...` |
+| `planning_api_key` | MQ Planning API key (uit MQ Planning profiel settings) | `planning_api_...` |
 | `planning_workspace_slug` | Workspace slug in MQ Planning | `my-workspace` |
 | `planning_project_id` | Project UUID in MQ Planning | `a1b2c3d4-...` |
 | `planning_cycle_id` | Active cycle UUID in MQ Planning | `e5f6g7h8-...` |
@@ -206,7 +206,7 @@ Settings worden opgeslagen in `~/.mq-devengine/registry.db`. Ze kunnen ook direc
 ```bash
 curl -X PATCH http://localhost:8888/api/settings \
   -H "Content-Type: application/json" \
-  -d '{"plane_api_url": "http://localhost:8080/api/v1", "plane_api_key": "..."}'
+  -d '{"planning_api_url": "http://localhost:8080/api/v1", "planning_api_key": "..."}'
 ```
 
 ### Sync starten
@@ -320,7 +320,7 @@ docker start $(docker ps -a --filter "name=plane" --filter "status=exited" -q)
 
 ### Port 80 in gebruik
 
-MQ Planning (Plane) probeert standaard poort 80 te gebruiken. Als deze bezet is, pas de proxy poort aan in de Docker Compose configuratie. De standaard workaround is poort 8080.
+MQ Planning probeert standaard poort 80 te gebruiken. Als deze bezet is, pas de proxy poort aan in de Docker Compose configuratie. De standaard workaround is poort 8080.
 
 ### Agent crasht direct
 

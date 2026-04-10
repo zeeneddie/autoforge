@@ -13,7 +13,7 @@
 
 ## Architectuur Decision Records (ADR)
 
-- [**ADR-001: MQ Planning Integratie**](decisions/ADR-001-plane-integration.md) - Waarom MQ Planning (Plane) als PM frontend ipv zelf bouwen. Alternatieven, risico's, roadmap impact.
+- [**ADR-001: MQ Planning Integratie**](decisions/ADR-001-plane-integration.md) - Waarom MQ Planning (fork van Plane) als PM frontend ipv zelf bouwen. Alternatieven, risico's, roadmap impact.
 - [**ADR-002: Analyse Pipeline**](decisions/ADR-002-analysis-pipeline.md) - Waar analyse, review, executie plaatsvindt. MarQed -> Git PR -> MQ Planning -> MQ DevEngine. Change document formaat.
 - [**ADR-003: Data Mapping**](decisions/ADR-003-data-mapping.md) - Entity/state/priority mapping tussen MarQed, MQ Planning en MQ DevEngine. Echo prevention. DB schema uitbreiding.
 - [**ADR-004: Per-Project Planning Sync**](decisions/ADR-004-per-project-plane-sync.md) - Per-project MQ Planning sync configuratie. Voorkomt cross-project data lekkage bij meerdere projecten.

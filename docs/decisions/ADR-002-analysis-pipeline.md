@@ -26,7 +26,7 @@ Elke stap heeft een duidelijke eigenaar:
 | **Executie** | MQ DevEngine | Gebouwd voor autonome code-uitvoering, parallel agents |
 | **Documentatie** | MQ DevEngine -> MarQed + MQ Planning | MQ DevEngine heeft de git diffs, pusht change docs naar beide systemen |
 
-## Waarom MarQed voor Analyse (niet MQ DevEngine of Plane)
+## Waarom MarQed voor Analyse (niet MQ DevEngine of mq-planning)
 
 ### MarQed is analyse-first
 
@@ -42,12 +42,12 @@ Elke stap heeft een duidelijke eigenaar:
 - De initializer agent creëert features uit een app_spec, maar doet geen diepe codebase-analyse
 - Analyse toevoegen aan MQ DevEngine zou scope creep zijn
 
-### MQ Planning heeft geen analyse-capability
+### mq-planning heeft geen analyse-capability
 
-- MQ Planning is puur planning en tracking
+- mq-planning is puur planning en tracking
 - Geen codebase scanning of AI-gestuurde decompositie
 
-## Waarom Git PR voor Review (niet direct in Plane)
+## Waarom Git PR voor Review (niet direct in mq-planning)
 
 ### Markdown is het ideale review-format
 
@@ -68,9 +68,9 @@ Elke stap heeft een duidelijke eigenaar:
 - **Versionable:** Wijzigingshistorie in git
 - **Approachable:** Iedereen kan markdown lezen
 
-### MQ Planning review is complementair, niet primair
+### mq-planning review is complementair, niet primair
 
-- In MQ Planning kun je herschikken, reprioriteren, toewijzen
+- In mq-planning kun je herschikken, reprioriteren, toewijzen
 - Maar de inhoudelijke review (is deze epic correct? mist er een feature?) is beter in markdown/git
 
 ## Analyse Output Format

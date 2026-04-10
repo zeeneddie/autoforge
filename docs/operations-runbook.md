@@ -27,7 +27,7 @@ mkdir -p ~/.mq-devengine/pids
 ### Starten
 
 ```bash
-cd /home/eddie/plane
+cd /home/eddie/Projects/mq-planning
 docker compose -f docker-compose-local.yml up -d
 ```
 
@@ -45,7 +45,7 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:8082/  # verwacht: 200 (
 ### Stoppen
 
 ```bash
-cd /home/eddie/plane
+cd /home/eddie/Projects/mq-planning
 docker compose -f docker-compose-local.yml down
 ```
 
@@ -227,7 +227,7 @@ set -e
 mkdir -p ~/.mq-devengine/pids
 
 echo "=== Starting MQ Planning ==="
-cd /home/eddie/plane
+cd /home/eddie/Projects/mq-planning
 docker compose -f docker-compose-local.yml up -d
 
 echo "=== Starting ChromaDB ==="
@@ -288,7 +288,7 @@ echo "=== Stopping ChromaDB ==="
 docker stop project_manager_chromadb 2>/dev/null && echo "  ChromaDB stopped"
 
 echo "=== Stopping MQ Planning ==="
-cd /home/eddie/plane
+cd /home/eddie/Projects/mq-planning
 docker compose -f docker-compose-local.yml down && echo "  MQ Planning stopped"
 
 echo ""

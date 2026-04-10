@@ -9,7 +9,7 @@ Het **MarQed.ai platform** bestaat uit vijf componenten die samen een volledige 
 | **Onboarding** | Codebase analyse, kennis opbouw, IFPUG functiepunten | Python, 11 AI agents, markdown output | Developer, Tech Lead |
 | **Discovery Tool** | Requirements gathering: brownpaper (bestaand) en greenpaper (nieuwbouw) | React/assistant-ui, FastAPI, PostgreSQL | Product Manager, Stakeholder |
 | **PM Dashboard** | Hiërarchisch overzicht met drill-down en metriek | React, Aggregatie API | Product Manager |
-| **MQ Planning** | Planning, backlog, sprint management (SSOT) | Plane (self-hosted), PostgreSQL, REST API | Product Manager, Developer |
+| **MQ Planning** | Planning, backlog, sprint management (SSOT) | mq-planning (self-hosted, fork van Plane), PostgreSQL, REST API | Product Manager, Developer |
 | **MQ DevEngine** | Autonome code-uitvoering, testing, delivery | Python/FastAPI, Claude Agent SDK | Developer |
 
 Zie [platform-overview.md](platform-overview.md) voor het volledige platformdiagram met alle datastromen.
@@ -371,7 +371,7 @@ De UI biedt een Analytics view als derde view-modus naast Kanban en Dependency G
 
 - **ViewToggle:** `kanban | graph | analytics`, keyboard shortcut `I`
 - **Test Report tab:** Summary cards (totaal, getest, pass rate, runs) + feature tabel met pass rate bars + expandable heatmap per feature (groen/rood cellen)
-- **Sprint Metrics tab:** Sprint voortgang, test activiteit, feature velocity, sync status — combineert `usePlaneSyncStatus()` + `useTestReport()`
+- **Sprint Metrics tab:** Sprint voortgang, test activiteit, feature velocity, sync status — combineert `usePlanningSyncStatus()` + `useTestReport()`
 - **Release Notes tab:** Twee-paneel layout (bestandslijst + inhoud viewer) met ingebouwde markdown renderer (headers, bold, italic, lists, tables, code blocks — geen externe deps)
 
 ```
@@ -421,7 +421,7 @@ Status flow: `stopped → running → finishing → stopped` (graceful) of `runn
 | Service | Vereisten | Port |
 |---------|-----------|------|
 | Onboarding | Python 3.12+, Docker, ChromaDB | 8000 |
-| MQ Planning (Plane) | Docker Compose (PostgreSQL, Redis, MinIO) | 8080 |
+| MQ Planning | Docker Compose (PostgreSQL, Redis, MinIO) | 8080 |
 | MQ DevEngine | Python 3.11+, Node.js 20+ | 5175 |
 | Discovery Tool | React, FastAPI, PostgreSQL in Docker | 3000 |
 | PM Dashboard | React (onderdeel Discovery Tool of standalone) | 3000 |
