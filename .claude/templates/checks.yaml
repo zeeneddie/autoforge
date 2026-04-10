@@ -1,0 +1,64 @@
+# Post-checks configuration for mq-devEngine
+# Place in project_dir/.mq-devengine/checks.yaml to override defaults.
+# Omitted keys fall back to these defaults.
+
+lint:
+  enabled: true
+  tool: ruff
+  args: ["check", "."]
+  # Extra ruff args per project (e.g. ["--select", "E,F,W"])
+  extra_args: []
+
+type_check:
+  enabled: true
+  tool: mypy
+  args: ["."]
+  extra_args: []
+
+mock_detection:
+  enabled: true
+  # Patterns that indicate hardcoded mock/test data in production code
+  patterns:
+    - "TODO.*mock"
+    - "FIXME.*mock"
+    - "fake_data"
+    - "mock_response"
+    - "test_data.*=.*\\["
+    - "dummy_.*=.*\\{"
+  # Directories to scan (relative to project root)
+  scan_dirs: ["src", "app", "lib", "server"]
+  # Directories to exclude from mock detection
+  exclude_dirs: ["test", "tests", "__tests__", "fixtures", "mocks", "node_modules", ".venv"]
+  # File extensions to scan
+  extensions: [".py", ".ts", ".tsx", ".js", ".jsx"]
+
+tests:
+  enabled: true
+  # Auto-detect: tries pytest, then npm test, then custom
+  commands:
+    - detect: "pyproject.toml"
+      run: ["python", "-m", "pytest", "-x", "-q"]
+    - detect: "package.json"
+      run: ["npm", "test", "--", "--run"]
+    - detect: "Makefile"
+      run: ["make", "test"]
+
+coverage:
+  enabled: true
+  threshold: 80
+  # Only measure coverage on files modified in this story
+  modified_only: true
+  commands:
+    - detect: "pyproject.toml"
+      run: ["python", "-m", "pytest", "--cov", "--cov-report=json", "-q"]
+      report: "coverage.json"
+    - detect: "package.json"
+      run: ["npx", "vitest", "run", "--coverage", "--reporter=json"]
+      report: "coverage/coverage-final.json"
+
+# Retry behaviour (orchestrator uses this)
+retry:
+  max_attempts: 3
+  # Include these in the retry prompt context
+  include_error_output: true
+  max_error_lines: 50
