@@ -39,9 +39,14 @@ class Base(DeclarativeBase):
 
 
 class Feature(Base):
-    """Feature model representing a test case/feature to implement."""
+    """Feature model — table renamed to 'stories' in Sprint 1 Blok A (2026-04-11).
 
-    __tablename__ = "features"
+    Python class name 'Feature' is kept for backward compatibility in this
+    sprint; Blok B (tasks 1.5-1.8) will rename to Story including all
+    imports, routers and MCP tools.
+    """
+
+    __tablename__ = "stories"
 
     # Composite index for common status query pattern (passes, in_progress)
     # Used by feature_get_stats, get_ready_features, and other status queries
@@ -189,7 +194,7 @@ class TestRun(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    feature_id = Column(Integer, ForeignKey("features.id", ondelete="CASCADE"), nullable=False, index=True)
+    feature_id = Column(Integer, ForeignKey("stories.id", ondelete="CASCADE"), nullable=False, index=True)
     passed = Column(Boolean, nullable=False)
     agent_type = Column(String(20), nullable=False)  # "testing" or "coding"
     agent_pid = Column(Integer, nullable=True)
@@ -211,7 +216,7 @@ class AgentLog(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    feature_id = Column(Integer, ForeignKey("features.id", ondelete="CASCADE"), nullable=False)
+    feature_id = Column(Integer, ForeignKey("stories.id", ondelete="CASCADE"), nullable=False)
     run_id = Column(Integer, nullable=False, default=1)  # Groups logs per agent session/attempt
     line = Column(Text, nullable=False)
     log_type = Column(String(20), nullable=False, default="output")  # "output", "error", "state_change"
@@ -314,16 +319,67 @@ def get_database_url(project_dir: Path) -> str:
     return f"sqlite:///{db_path.as_posix()}"
 
 
+def _migrate_rename_features_to_stories(engine) -> None:
+    """Sprint 1 Blok A task 1.1+1.4 (2026-04-11): rename 'features' table to 'stories'.
+
+    Must run BEFORE Base.metadata.create_all() so that SQLAlchemy's create_all
+    sees the renamed table and doesn't create a fresh 'stories' alongside the
+    old 'features'. All subsequent migrations use the new name.
+
+    Behavior:
+    - Fresh DB: no 'features' table → no-op, create_all will create 'stories'
+    - v1 DB: 'features' exists, 'stories' doesn't → ALTER TABLE features RENAME TO stories
+    - v2 DB: 'stories' exists → no-op
+    - Both exist (partial migration): raise, requires manual intervention
+
+    Also performs task 1.2 data migration: copies 'steps' → 'acceptance_criteria'
+    where the latter is NULL, so no data is lost when steps column is eventually
+    dropped in Blok B.
+    """
+    with engine.connect() as conn:
+        result = conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name IN ('features', 'stories')"
+        ))
+        existing = {row[0] for row in result.fetchall()}
+
+        if "features" in existing and "stories" in existing:
+            raise RuntimeError(
+                "Sprint 1 Blok A migration error: both 'features' and 'stories' "
+                "tables exist. This should not happen in normal upgrade. "
+                "Manual intervention required."
+            )
+
+        if "features" in existing and "stories" not in existing:
+            # Task 1.2 data copy: steps → acceptance_criteria where null
+            # Only runs if both columns exist in the v1 table
+            v1_cols_result = conn.execute(text("PRAGMA table_info(features)"))
+            v1_cols = {row[1] for row in v1_cols_result.fetchall()}
+            if "steps" in v1_cols and "acceptance_criteria" in v1_cols:
+                conn.execute(text(
+                    "UPDATE features SET acceptance_criteria = steps "
+                    "WHERE acceptance_criteria IS NULL AND steps IS NOT NULL"
+                ))
+
+            # Task 1.1 table rename
+            conn.execute(text("ALTER TABLE features RENAME TO stories"))
+            conn.commit()
+
+        # Task 1.3 — sub-features as separate records: NO-OP.
+        # The 'tasks' JSON column never existed in this codebase; sub-features
+        # are already modeled via the dependencies column on Feature.
+
+
 def _migrate_add_in_progress_column(engine) -> None:
     """Add in_progress column to existing databases that don't have it."""
     with engine.connect() as conn:
         # Check if column exists
-        result = conn.execute(text("PRAGMA table_info(features)"))
+        result = conn.execute(text("PRAGMA table_info(stories)"))
         columns = [row[1] for row in result.fetchall()]
 
         if "in_progress" not in columns:
             # Add the column with default value
-            conn.execute(text("ALTER TABLE features ADD COLUMN in_progress BOOLEAN DEFAULT 0"))
+            conn.execute(text("ALTER TABLE stories ADD COLUMN in_progress BOOLEAN DEFAULT 0"))
             conn.commit()
 
 
@@ -331,9 +387,9 @@ def _migrate_fix_null_boolean_fields(engine) -> None:
     """Fix NULL values in passes and in_progress columns."""
     with engine.connect() as conn:
         # Fix NULL passes values
-        conn.execute(text("UPDATE features SET passes = 0 WHERE passes IS NULL"))
+        conn.execute(text("UPDATE stories SET passes = 0 WHERE passes IS NULL"))
         # Fix NULL in_progress values
-        conn.execute(text("UPDATE features SET in_progress = 0 WHERE in_progress IS NULL"))
+        conn.execute(text("UPDATE stories SET in_progress = 0 WHERE in_progress IS NULL"))
         conn.commit()
 
 
@@ -345,12 +401,12 @@ def _migrate_add_dependencies_column(engine) -> None:
     """
     with engine.connect() as conn:
         # Check if column exists
-        result = conn.execute(text("PRAGMA table_info(features)"))
+        result = conn.execute(text("PRAGMA table_info(stories)"))
         columns = [row[1] for row in result.fetchall()]
 
         if "dependencies" not in columns:
             # Use TEXT for SQLite JSON storage, NULL default for backwards compat
-            conn.execute(text("ALTER TABLE features ADD COLUMN dependencies TEXT DEFAULT NULL"))
+            conn.execute(text("ALTER TABLE stories ADD COLUMN dependencies TEXT DEFAULT NULL"))
             conn.commit()
 
 
@@ -426,43 +482,43 @@ def _migrate_add_planning_sync_columns(engine) -> None:
     Also renames legacy plane_* columns to planning_* if they exist.
     """
     with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(features)"))
+        result = conn.execute(text("PRAGMA table_info(stories)"))
         columns = [row[1] for row in result.fetchall()]
 
         # Rename legacy plane_* columns to planning_* if they exist
         if "plane_work_item_id" in columns and "planning_work_item_id" not in columns:
             conn.execute(text(
-                "ALTER TABLE features RENAME COLUMN plane_work_item_id TO planning_work_item_id"
+                "ALTER TABLE stories RENAME COLUMN plane_work_item_id TO planning_work_item_id"
             ))
         if "plane_synced_at" in columns and "planning_synced_at" not in columns:
             conn.execute(text(
-                "ALTER TABLE features RENAME COLUMN plane_synced_at TO planning_synced_at"
+                "ALTER TABLE stories RENAME COLUMN plane_synced_at TO planning_synced_at"
             ))
         if "plane_updated_at" in columns and "planning_updated_at" not in columns:
             conn.execute(text(
-                "ALTER TABLE features RENAME COLUMN plane_updated_at TO planning_updated_at"
+                "ALTER TABLE stories RENAME COLUMN plane_updated_at TO planning_updated_at"
             ))
         if "plane_last_status_hash" in columns and "planning_last_status_hash" not in columns:
             conn.execute(text(
-                "ALTER TABLE features RENAME COLUMN plane_last_status_hash TO planning_last_status_hash"
+                "ALTER TABLE stories RENAME COLUMN plane_last_status_hash TO planning_last_status_hash"
             ))
 
         # Re-read columns after renames
-        result = conn.execute(text("PRAGMA table_info(features)"))
+        result = conn.execute(text("PRAGMA table_info(stories)"))
         columns = [row[1] for row in result.fetchall()]
 
         # Add columns if they don't exist (fresh databases)
         if "planning_work_item_id" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN planning_work_item_id VARCHAR(36) DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN planning_work_item_id VARCHAR(36) DEFAULT NULL"
             ))
         if "planning_synced_at" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN planning_synced_at DATETIME DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN planning_synced_at DATETIME DEFAULT NULL"
             ))
         if "planning_updated_at" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN planning_updated_at DATETIME DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN planning_updated_at DATETIME DEFAULT NULL"
             ))
         conn.commit()
 
@@ -474,7 +530,7 @@ def _migrate_add_planning_sync_columns(engine) -> None:
             ))
             conn.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_feature_planning_work_item_id "
-                "ON features (planning_work_item_id)"
+                "ON stories (planning_work_item_id)"
             ))
             conn.commit()
         except Exception:
@@ -484,12 +540,12 @@ def _migrate_add_planning_sync_columns(engine) -> None:
 def _migrate_add_planning_status_hash(engine) -> None:
     """Add planning_last_status_hash column to existing databases."""
     with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(features)"))
+        result = conn.execute(text("PRAGMA table_info(stories)"))
         columns = [row[1] for row in result.fetchall()]
 
         if "planning_last_status_hash" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN planning_last_status_hash VARCHAR(20) DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN planning_last_status_hash VARCHAR(20) DEFAULT NULL"
             ))
             conn.commit()
 
@@ -571,20 +627,20 @@ def _migrate_add_agent_memories_table(engine) -> None:
 def _migrate_add_review_columns(engine) -> None:
     """Add review agent columns to features table (Sprint 7.5)."""
     with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(features)"))
+        result = conn.execute(text("PRAGMA table_info(stories)"))
         columns = [row[1] for row in result.fetchall()]
 
         if "review_status" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN review_status VARCHAR(20) DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN review_status VARCHAR(20) DEFAULT NULL"
             ))
         if "review_notes" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN review_notes TEXT DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN review_notes TEXT DEFAULT NULL"
             ))
         if "reviewed_at" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN reviewed_at DATETIME DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN reviewed_at DATETIME DEFAULT NULL"
             ))
         conn.commit()
 
@@ -592,20 +648,20 @@ def _migrate_add_review_columns(engine) -> None:
 def _migrate_add_tdd_columns(engine) -> None:
     """Add TDD tracking columns to features table (Sprint 7.8)."""
     with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(features)"))
+        result = conn.execute(text("PRAGMA table_info(stories)"))
         columns = [row[1] for row in result.fetchall()]
 
         if "test_file_path" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN test_file_path VARCHAR(500) DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN test_file_path VARCHAR(500) DEFAULT NULL"
             ))
         if "test_count" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN test_count INTEGER DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN test_count INTEGER DEFAULT NULL"
             ))
         if "last_test_output" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN last_test_output TEXT DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN last_test_output TEXT DEFAULT NULL"
             ))
         conn.commit()
 
@@ -613,12 +669,12 @@ def _migrate_add_tdd_columns(engine) -> None:
 def _migrate_add_acceptance_criteria_column(engine) -> None:
     """Add acceptance_criteria column to features table (anti-slop: AC traceability)."""
     with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(features)"))
+        result = conn.execute(text("PRAGMA table_info(stories)"))
         columns = [row[1] for row in result.fetchall()]
 
         if "acceptance_criteria" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN acceptance_criteria TEXT DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN acceptance_criteria TEXT DEFAULT NULL"
             ))
             conn.commit()
 
@@ -626,12 +682,12 @@ def _migrate_add_acceptance_criteria_column(engine) -> None:
 def _migrate_add_planning_parent_column(engine) -> None:
     """Add planning_parent_work_item_id column for N:1 aggregated sync."""
     with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(features)"))
+        result = conn.execute(text("PRAGMA table_info(stories)"))
         columns = [row[1] for row in result.fetchall()]
 
         if "planning_parent_work_item_id" not in columns:
             conn.execute(text(
-                "ALTER TABLE features ADD COLUMN planning_parent_work_item_id VARCHAR(36) DEFAULT NULL"
+                "ALTER TABLE stories ADD COLUMN planning_parent_work_item_id VARCHAR(36) DEFAULT NULL"
             ))
             conn.commit()
 
@@ -640,7 +696,7 @@ def _migrate_add_planning_parent_column(engine) -> None:
         try:
             conn.execute(text(
                 "CREATE INDEX IF NOT EXISTS ix_feature_planning_parent_work_item_id "
-                "ON features (planning_parent_work_item_id)"
+                "ON stories (planning_parent_work_item_id)"
             ))
             conn.commit()
         except Exception:
@@ -728,6 +784,10 @@ def create_database(project_dir: Path) -> tuple:
     # Configure IMMEDIATE transactions via event hooks AFTER setting PRAGMAs
     # This must happen before create_all() and migrations run
     _configure_sqlite_immediate_transactions(engine)
+
+    # Sprint 1 Blok A (v1→v2): rename 'features' table to 'stories' BEFORE create_all
+    # so that create_all uses the renamed table instead of creating a duplicate.
+    _migrate_rename_features_to_stories(engine)
 
     Base.metadata.create_all(bind=engine)
 
