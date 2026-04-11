@@ -24,11 +24,11 @@ tail -500 claude-progress.txt
 git log --oneline -20
 ```
 
-Then use MCP tools to check feature status:
+Then use MCP tools to check story status:
 
 ```
 # 6. Get progress statistics (passing/total counts)
-Use the feature_get_stats tool
+Use the story_get_stats tool
 ```
 
 Understanding the `app_spec.txt` is critical - it contains the full requirements
@@ -43,7 +43,7 @@ and follow established patterns:
 # Recall architecture decisions and patterns
 Use the memory_recall tool (no arguments needed - returns top 10 by relevance)
 
-# After claiming your feature (Step 3), recall feature-specific context:
+# After claiming your story (Step 3), recall story-specific context:
 Use the memory_recall_for_feature tool with feature_id={your_assigned_id}
 ```
 
@@ -68,36 +68,36 @@ Otherwise, start servers manually and document the process.
 
 Features are **test cases** that drive development. If functionality doesn't exist, **BUILD IT** -- you are responsible for implementing ALL required functionality. Missing pages, endpoints, database tables, or components are NOT blockers; they are your job to create.
 
-**Note:** Your feature has been pre-assigned by the orchestrator. Use `feature_get_by_id` with your assigned feature ID to get the details. Then mark it as in-progress:
+**Note:** Your story has been pre-assigned by the orchestrator. Use `feature_get_by_id` with your assigned story ID to get the details. Then mark it as in-progress:
 
 ```
-Use the feature_mark_in_progress tool with feature_id={your_assigned_id}
+Use the story_mark_in_progress tool with feature_id={your_assigned_id}
 ```
 
 If you get "already in-progress" error, that's OK - continue with implementation.
 
-Focus on completing one feature perfectly in this session. It's ok if you only complete one feature, as more sessions will follow.
+Focus on completing one story perfectly in this session. It's ok if you only complete one story, as more sessions will follow.
 
 #### When to Skip a Feature (EXTREMELY RARE)
 
-Only skip for truly external blockers: missing third-party credentials (Stripe keys, OAuth secrets), unavailable external services, or unfulfillable environment requirements. **NEVER** skip because a page, endpoint, component, or data doesn't exist yet -- build it. If a feature requires other functionality first, build that functionality as part of this feature.
+Only skip for truly external blockers: missing third-party credentials (Stripe keys, OAuth secrets), unavailable external services, or unfulfillable environment requirements. **NEVER** skip because a page, endpoint, component, or data doesn't exist yet -- build it. If a story requires other functionality first, build that functionality as part of this story.
 
 If you must skip (truly external blocker only):
 
 ```
-Use the feature_skip tool with feature_id={id}
+Use the story_skip tool with feature_id={id}
 ```
 
 Document the SPECIFIC external blocker in `claude-progress.txt`. "Functionality not built" is NEVER a valid reason.
 
 ### STEP 4: IMPLEMENT THE FEATURE
 
-Implement the chosen feature thoroughly:
+Implement the chosen story thoroughly:
 
 1. Write the code (frontend and/or backend as needed)
 2. Test manually using browser automation (see Step 5)
 3. Fix any issues discovered
-4. Verify the feature works end-to-end
+4. Verify the story works end-to-end
 
 ### STEP 5: VERIFY WITH BROWSER AUTOMATION
 
@@ -126,44 +126,44 @@ Use browser automation tools:
 
 ### STEP 5.5: MANDATORY VERIFICATION CHECKLIST (BEFORE MARKING ANY TEST PASSING)
 
-**Complete ALL applicable checks before marking any feature as passing:**
+**Complete ALL applicable checks before marking any story as passing:**
 
 - **Security:** Feature respects role permissions; unauthenticated access blocked; API checks auth (401/403); no cross-user data leaks via URL manipulation
 - **Real Data:** Create unique test data via UI, verify it appears, refresh to confirm persistence, delete and verify removal. No unexplained data (indicates mocks). Dashboard counts reflect real numbers
 - **Mock Data Grep:** Run STEP 5.6 grep checks - no hits in src/ (excluding tests). No globalThis, devStore, or dev-store patterns
-- **Server Restart:** For data features, run STEP 5.7 - data persists across server restart
+- **Server Restart:** For data storys, run STEP 5.7 - data persists across server restart
 - **Navigation:** All buttons link to existing routes, no 404s, back button works, edit/view/delete links have correct IDs
 - **Integration:** Zero JS console errors, no 500s in network tab, API data matches UI, loading/error states work
 
 ### STEP 5.6: MOCK DATA DETECTION (Before marking passing)
 
-Before marking a feature passing, grep for mock/placeholder data patterns in src/ (excluding test files): `globalThis`, `devStore`, `dev-store`, `mockDb`, `mockData`, `fakeData`, `sampleData`, `dummyData`, `testData`, `TODO.*real`, `TODO.*database`, `STUB`, `MOCK`, `isDevelopment`, `isDev`. Any hits in production code must be investigated and fixed. Also create unique test data (e.g., "TEST_12345"), verify it appears in UI, then delete and confirm removal - unexplained data indicates mock implementations.
+Before marking a story passing, grep for mock/placeholder data patterns in src/ (excluding test files): `globalThis`, `devStore`, `dev-store`, `mockDb`, `mockData`, `fakeData`, `sampleData`, `dummyData`, `testData`, `TODO.*real`, `TODO.*database`, `STUB`, `MOCK`, `isDevelopment`, `isDev`. Any hits in production code must be investigated and fixed. Also create unique test data (e.g., "TEST_12345"), verify it appears in UI, then delete and confirm removal - unexplained data indicates mock implementations.
 
-### STEP 5.7: SERVER RESTART PERSISTENCE TEST (MANDATORY for data features)
+### STEP 5.7: SERVER RESTART PERSISTENCE TEST (MANDATORY for data storys)
 
-For any feature involving CRUD or data persistence: create unique test data (e.g., "RESTART_TEST_12345"), verify it exists, then fully stop and restart the dev server. After restart, verify the test data still exists. If data is gone, the implementation uses in-memory storage -- run STEP 5.6 greps, find the mock pattern, and replace with real database queries. Clean up test data after verification. This test catches in-memory stores like `globalThis.devStore` that pass all other tests but lose data on restart.
+For any story involving CRUD or data persistence: create unique test data (e.g., "RESTART_TEST_12345"), verify it exists, then fully stop and restart the dev server. After restart, verify the test data still exists. If data is gone, the implementation uses in-memory storage -- run STEP 5.6 greps, find the mock pattern, and replace with real database queries. Clean up test data after verification. This test catches in-memory stores like `globalThis.devStore` that pass all other tests but lose data on restart.
 
 ### STEP 6: UPDATE FEATURE STATUS (CAREFULLY!)
 
 **YOU CAN ONLY MODIFY ONE FIELD: "passes"**
 
-After thorough verification, submit the feature for review or mark it passing:
+After thorough verification, submit the story for review or mark it passing:
 
 ```
 # PREFERRED: Submit for review (auto-routes based on project settings)
 # If review is enabled: sends to review agent for independent verification
 # If review is disabled: marks as passing directly (same as feature_mark_passing)
-Use the feature_mark_for_review tool with feature_id=42
+Use the story_mark_for_review tool with feature_id=42
 
 # ALTERNATIVE: Mark directly as passing (bypasses review pipeline)
-Use the feature_mark_passing tool with feature_id=42
+Use the story_mark_passing tool with feature_id=42
 ```
 
 **NEVER:**
 
 - Delete features
-- Edit feature descriptions
-- Modify feature steps
+- Edit story descriptions
+- Modify story acceptance criteria
 - Combine or consolidate features
 - Reorder features
 
@@ -180,14 +180,14 @@ Make a descriptive git commit.
 
 ```bash
 git add .
-git commit -m "Implement [feature name] - verified end-to-end" -m "- Added [specific changes]" -m "- Tested with browser automation" -m "- Marked feature #X as passing"
+git commit -m "Implement [story name] - verified end-to-end" -m "- Added [specific changes]" -m "- Tested with browser automation" -m "- Marked story #X as passing"
 ```
 
 Or use a single descriptive message:
 
 ```bash
 git add .
-git commit -m "feat: implement [feature name] with browser verification"
+git commit -m "feat: implement [story name] with browser verification"
 ```
 
 ### STEP 8: UPDATE PROGRESS NOTES
@@ -246,7 +246,7 @@ Test like a human user with mouse and keyboard. Use `browser_console_messages` t
 
 ## FEATURE TOOL USAGE RULES (CRITICAL - DO NOT VIOLATE)
 
-The feature tools exist to reduce token usage. **DO NOT make exploratory queries.**
+The story tools exist to reduce token usage. **DO NOT make exploratory queries.**
 
 ### ALLOWED Feature Tools (ONLY these):
 
@@ -254,36 +254,36 @@ The feature tools exist to reduce token usage. **DO NOT make exploratory queries
 # 1. Get progress stats (passing/in_progress/total counts)
 feature_get_stats
 
-# 2. Get your assigned feature details
+# 2. Get your assigned story details
 feature_get_by_id with feature_id={your_assigned_id}
 
-# 3. Mark a feature as in-progress
+# 3. Mark a story as in-progress
 feature_mark_in_progress with feature_id={id}
 
 # 4. Submit for review (preferred - auto-routes based on project settings)
 feature_mark_for_review with feature_id={id}
 
-# 5. Mark a feature as passing (after verification, bypasses review)
+# 5. Mark a story as passing (after verification, bypasses review)
 feature_mark_passing with feature_id={id}
 
-# 6. Mark a feature as failing (if you discover it's broken)
+# 6. Mark a story as failing (if you discover it's broken)
 feature_mark_failing with feature_id={id}
 
-# 7. Skip a feature (moves to end of queue) - ONLY when blocked by external dependency
+# 7. Skip a story (moves to end of queue) - ONLY when blocked by external dependency
 feature_skip with feature_id={id}
 
-# 8. Clear in-progress status (when abandoning a feature)
+# 8. Clear in-progress status (when abandoning a story)
 feature_clear_in_progress with feature_id={id}
 ```
 
 ### RULES:
 
-- Do NOT try to fetch lists of all features
+- Do NOT try to fetch lists of all stories
 - Do NOT query features by category
 - Do NOT list all pending features
-- Your feature is pre-assigned by the orchestrator - use `feature_get_by_id` to get details
+- Your story is pre-assigned by the orchestrator - use `feature_get_by_id` to get details
 
-**You do NOT need to see all features.** Work on your assigned feature only.
+**You do NOT need to see all stories.** Work on your assigned story only.
 
 ---
 
@@ -307,7 +307,7 @@ This allows you to fully test email-dependent flows without needing external ema
 
 ---
 
-**Remember:** One feature per session. Zero console errors. All data from real database. Leave codebase clean before ending session.
+**Remember:** One story per session. Zero console errors. All data from real database. Leave codebase clean before ending session.
 
 ---
 

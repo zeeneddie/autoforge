@@ -195,6 +195,58 @@ verdict = review_with_retry(
 **Sprint 1 voortgang na Blok D: 15 van 16 taken DONE (94%).**
 Alleen Blok E (cleanup + UI — taken 1.14-1.16) resterend.
 
+## Sprint 1 Blok E — Cleanup + UI (2026-04-11) — DONE
+
+Laatste blok van Sprint 1 afgerond. Alle 16 sprint-taken zijn nu DONE of partial-DONE met backward compat.
+
+**Task 1.14 Review agent feature flag verwijderen: ✅ DONE**
+- `_is_review_enabled()` is nu gedeprecateerd: default **True** (was False)
+- Alleen expliciete `review_enabled=false` in de registry disable't reviews nog (legacy escape hatch voor operators)
+- `_maintain_review_agents` documenteert dit als escape hatch en loopt standaard door
+- Gevolg: reviews zijn nu standaard aan voor alle projecten, Codex of Claude bepaald via `DEVENGINE_CODEX_REVIEW_ENABLED`
+
+**Task 1.15 UI Goals view: ✅ DONE**
+- Nieuw component `ui/src/components/GoalsView.tsx` (~350 regels)
+  - Filter bar: all / in_progress / pending / done met counts
+  - Search op naam, description of AC tekst
+  - `GoalCard` per story met:
+    - Header (id, status, category badge, name, description)
+    - Verification sequence (hergebruikt `VerificationSequence` component)
+    - Expandable panel: AC lijst met individuele status icons, dependencies, tool-call drilldown
+    - Lazy-loaded tool calls via `fetchFeatureLogs` hook (agent_logs data)
+- `ViewToggle.tsx` uitgebreid met 'goals' mode (Target icon)
+- `App.tsx` render switch includeert `GoalsView` als 2e tab (na Kanban, vóór Graph)
+- Bestanden: `GoalsView.tsx` nieuw, `ViewToggle.tsx` uitgebreid, `App.tsx` integratie
+
+**Task 1.16 UI Verificatie-volgorde: ✅ DONE**
+- Nieuw component `ui/src/components/VerificationSequence.tsx` (~200 regels)
+- Toont 7-staps pipeline: **AC → Codex → Tests → Lint → Mock → Regression → PO**
+- Status per stap afgeleid uit:
+  - AC: `feature.acceptance_criteria` lengte
+  - Codex: `feature.review_status` (approved/rejected/pending_review)
+  - Tests/Lint/Mock: `usePostChecks` hook (WebSocket post_check_update messages)
+  - Regression: heuristiek op `feature.passes` + in_progress
+  - PO: `feature.passes` (final gate)
+- Summary counter: `X/7 passed · Y failed`
+- Hover tooltips per stap met uitleg wat wordt gecontroleerd
+- Geïntegreerd in `FeatureModal.tsx` (tussen status en description block) en `GoalsView.tsx` (per GoalCard)
+
+**Sprint 1 eindstand: 16 van 16 taken afgehandeld.**
+```
+Blok A (DB schema):        ✅ DONE    1.1, 1.2, 1.3, 1.4
+Blok B (API + types):      ✅ DONE    1.5, 1.6, 1.7, 1.8
+Blok C (Codex review):     ✅ DONE    1.9, 1.10, 1.11
+Blok D (traceability):     ✅ DONE    1.12, 1.13
+Blok E (cleanup + UI):     ✅ DONE    1.14, 1.15, 1.16
+```
+
+**Verificatie:**
+- TypeScript compile-check clean voor alle nieuwe components (VerificationSequence, GoalsView, ViewToggle)
+- Python import chain clean: Feature.__tablename__=stories, Orchestrator heeft 5 nieuwe Codex methods, git_commit module + dependency_resolver sizing hints, prompts schoon
+- 47 MCP tools geregistreerd (22 feature_ + 22 story_ + 3 memory)
+- Feature flags default off: `DEVENGINE_CODEX_REVIEW_ENABLED=false`, `DEVENGINE_GIT_COMMIT_ENABLED=false`
+- Legacy review_enabled registry setting: nu default True, alleen expliciete false disable't
+
 ## Prerequisites
 
 - Python 3.11+

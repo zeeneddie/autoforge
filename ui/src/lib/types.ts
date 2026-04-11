@@ -57,8 +57,13 @@ export interface ProjectPrompts {
   coding_prompt: string
 }
 
-// Feature types
-export interface Feature {
+// Sprint 1 Blok B task 1.6 (2026-04-11):
+// Story is now the canonical type. Feature is kept as a deprecated alias
+// so existing components continue to compile. Components should migrate to
+// Story imports over time; eventually Feature aliases will be removed.
+
+// Story types (canonical)
+export interface Story {
   id: number
   priority: number
   category: string
@@ -76,14 +81,14 @@ export interface Feature {
 }
 
 // Status type for graph nodes
-export type FeatureStatus = 'pending' | 'in_progress' | 'done' | 'blocked'
+export type StoryStatus = 'pending' | 'in_progress' | 'done' | 'blocked'
 
 // Graph visualization types
 export interface GraphNode {
   id: number
   name: string
   category: string
-  status: FeatureStatus
+  status: StoryStatus
   priority: number
   dependencies: number[]
 }
@@ -98,13 +103,13 @@ export interface DependencyGraph {
   edges: GraphEdge[]
 }
 
-export interface FeatureListResponse {
-  pending: Feature[]
-  in_progress: Feature[]
-  done: Feature[]
+export interface StoryListResponse {
+  pending: Story[]
+  in_progress: Story[]
+  done: Story[]
 }
 
-export interface FeatureCreate {
+export interface StoryCreate {
   category: string
   name: string
   description: string
@@ -113,7 +118,7 @@ export interface FeatureCreate {
   dependencies?: number[]
 }
 
-export interface FeatureUpdate {
+export interface StoryUpdate {
   category?: string
   name?: string
   description?: string
@@ -121,6 +126,18 @@ export interface FeatureUpdate {
   priority?: number
   dependencies?: number[]
 }
+
+// Deprecated Feature aliases — keep until all components migrate
+// @deprecated Use Story instead
+export type Feature = Story
+// @deprecated Use StoryStatus instead
+export type FeatureStatus = StoryStatus
+// @deprecated Use StoryListResponse instead
+export type FeatureListResponse = StoryListResponse
+// @deprecated Use StoryCreate instead
+export type FeatureCreate = StoryCreate
+// @deprecated Use StoryUpdate instead
+export type FeatureUpdate = StoryUpdate
 
 // Agent types
 export type AgentStatus = 'stopped' | 'running' | 'paused' | 'crashed' | 'loading' | 'finishing'

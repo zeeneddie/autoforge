@@ -352,6 +352,194 @@ def compute_scheduling_scores(features: list[dict]) -> dict[int, float]:
     return scores
 
 
+# ============================================================================
+# Sprint 1 Blok D task 1.13 (2026-04-11): Story planner sizing hints
+# ============================================================================
+#
+# "Sizing hints" help the scheduler and coding agents estimate how much
+# effort a story requires BEFORE starting it. This enables smarter decisions:
+# - Pick small stories when context budget is limited
+# - Batch stories with similar scope to warm up an agent session
+# - Flag oversized stories early for decomposition
+#
+# Two dimensions:
+# 1. **Context radius** — how many files/modules the story is likely to
+#    touch. Derived heuristically from: description length, dependency
+#    count, and explicit hints in the AC list.
+# 2. **Wijziging scope** (change scope) — small / medium / large, based
+#    on acceptance criteria count + description complexity + estimated
+#    file count.
+#
+# These are heuristics, not ground truth. The orchestrator can override
+# via explicit hint fields on the story. When the coding agent finishes
+# we can record the ACTUAL files changed and refine the estimate over time
+# (future: feedback loop to self-calibrate).
+
+
+SizingScope = str  # Literal["small", "medium", "large", "extra_large"]
+
+
+class StorySizingHint(TypedDict):
+    """Sizing hint for a single story (task 1.13)."""
+
+    story_id: int
+    scope: SizingScope  # small / medium / large / extra_large
+    context_radius: int  # Estimated number of files touched
+    context_budget_pct: float  # Estimated % of agent context needed (0-100)
+    complexity_score: int  # 0-100 composite score (higher = harder)
+    reasons: list[str]  # Human-readable reasons for this estimate
+
+
+# Heuristic thresholds — tunable based on observation
+_SCOPE_THRESHOLDS = [
+    # (max_score, scope_label)
+    (20, "small"),
+    (50, "medium"),
+    (80, "large"),
+    (100, "extra_large"),
+]
+
+_CONTEXT_RADIUS_BASE = 2  # Every story touches at least ~2 files on average
+
+
+def estimate_story_size(story: dict) -> StorySizingHint:
+    """Estimate sizing hints for a single story.
+
+    Pure heuristic based on what's available in the story dict:
+    - description length (longer = more scope)
+    - acceptance_criteria count (more AC = more independent checks = bigger)
+    - dependencies count (depending on others often implies cross-cutting)
+    - explicit `scope` or `context_radius` fields if present (override)
+
+    Args:
+        story: Story dict with at least id, description, and optionally
+            acceptance_criteria, dependencies, steps.
+
+    Returns:
+        StorySizingHint with scope, context_radius, complexity_score, reasons.
+    """
+    story_id = story.get("id", 0)
+    reasons: list[str] = []
+    complexity_score = 0
+
+    # Description length signal
+    desc = (story.get("description") or "").strip()
+    desc_len = len(desc)
+    if desc_len < 100:
+        # Very short — either trivial or under-specified
+        complexity_score += 5
+        reasons.append(f"short description ({desc_len} chars)")
+    elif desc_len < 400:
+        complexity_score += 15
+        reasons.append(f"normal description ({desc_len} chars)")
+    elif desc_len < 1000:
+        complexity_score += 30
+        reasons.append(f"long description ({desc_len} chars)")
+    else:
+        complexity_score += 50
+        reasons.append(f"very long description ({desc_len} chars)")
+
+    # Acceptance criteria count — each AC is an independent verification point
+    acs = story.get("acceptance_criteria") or []
+    steps = story.get("steps") or []
+    verification_points = acs if acs else steps
+    ac_count = len(verification_points)
+    if ac_count == 0:
+        complexity_score += 5
+        reasons.append("no AC specified (risky — under-specified)")
+    elif ac_count <= 2:
+        complexity_score += 10
+        reasons.append(f"{ac_count} acceptance criteria")
+    elif ac_count <= 5:
+        complexity_score += 20
+        reasons.append(f"{ac_count} acceptance criteria")
+    else:
+        complexity_score += 35
+        reasons.append(f"{ac_count} acceptance criteria (high — consider split)")
+
+    # Dependency count — cross-cutting stories are typically larger
+    deps = story.get("dependencies") or []
+    dep_count = len(deps)
+    if dep_count > 0:
+        added = min(10 + dep_count * 3, 25)
+        complexity_score += added
+        reasons.append(f"depends on {dep_count} other stories")
+
+    # Category heuristics — some categories tend to touch more code
+    category = (story.get("category") or "").lower()
+    heavy_categories = {"architecture", "infrastructure", "security", "migration", "refactor"}
+    if category in heavy_categories:
+        complexity_score += 10
+        reasons.append(f"category '{category}' typically cross-cutting")
+
+    # Cap at 100
+    complexity_score = min(complexity_score, 100)
+
+    # Map score to scope label
+    scope: str = "small"
+    for threshold, label in _SCOPE_THRESHOLDS:
+        if complexity_score <= threshold:
+            scope = label
+            break
+
+    # Context radius estimate: base + factor of description + deps
+    context_radius = _CONTEXT_RADIUS_BASE
+    context_radius += max(0, (desc_len - 200) // 400)  # +1 file per 400 chars beyond 200
+    context_radius += dep_count  # each dep typically adds one file to understand
+    if ac_count > 3:
+        context_radius += (ac_count - 3) // 2
+    context_radius = max(1, context_radius)
+
+    # Context budget estimate: rough mapping from scope to % of agent context window
+    _scope_budget_map = {
+        "small": 10.0,
+        "medium": 25.0,
+        "large": 50.0,
+        "extra_large": 80.0,
+    }
+    context_budget_pct = _scope_budget_map.get(scope, 25.0)
+
+    # Explicit override if story dict carries hint fields
+    if "scope" in story and story["scope"] in _scope_budget_map:
+        scope = story["scope"]
+        reasons.append(f"explicit scope override: {scope}")
+        context_budget_pct = _scope_budget_map[scope]
+    if "context_radius" in story and isinstance(story["context_radius"], int):
+        context_radius = story["context_radius"]
+        reasons.append(f"explicit context_radius override: {context_radius}")
+
+    return StorySizingHint(
+        story_id=story_id,
+        scope=scope,
+        context_radius=context_radius,
+        context_budget_pct=context_budget_pct,
+        complexity_score=complexity_score,
+        reasons=reasons,
+    )
+
+
+def annotate_stories_with_sizing(stories: list[dict]) -> list[dict]:
+    """Attach a _sizing_hint field to each story dict.
+
+    Non-destructive: copies story dicts with an extra '_sizing_hint' key.
+    The orchestrator can use this to make scheduling decisions, and the
+    API can expose the hint to the UI for per-story display.
+
+    Args:
+        stories: List of story dicts.
+
+    Returns:
+        List of new dicts, each with '_sizing_hint' added.
+    """
+    annotated: list[dict] = []
+    for s in stories:
+        hint = estimate_story_size(s)
+        new = dict(s)
+        new["_sizing_hint"] = hint
+        annotated.append(new)
+    return annotated
+
+
 def get_ready_features(features: list[dict], limit: int = 10) -> list[dict]:
     """Get features that are ready to be worked on.
 
@@ -360,12 +548,18 @@ def get_ready_features(features: list[dict], limit: int = 10) -> list[dict]:
     - It is not in progress
     - All its dependencies are satisfied
 
+    Stories are sorted by scheduling score (primary) and then by size
+    hint (smaller first as tiebreaker), so when two stories have the same
+    unblock/depth score, the smaller one is picked first. This keeps agent
+    context budgets healthier and gives faster feedback cycles.
+
     Args:
         features: List of all feature dicts
         limit: Maximum number of features to return
 
     Returns:
-        List of ready features, sorted by priority
+        List of ready features, sorted by priority. Each result has a
+        '_sizing_hint' field attached (task 1.13).
     """
     passing_ids = {f["id"] for f in features if f.get("passes")}
 
@@ -377,9 +571,25 @@ def get_ready_features(features: list[dict], limit: int = 10) -> list[dict]:
         if all(dep_id in passing_ids for dep_id in deps):
             ready.append(f)
 
-    # Sort by scheduling score (higher = first), then priority, then id
+    # Compute scheduling scores and sizing hints
     scores = compute_scheduling_scores(features)
-    ready.sort(key=lambda f: (-scores.get(f["id"], 0), f.get("priority", 999), f["id"]))
+    ready = annotate_stories_with_sizing(ready)
+
+    # Sort by:
+    # 1. scheduling score (higher = first)
+    # 2. complexity score (lower = first — prefer smaller stories as tiebreaker)
+    # 3. user priority (lower number = first)
+    # 4. id (stable tiebreaker)
+    def sort_key(f: dict) -> tuple:
+        hint = f.get("_sizing_hint") or {}
+        return (
+            -scores.get(f["id"], 0),
+            hint.get("complexity_score", 50),
+            f.get("priority", 999),
+            f["id"],
+        )
+
+    ready.sort(key=sort_key)
 
     return ready[:limit]
 

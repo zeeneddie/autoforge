@@ -52,7 +52,9 @@ def _get_db_classes():
     return _create_database, _Feature
 
 
-router = APIRouter(prefix="/api/projects/{project_name}/features", tags=["features"])
+# Sprint 1 Blok B task 1.5 (2026-04-11): HTTP path renamed /features → /stories.
+# Python module filename is still features.py (internal rename volgt in later pass).
+router = APIRouter(prefix="/api/projects/{project_name}/stories", tags=["stories"])
 
 
 @contextmanager

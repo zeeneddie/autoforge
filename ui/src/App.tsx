@@ -25,6 +25,7 @@ import { DevServerControl } from './components/DevServerControl'
 import { ViewToggle, type ViewMode } from './components/ViewToggle'
 import { DependencyGraph } from './components/DependencyGraph'
 import { AnalyticsDashboard } from './components/AnalyticsDashboard'
+import { GoalsView } from './components/GoalsView'
 import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp'
 import { ThemeSelector } from './components/ThemeSelector'
 import { ResetProjectModal } from './components/ResetProjectModal'
@@ -527,6 +528,18 @@ function App() {
                   const allF = [...(features?.pending ?? []), ...(features?.in_progress ?? []), ...(features?.done ?? [])]
                   const f = allF.find(feat => feat.id === featureId)
                   return f?.passes ?? false
+                }}
+              />
+            ) : viewMode === 'goals' ? (
+              <GoalsView
+                features={features}
+                projectName={selectedProject}
+                onFeatureClick={(feature) => {
+                  if (wsState.getFeatureLogs(feature.id) !== null || feature.passes) {
+                    setDialogueFeatureId(feature.id)
+                  } else {
+                    setSelectedFeature(feature)
+                  }
                 }}
               />
             ) : viewMode === 'graph' ? (

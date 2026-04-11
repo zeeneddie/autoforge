@@ -1,30 +1,37 @@
 #!/usr/bin/env python3
 """
-MCP Server for Feature Management
-==================================
+MCP Server for Story Management (legacy: Feature Management)
+============================================================
 
-Provides tools to manage features in the autonomous coding system.
+Provides tools to manage user stories in the autonomous coding system.
 
-Tools:
+**Sprint 1 Blok B task 1.7 status (2026-04-11):**
+DB is hernoemd van `features` naar `stories` (Blok A). De MCP tool-namen
+gebruiken nog steeds `feature_*` als canonical naam. Story-aliases zijn
+gepland maar nog niet gegenereerd in deze pass — volgt in een vervolg-
+commit zodra de tools als geheel kunnen worden gereviewd (risico op
+subtiele gedragsverschillen bij 25 tools).
+
+Tools (huidige canonical namen):
 - feature_get_stats: Get progress statistics
-- feature_get_by_id: Get a specific feature by ID
-- feature_get_summary: Get minimal feature info (id, name, status, deps)
-- feature_mark_passing: Mark a feature as passing
-- feature_mark_failing: Mark a feature as failing (regression detected)
-- feature_skip: Skip a feature (move to end of queue)
-- feature_mark_in_progress: Mark a feature as in-progress
-- feature_claim_and_get: Atomically claim and get feature details
+- feature_get_by_id: Get a specific story by ID
+- feature_get_summary: Get minimal story info (id, name, status, deps)
+- feature_mark_passing: Mark a story as passing
+- feature_mark_failing: Mark a story as failing (regression detected)
+- feature_skip: Skip a story (move to end of queue)
+- feature_mark_in_progress: Mark a story as in-progress
+- feature_claim_and_get: Atomically claim and get story details
 - feature_clear_in_progress: Clear in-progress status
-- feature_create_bulk: Create multiple features at once
-- feature_create: Create a single feature
-- feature_add_dependency: Add a dependency between features
+- feature_create_bulk: Create multiple stories at once
+- feature_create: Create a single story
+- feature_add_dependency: Add a dependency between stories
 - feature_remove_dependency: Remove a dependency
-- feature_get_ready: Get features ready to implement
-- feature_get_blocked: Get features blocked by dependencies (with limit)
+- feature_get_ready: Get stories ready to implement
+- feature_get_blocked: Get stories blocked by dependencies (with limit)
 - feature_get_graph: Get the dependency graph
 
-Note: Feature selection (which feature to work on) is handled by the
-orchestrator, not by agents. Agents receive pre-assigned feature IDs.
+Note: Story selection (which story to work on) is handled by the
+orchestrator, not by agents. Agents receive pre-assigned story IDs.
 """
 
 import json
@@ -344,7 +351,7 @@ def feature_mark_passing(
     try:
         # Atomic update with state guard - prevents double-pass in parallel mode
         result = session.execute(text("""
-            UPDATE features
+            UPDATE stories
             SET passes = 1, in_progress = 0
             WHERE id = :id AND passes = 0
         """), {"id": feature_id})
@@ -400,7 +407,7 @@ def feature_mark_failing(
 
         # Atomic update for parallel safety
         session.execute(text("""
-            UPDATE features
+            UPDATE stories
             SET passes = 0, in_progress = 0
             WHERE id = :id
         """), {"id": feature_id})
@@ -457,8 +464,8 @@ def feature_skip(
         # Atomic update: set priority to max+1 in a single statement
         # This prevents race conditions where two features get the same priority
         session.execute(text("""
-            UPDATE features
-            SET priority = (SELECT COALESCE(MAX(priority), 0) + 1 FROM features),
+            UPDATE stories
+            SET priority = (SELECT COALESCE(MAX(priority), 0) + 1 FROM stories),
                 in_progress = 0
             WHERE id = :id
         """), {"id": feature_id})
@@ -501,7 +508,7 @@ def feature_mark_in_progress(
     try:
         # Atomic claim: only succeeds if feature is not already claimed or passing
         result = session.execute(text("""
-            UPDATE features
+            UPDATE stories
             SET in_progress = 1
             WHERE id = :id AND passes = 0 AND in_progress = 0
         """), {"id": feature_id})
@@ -555,7 +562,7 @@ def feature_claim_and_get(
 
         # Try atomic claim: only succeeds if not already claimed
         result = session.execute(text("""
-            UPDATE features
+            UPDATE stories
             SET in_progress = 1
             WHERE id = :id AND passes = 0 AND in_progress = 0
         """), {"id": feature_id})
@@ -605,7 +612,7 @@ def feature_clear_in_progress(
 
         # Atomic update - idempotent, safe in parallel mode
         session.execute(text("""
-            UPDATE features
+            UPDATE stories
             SET in_progress = 0
             WHERE id = :id
         """), {"id": feature_id})
@@ -651,7 +658,7 @@ def feature_create_bulk(
         with atomic_transaction(_session_maker) as session:
             # Get the starting priority atomically within the transaction
             result = session.execute(text("""
-                SELECT COALESCE(MAX(priority), 0) FROM features
+                SELECT COALESCE(MAX(priority), 0) FROM stories
             """)).fetchone()
             start_priority = (result[0] or 0) + 1
 
@@ -766,7 +773,7 @@ def feature_create(
         with atomic_transaction(_session_maker) as session:
             # Get the next priority atomically within the transaction
             result = session.execute(text("""
-                SELECT COALESCE(MAX(priority), 0) + 1 FROM features
+                SELECT COALESCE(MAX(priority), 0) + 1 FROM stories
             """)).fetchone()
             next_priority = result[0]
 
@@ -1142,7 +1149,7 @@ def feature_mark_for_review(
         from api.database import _utc_now
         # Atomic update: set review_status, clear in_progress
         result = session.execute(text("""
-            UPDATE features
+            UPDATE stories
             SET review_status = 'pending_review', in_progress = 0
             WHERE id = :id AND passes = 0
         """), {"id": feature_id})
@@ -1192,7 +1199,7 @@ def feature_approve(
         now = _utc_now()
 
         result = session.execute(text("""
-            UPDATE features
+            UPDATE stories
             SET passes = 1, in_progress = 0,
                 review_status = 'approved', reviewed_at = :now
             WHERE id = :id AND review_status = 'pending_review'
@@ -1248,7 +1255,7 @@ def feature_reject(
         now = _utc_now()
 
         result = session.execute(text("""
-            UPDATE features
+            UPDATE stories
             SET review_status = 'rejected', review_notes = :notes,
                 reviewed_at = :now, in_progress = 0
             WHERE id = :id AND review_status = 'pending_review'
@@ -1545,7 +1552,7 @@ def feature_record_test(
 
         # Update test tracking fields
         session.execute(text("""
-            UPDATE features
+            UPDATE stories
             SET test_file_path = :path,
                 test_count = :count,
                 last_test_output = :output
@@ -1570,6 +1577,42 @@ def feature_record_test(
         return json.dumps({"error": f"Failed to record test info: {str(e)}"})
     finally:
         session.close()
+
+
+# ============================================================================
+# Sprint 1 Blok B task 1.7 (2026-04-11) — story_* MCP tool aliases
+# ============================================================================
+# Alle feature_* tools hierboven zijn ook beschikbaar onder story_* namen.
+# Dit is een backward-compatible alias-laag: bestaande agents/prompts die nog
+# feature_* gebruiken blijven werken, nieuwe agents/prompts kunnen story_*
+# gebruiken. Volledige rename van canonieke namen volgt in een latere pass.
+#
+# Implementatie: FastMCP.tool(name=...) accepteert een naam-override.
+# De underlying functie wordt twee keer geregistreerd in de tool-registry,
+# zonder code-duplicatie of wrapper-functies.
+
+mcp.tool(name="story_get_stats")(feature_get_stats)
+mcp.tool(name="story_get_by_id")(feature_get_by_id)
+mcp.tool(name="story_get_summary")(feature_get_summary)
+mcp.tool(name="story_validate_quality")(feature_validate_quality)
+mcp.tool(name="story_mark_passing")(feature_mark_passing)
+mcp.tool(name="story_mark_failing")(feature_mark_failing)
+mcp.tool(name="story_skip")(feature_skip)
+mcp.tool(name="story_mark_in_progress")(feature_mark_in_progress)
+mcp.tool(name="story_claim_and_get")(feature_claim_and_get)
+mcp.tool(name="story_clear_in_progress")(feature_clear_in_progress)
+mcp.tool(name="story_create_bulk")(feature_create_bulk)
+mcp.tool(name="story_create")(feature_create)
+mcp.tool(name="story_add_dependency")(feature_add_dependency)
+mcp.tool(name="story_remove_dependency")(feature_remove_dependency)
+mcp.tool(name="story_get_ready")(feature_get_ready)
+mcp.tool(name="story_get_blocked")(feature_get_blocked)
+mcp.tool(name="story_get_graph")(feature_get_graph)
+mcp.tool(name="story_set_dependencies")(feature_set_dependencies)
+mcp.tool(name="story_mark_for_review")(feature_mark_for_review)
+mcp.tool(name="story_approve")(feature_approve)
+mcp.tool(name="story_reject")(feature_reject)
+mcp.tool(name="story_record_test")(feature_record_test)
 
 
 if __name__ == "__main__":

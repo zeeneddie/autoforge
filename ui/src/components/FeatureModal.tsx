@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, CheckCircle2, Circle, SkipForward, Trash2, Loader2, AlertCircle, Pencil, Link2, AlertTriangle } from 'lucide-react'
 import { useSkipFeature, useDeleteFeature, useFeatures } from '../hooks/useProjects'
 import { EditFeatureForm } from './EditFeatureForm'
+import { VerificationSequence } from './VerificationSequence'
 import type { Feature } from '../lib/types'
 import {
   Dialog,
@@ -150,6 +151,11 @@ export function FeatureModal({ feature, projectName, onClose }: FeatureModalProp
             <span className="ml-auto font-mono text-sm text-muted-foreground">
               Priority: #{feature.priority}
             </span>
+          </div>
+
+          {/* Verification sequence (Sprint 1 Blok E task 1.16) */}
+          <div className="p-4 bg-muted rounded-lg">
+            <VerificationSequence story={feature} />
           </div>
 
           {/* Description */}

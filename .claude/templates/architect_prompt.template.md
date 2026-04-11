@@ -169,7 +169,7 @@ memory_recall
 - Use descriptive keys that future agents can search for
 - Keep values under 500 characters - be concise
 - Category MUST be "architecture", "spec_constraint", or "pattern"
-- Do NOT use feature tools - you have no access to them
+- Do NOT use story (legacy: feature_*) tools - you have no access to them
 
 ---
 

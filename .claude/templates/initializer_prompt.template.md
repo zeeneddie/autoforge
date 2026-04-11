@@ -13,24 +13,24 @@ before proceeding.
 
 ## REQUIRED FEATURE COUNT
 
-**CRITICAL:** You must create exactly **[FEATURE_COUNT]** features using the `feature_create_bulk` tool.
+**CRITICAL:** You must create exactly **[FEATURE_COUNT]** stories using the `feature_create_bulk` tool.
 
-This number was determined during spec creation and must be followed precisely. Do not create more or fewer features than specified.
+This number was determined during spec creation and must be followed precisely. Do not create more or fewer stories than specified.
 
 ---
 
 ### CRITICAL FIRST TASK: Create Features
 
-Based on `app_spec.txt`, create features using the feature_create_bulk tool. The features are stored in a SQLite database,
+Based on `app_spec.txt`, create stories using the feature_create_bulk tool. The stories are stored in a SQLite database,
 which is the single source of truth for what needs to be built.
 
 **Creating Features:**
 
-Use the feature_create_bulk tool to add all features at once. You can create features in batches if there are many (e.g., 50 at a time).
+Use the feature_create_bulk tool to add all stories at once. You can create stories in batches if there are many (e.g., 50 at a time).
 
 **Notes:**
 - IDs and priorities are assigned automatically based on order
-- All features start with `passes: false` by default
+- All stories start with `passes: false` by default
 
 **Requirements for features:**
 
@@ -42,17 +42,17 @@ Use the feature_create_bulk tool to add all features at once. You can create fea
 - Both "functional" and "style" categories
 - Mix of narrow tests (2-5 steps) and comprehensive tests (10+ steps)
 - At least 25 tests MUST have 10+ steps each (more for complex apps)
-- Order features by priority: fundamental features first (the API assigns priority based on order)
-- Cover every feature in the spec exhaustively
+- Order stories by priority: fundamental stories first (the API assigns priority based on order)
+- Cover every story in the spec exhaustively
 - **MUST include tests from ALL 20 mandatory categories below**
 
 ---
 
 ## FEATURE DEPENDENCIES (MANDATORY)
 
-Dependencies enable **parallel execution** of independent features. When specified correctly, multiple agents can work on unrelated features simultaneously, dramatically speeding up development.
+Dependencies enable **parallel execution** of independent features. When specified correctly, multiple agents can work on unrelated stories simultaneously, dramatically speeding up development.
 
-**Why this matters:** Without dependencies, features execute in random order, causing logical issues (e.g., "Edit user" before "Create user") and preventing efficient parallelization.
+**Why this matters:** Without dependencies, stories execute in random order, causing logical issues (e.g., "Edit user" before "Create user") and preventing efficient parallelization.
 
 ### Dependency Rules
 
@@ -60,9 +60,9 @@ Dependencies enable **parallel execution** of independent features. When specifi
 2. **Can only depend on EARLIER features** (index must be less than current position)
 3. **No circular dependencies** allowed
 4. **Maximum 20 dependencies** per feature
-5. **Infrastructure features (indices 0-4)** have NO dependencies - they run FIRST
-6. **ALL features after index 4** MUST depend on `[0, 1, 2, 3, 4]` (infrastructure)
-7. **60% of features after index 10** should have additional dependencies beyond infrastructure
+5. **Infrastructure stories (indices 0-4)** have NO dependencies - they run FIRST
+6. **ALL stories after index 4** MUST depend on `[0, 1, 2, 3, 4]` (infrastructure)
+7. **60% of stories after index 10** should have additional dependencies beyond infrastructure
 
 ### Dependency Types
 
@@ -76,7 +76,7 @@ Dependencies enable **parallel execution** of independent features. When specifi
 ### Wide Graph Pattern (REQUIRED)
 
 Create WIDE dependency graphs, not linear chains:
-- **BAD:** A -> B -> C -> D -> E (linear chain, only 1 feature runs at a time)
+- **BAD:** A -> B -> C -> D -> E (linear chain, only 1 story runs at a time)
 - **GOOD:** A -> B, A -> C, A -> D, B -> E, C -> E (wide graph, parallel execution)
 
 ### Complete Example
@@ -118,7 +118,7 @@ Create WIDE dependency graphs, not linear chains:
 
 ## MANDATORY INFRASTRUCTURE FEATURES (Indices 0-4)
 
-**CRITICAL:** Create these FIRST, before any functional features. These features ensure the application uses a real database, not mock data or in-memory storage.
+**CRITICAL:** Create these FIRST, before any functional features. These stories ensure the application uses a real database, not mock data or in-memory storage.
 
 | Index | Name | Test Steps |
 |-------|------|------------|
@@ -128,7 +128,7 @@ Create WIDE dependency graphs, not linear chains:
 | 3 | No mock data patterns in codebase | Run grep for prohibited patterns → must return empty |
 | 4 | Backend API queries real database | Check server logs → SQL/DB queries appear for API calls |
 
-**ALL other features MUST depend on indices [0, 1, 2, 3, 4].**
+**ALL other stories MUST depend on indices [0, 1, 2, 3, 4].**
 
 ### Infrastructure Feature Descriptions
 
@@ -228,7 +228,7 @@ The feature_list.json **MUST** include tests from ALL 20 categories. Minimum cou
 
 ### Category Descriptions
 
-**0. Infrastructure (REQUIRED - Priority 0)** - Database connectivity, schema existence, data persistence across server restart, absence of mock patterns. These features MUST pass before any functional features can begin. All tiers require exactly 5 infrastructure features (indices 0-4).
+**0. Infrastructure (REQUIRED - Priority 0)** - Database connectivity, schema existence, data persistence across server restart, absence of mock patterns. These stories MUST pass before any functional stories can begin. All tiers require exactly 5 infrastructure stories (indices 0-4).
 
 **A. Security & Access Control** - Test unauthorized access blocking, permission enforcement, session management, role-based access, and data isolation between users.
 
@@ -284,7 +284,7 @@ The feature_list.json must include tests that **actively verify real data** and 
 4. Delete data - verify it's gone
 5. If data appears that wasn't created during test - FLAG AS MOCK DATA
 
-**The agent implementing features MUST NOT use:**
+**The agent implementing stories MUST NOT use:**
 
 - Hardcoded arrays of fake data
 - `mockData`, `fakeData`, `sampleData`, `dummyData` variables
@@ -300,7 +300,7 @@ The feature_list.json must include tests that **actively verify real data** and 
 - `Map()` or `Set()` used as primary data store
 - Environment checks like `if (process.env.NODE_ENV === 'development')` for data routing
 
-**Why this matters:** In-memory stores (like `globalThis.devStore`) will pass simple tests because data persists during a single server run. But data is LOST on server restart, which is unacceptable for production. The Infrastructure features (0-4) specifically test for this by requiring data to survive a full server restart.
+**Why this matters:** In-memory stores (like `globalThis.devStore`) will pass simple tests because data persists during a single server run. But data is LOST on server restart, which is unacceptable for production. The Infrastructure stories (0-4) specifically test for this by requiring data to survive a full server restart.
 
 ---
 
@@ -331,7 +331,7 @@ Create a git repository and make your first commit with:
 
 Note: Features are stored in the SQLite database (features.db), not in a JSON file.
 
-Commit message: "Initial setup: init.sh, project structure, and features created via API"
+Commit message: "Initial setup: init.sh, project structure, and stories created via API"
 
 ### FOURTH TASK: Create Project Structure
 
@@ -372,7 +372,7 @@ This gives coding agents immediate context instead of re-reading the full spec.
 Once you have completed the five tasks above:
 
 1. Commit all work with a descriptive message
-2. Verify features were created using the feature_get_stats tool
+2. Verify stories were created using the feature_get_stats tool
 3. Verify memories were stored using memory_recall
 4. Leave the environment in a clean, working state
 5. Exit cleanly

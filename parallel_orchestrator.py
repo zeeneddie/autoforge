@@ -229,6 +229,11 @@ class ParallelOrchestrator:
         self.running_testing_agents: dict[int, tuple[int, subprocess.Popen, list[int], datetime]] = {}
         # Review agents: pid -> (feature_id, process, start_time)
         self.running_review_agents: dict[int, tuple[int, subprocess.Popen, datetime]] = {}
+        # Codex review threads: feature_id -> (thread, start_time)
+        # Sprint 1 Blok C task 1.9: Codex-based independent review (alternative to Claude reviewer).
+        # When DEVENGINE_CODEX_REVIEW_ENABLED=true, _maintain_review_agents uses Codex threads
+        # instead of Claude review subprocesses. See api/codex_review.py for the review logic.
+        self.running_codex_reviews: dict[int, tuple[threading.Thread, datetime]] = {}
         # Legacy alias for backward compatibility
         self.running_agents = self.running_coding_agents
         self.abort_events: dict[int, threading.Event] = {}
@@ -414,15 +419,29 @@ class ParallelOrchestrator:
     def _is_review_enabled(self) -> bool:
         """Check if review agents are enabled.
 
-        Reads the review_enabled setting from the global registry settings.
-        Defaults to False (review disabled).
+        **Sprint 1 Blok E task 1.14 (2026-04-11):** This flag is DEPRECATED.
+        Reviews now always run when stories are in `pending_review` state.
+        The reviewer type (Codex vs Claude) is controlled separately via
+        `DEVENGINE_CODEX_REVIEW_ENABLED` — see `_is_codex_review_enabled`.
+
+        This method is kept for backward compatibility so legacy callers
+        (e.g. `get_status`) still return a value, but the core review loop
+        no longer gates on it. Default is now **True** (was False) to
+        reflect that reviews are always active.
+
+        The legacy `review_enabled` registry setting is still read for
+        operators who explicitly want to disable reviews (e.g. during
+        debugging), but an empty/missing setting now defaults to enabled.
         """
         try:
             from registry import get_setting
             value = get_setting("review_enabled")
-            return value is not None and value.lower() == "true"
+            if value is None:
+                return True  # default: reviews always run
+            # Explicit "false" still disables (legacy opt-out)
+            return value.lower() != "false"
         except Exception:
-            return False
+            return True  # safe default — reviews on
 
     def _is_routing_enabled(self) -> bool:
         """Check if hybrid LLM routing is enabled.
@@ -489,7 +508,8 @@ class ParallelOrchestrator:
         """Get features with review_status='pending_review' that need review.
 
         Returns a list of feature dicts ready for review agent assignment.
-        Excludes features already being reviewed by a running review agent.
+        Excludes features already being reviewed by a running review agent
+        (either Claude subprocess or Codex thread — Sprint 1 Blok C).
         """
         session = self.get_session()
         try:
@@ -499,9 +519,10 @@ class ParallelOrchestrator:
                 .filter(Feature.review_status == "pending_review")
                 .all()
             )
-            # Exclude features already assigned to a running review agent
+            # Exclude features already assigned to a running reviewer (either kind)
             with self._lock:
                 reviewing_feature_ids = {fid for fid, _, _ in self.running_review_agents.values()}
+                reviewing_feature_ids.update(self.running_codex_reviews.keys())
             return [
                 f.to_dict() for f in features
                 if f.id not in reviewing_feature_ids
@@ -509,19 +530,233 @@ class ParallelOrchestrator:
         finally:
             session.close()
 
+    # ========================================================================
+    # Sprint 1 Blok C (2026-04-11): Codex review orchestrator integration
+    # ========================================================================
+
+    def _is_codex_review_enabled(self) -> bool:
+        """Check if Codex review is enabled via env var (Sprint 1 Blok C task 1.9).
+
+        When true, _maintain_review_agents uses Codex threads instead of Claude
+        review subprocesses. Default off → existing Claude review behavior.
+        """
+        from api.codex_review import is_codex_review_enabled
+        return is_codex_review_enabled()
+
+    def _get_review_diff(self) -> str:
+        """Fetch the diff to review.
+
+        Strategy:
+        1. If DEVENGINE_GIT_COMMIT_ENABLED is on, the coding agent's work is
+           in the last commit → use `git show HEAD`.
+        2. Else, the coding agent may have left changes uncommitted in the
+           working tree → use `git diff` (working tree vs HEAD).
+        3. If neither yields anything, return a placeholder so Codex can
+           still decide (typically → REJECTED with "no changes detected").
+        """
+        try:
+            # Try working tree diff first (agent may not have committed)
+            result = subprocess.run(
+                ["git", "diff", "HEAD"],
+                cwd=str(self.project_dir),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout
+
+            # Fall back to last commit
+            result = subprocess.run(
+                ["git", "show", "HEAD", "--format=format:"],
+                cwd=str(self.project_dir),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout
+
+            return "(no diff found — working tree clean and no recent commits)"
+        except Exception as e:
+            debug_log.log("CODEX_REVIEW", f"Failed to fetch diff: {e}")
+            return f"(error fetching diff: {e})"
+
+    def _update_review_status_in_db(
+        self,
+        feature_id: int,
+        status: str,
+        notes: str,
+    ) -> None:
+        """Update a story's review_status and review_notes in the database.
+
+        Called by Codex review thread after verdict is determined. Safe to
+        call from a background thread — uses its own session.
+
+        Args:
+            feature_id: The story ID to update.
+            status: One of "approved", "rejected", "pending_review".
+                For escalate/error, we use "pending_review" and put the
+                reason in notes so a human can triage.
+            notes: Review notes / reason / error message.
+        """
+        # Map Codex verdict statuses to DB review_status values
+        db_status_map = {
+            "approved": "approved",
+            "rejected": "rejected",
+            "escalate": "pending_review",  # keep pending so human can triage
+            "error": "pending_review",
+        }
+        db_status = db_status_map.get(status, "pending_review")
+
+        session = self.get_session()
+        try:
+            feature = session.query(Feature).filter(Feature.id == feature_id).first()
+            if feature is None:
+                debug_log.log("CODEX_REVIEW", f"Feature #{feature_id} not found when updating review")
+                return
+            feature.review_status = db_status
+            feature.review_notes = notes[:5000] if notes else None  # truncate for DB
+            feature.reviewed_at = datetime.now(timezone.utc)
+
+            # If approved, also mark as passing so the story is done
+            if db_status == "approved":
+                feature.passes = True
+                feature.in_progress = False
+
+            session.commit()
+            debug_log.log("CODEX_REVIEW",
+                f"Feature #{feature_id} review_status -> {db_status}",
+                approved=(db_status == "approved"))
+        except Exception as e:
+            session.rollback()
+            debug_log.log("CODEX_REVIEW", f"DB update failed for feature #{feature_id}: {e}")
+        finally:
+            session.close()
+
+    def _run_codex_review_sync(self, feature_id: int) -> None:
+        """Thread body: run Codex review synchronously and persist verdict.
+
+        Called from a background daemon thread spawned by _spawn_codex_review.
+        Removes itself from running_codex_reviews when done.
+        """
+        try:
+            from api.codex_review import review_with_retry
+
+            # Fetch story data from DB
+            session = self.get_session()
+            try:
+                feature = session.query(Feature).filter(Feature.id == feature_id).first()
+                if feature is None:
+                    debug_log.log("CODEX_REVIEW", f"Feature #{feature_id} not found at review start")
+                    return
+                story_name = feature.name or f"Story {feature_id}"
+                story_desc = feature.description or ""
+                acs = feature.acceptance_criteria if isinstance(feature.acceptance_criteria, list) else []
+            finally:
+                session.close()
+
+            # Diff fetcher: called on each retry attempt
+            def diff_fn():
+                return self._get_review_diff()
+
+            print(f"Feature #{feature_id} Codex review starting", flush=True)
+            debug_log.log("CODEX_REVIEW", f"Starting Codex review for feature #{feature_id}")
+
+            verdict = review_with_retry(
+                story_id=feature_id,
+                story_name=story_name,
+                story_description=story_desc,
+                acceptance_criteria=acs,
+                diff_fn=diff_fn,
+                project_dir=self.project_dir,
+                max_retries=1,  # 1 review attempt; no coding retry loop here yet
+            )
+
+            # Persist verdict
+            self._update_review_status_in_db(
+                feature_id=feature_id,
+                status=verdict.status,
+                notes=verdict.notes,
+            )
+
+            print(f"Feature #{feature_id} Codex review: {verdict.status} ({verdict.duration_seconds:.1f}s)", flush=True)
+        except Exception as e:
+            debug_log.log("CODEX_REVIEW", f"Codex review thread crashed for feature #{feature_id}: {e}")
+        finally:
+            # Always remove from tracking dict, even on exception
+            with self._lock:
+                self.running_codex_reviews.pop(feature_id, None)
+            self._signal_agent_completed()
+
+    def _spawn_codex_review(self, feature_id: int) -> tuple[bool, str]:
+        """Spawn a Codex review thread for a specific feature (Sprint 1 Blok C task 1.9).
+
+        Runs asynchronously in a daemon thread. Tracked in running_codex_reviews
+        keyed by feature_id (not PID since it's a thread, not a subprocess).
+
+        Args:
+            feature_id: The feature ID to review with Codex.
+
+        Returns:
+            Tuple of (success, message).
+        """
+        with self._lock:
+            if feature_id in self.running_codex_reviews:
+                return False, f"Feature #{feature_id} already being reviewed by Codex"
+
+            total_agents = (
+                len(self.running_coding_agents)
+                + len(self.running_testing_agents)
+                + len(self.running_review_agents)
+                + len(self.running_codex_reviews)
+            )
+            if total_agents >= MAX_TOTAL_AGENTS:
+                return False, f"At max total agents ({total_agents}/{MAX_TOTAL_AGENTS})"
+
+            try:
+                thread = threading.Thread(
+                    target=self._run_codex_review_sync,
+                    args=(feature_id,),
+                    daemon=True,
+                    name=f"codex-review-{feature_id}",
+                )
+                start_time = datetime.now(timezone.utc)
+                self.running_codex_reviews[feature_id] = (thread, start_time)
+                thread.start()
+            except Exception as e:
+                debug_log.log("CODEX_REVIEW", f"FAILED to spawn Codex review thread: {e}")
+                return False, f"Failed to start Codex review thread: {e}"
+
+        debug_log.log("CODEX_REVIEW", f"Spawned Codex review thread for feature #{feature_id}")
+        return True, f"Codex review started for feature #{feature_id}"
+
     def _maintain_review_agents(self) -> None:
         """Maintain review agents for features pending review.
 
         Spawns review agents for features that have review_status='pending_review'.
-        Only active when review_enabled is True in project settings.
         Each feature gets at most one review agent.
+
+        **Sprint 1 Blok E task 1.14 (2026-04-11):** Reviews now always run
+        by default. The legacy `review_enabled` registry setting is only
+        checked as an explicit opt-out (set to "false" to disable) — see
+        `_is_review_enabled` for backward compat semantics. Operators who
+        previously had `review_enabled` unset will now see reviews run.
+
+        Sprint 1 Blok C (2026-04-11): when DEVENGINE_CODEX_REVIEW_ENABLED=true,
+        uses Codex threads instead of Claude review subprocesses. Fallback
+        to Claude if Codex is disabled.
         """
+        # Legacy escape hatch: operators can still set review_enabled=false
+        # to disable reviews entirely (e.g. for debugging a runaway reviewer).
         if not self._is_review_enabled():
             return
 
         pending = self._get_pending_review_features()
         if not pending:
             return
+
+        use_codex = self._is_codex_review_enabled()
 
         for feature_dict in pending:
             # Check total agent limit
@@ -530,14 +765,19 @@ class ParallelOrchestrator:
                     len(self.running_coding_agents)
                     + len(self.running_testing_agents)
                     + len(self.running_review_agents)
+                    + len(self.running_codex_reviews)
                 )
                 if total_agents >= MAX_TOTAL_AGENTS:
                     debug_log.log("REVIEW", "At max total agents, skipping review spawn")
                     return
 
             feature_id = feature_dict["id"]
-            debug_log.log("REVIEW", f"Spawning review agent for feature #{feature_id}")
-            success, msg = self._spawn_review_agent(feature_id)
+            if use_codex:
+                debug_log.log("REVIEW", f"Spawning Codex review for feature #{feature_id}")
+                success, msg = self._spawn_codex_review(feature_id)
+            else:
+                debug_log.log("REVIEW", f"Spawning Claude review agent for feature #{feature_id}")
+                success, msg = self._spawn_review_agent(feature_id)
             if not success:
                 debug_log.log("REVIEW", f"Review spawn failed: {msg}")
 
@@ -1889,6 +2129,7 @@ class ParallelOrchestrator:
 
         # Refresh session cache to see subprocess commits
         session = self.get_session()
+        passed_features_for_git: list[tuple[int, str, str, list[str]]] = []
         try:
             session.expire_all()
             for fid in all_feature_ids:
@@ -1902,8 +2143,51 @@ class ParallelOrchestrator:
                     feature.in_progress = False
                     session.commit()
                     debug_log.log("DB", f"Cleared in_progress for feature #{fid} (agent failed)")
+
+                # Sprint 1 Blok D task 1.12: collect stories that just transitioned
+                # to passing so we can create a deterministic git commit per story.
+                # We collect inside the session (while feature is loaded) and commit
+                # after closing it, so git operations don't block DB.
+                if feature and feature.passes:
+                    acs = feature.acceptance_criteria if isinstance(feature.acceptance_criteria, list) else []
+                    passed_features_for_git.append((
+                        feature.id,
+                        feature.name or f"Story {feature.id}",
+                        feature.description or "",
+                        acs,
+                    ))
         finally:
             session.close()
+
+        # Sprint 1 Blok D task 1.12: deterministic git commit per passing story.
+        # Feature-flagged via DEVENGINE_GIT_COMMIT_ENABLED env var (default off).
+        # No-op when flag is off, so existing behavior is unchanged.
+        if passed_features_for_git:
+            try:
+                from api.git_commit import commit_story_if_enabled
+                for story_id, story_name, story_desc, story_acs in passed_features_for_git:
+                    result = commit_story_if_enabled(
+                        project_dir=self.project_dir,
+                        story_id=story_id,
+                        story_name=story_name,
+                        story_description=story_desc,
+                        acceptance_criteria=story_acs,
+                    )
+                    if result.committed:
+                        print(f"Story #{story_id} git commit: {result.commit_hash[:12]} ({result.files_changed} files)", flush=True)
+                        debug_log.log("GIT_COMMIT", f"Story #{story_id} committed",
+                            hash=result.commit_hash,
+                            files_changed=result.files_changed)
+                    elif result.error:
+                        print(f"Story #{story_id} git commit FAILED: {result.error}", flush=True)
+                        debug_log.log("GIT_COMMIT", f"Story #{story_id} commit failed",
+                            error=result.error)
+                    elif result.skipped_reason:
+                        debug_log.log("GIT_COMMIT", f"Story #{story_id} commit skipped",
+                            reason=result.skipped_reason)
+            except Exception as e:
+                # Never let a git commit failure block the orchestrator
+                debug_log.log("GIT_COMMIT", f"Unexpected exception in commit hook: {e}")
 
         # DB updates are done -- remove from the completing set so these IDs
         # are no longer shielded from get_resumable_features / get_ready_features.
@@ -2056,9 +2340,12 @@ class ParallelOrchestrator:
 
         # Clear dicts so get_status() doesn't report stale agents while
         # _on_agent_complete callbacks are still in flight.
+        # Codex review threads are daemon threads — they die with the process
+        # on shutdown; we just clear our tracking dict.
         with self._lock:
             self.running_testing_agents.clear()
             self.running_review_agents.clear()
+            self.running_codex_reviews.clear()
 
     async def run_loop(self):
         """Main orchestration loop."""
@@ -2347,6 +2634,7 @@ class ParallelOrchestrator:
                 "coding_agent_count": len(self.running_coding_agents),
                 "testing_agent_count": len(self.running_testing_agents),
                 "review_agent_count": len(self.running_review_agents),
+                "codex_review_count": len(self.running_codex_reviews),
                 "count": len(self.running_coding_agents),  # Legacy compatibility
                 "max_concurrency": self.max_concurrency,
                 "testing_agent_ratio": self.testing_agent_ratio,

@@ -145,28 +145,28 @@ export async function resetProject(
 // ============================================================================
 
 export async function listFeatures(projectName: string): Promise<FeatureListResponse> {
-  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/features`)
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/stories`)
 }
 
 export async function createFeature(projectName: string, feature: FeatureCreate): Promise<Feature> {
-  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/features`, {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/stories`, {
     method: 'POST',
     body: JSON.stringify(feature),
   })
 }
 
 export async function getFeature(projectName: string, featureId: number): Promise<Feature> {
-  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/features/${featureId}`)
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/stories/${featureId}`)
 }
 
 export async function deleteFeature(projectName: string, featureId: number): Promise<void> {
-  await fetchJSON(`/projects/${encodeURIComponent(projectName)}/features/${featureId}`, {
+  await fetchJSON(`/projects/${encodeURIComponent(projectName)}/stories/${featureId}`, {
     method: 'DELETE',
   })
 }
 
 export async function skipFeature(projectName: string, featureId: number): Promise<void> {
-  await fetchJSON(`/projects/${encodeURIComponent(projectName)}/features/${featureId}/skip`, {
+  await fetchJSON(`/projects/${encodeURIComponent(projectName)}/stories/${featureId}/skip`, {
     method: 'PATCH',
   })
 }
@@ -176,7 +176,7 @@ export async function updateFeature(
   featureId: number,
   update: FeatureUpdate
 ): Promise<Feature> {
-  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/features/${featureId}`, {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/stories/${featureId}`, {
     method: 'PATCH',
     body: JSON.stringify(update),
   })
@@ -186,7 +186,7 @@ export async function createFeaturesBulk(
   projectName: string,
   bulk: FeatureBulkCreate
 ): Promise<FeatureBulkCreateResponse> {
-  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/features/bulk`, {
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/stories/bulk`, {
     method: 'POST',
     body: JSON.stringify(bulk),
   })
@@ -226,7 +226,7 @@ export async function fetchFeatureLogs(
   featureId: number
 ): Promise<AgentLogsListResponse> {
   return fetchJSON(
-    `/projects/${encodeURIComponent(projectName)}/features/${featureId}/logs`
+    `/projects/${encodeURIComponent(projectName)}/stories/${featureId}/logs`
   )
 }
 
@@ -235,7 +235,7 @@ export async function fetchFeatureLogs(
 // ============================================================================
 
 export async function getDependencyGraph(projectName: string): Promise<DependencyGraph> {
-  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/features/graph`)
+  return fetchJSON(`/projects/${encodeURIComponent(projectName)}/stories/graph`)
 }
 
 export async function addDependency(
@@ -244,7 +244,7 @@ export async function addDependency(
   dependencyId: number
 ): Promise<{ success: boolean; feature_id: number; dependencies: number[] }> {
   return fetchJSON(
-    `/projects/${encodeURIComponent(projectName)}/features/${featureId}/dependencies/${dependencyId}`,
+    `/projects/${encodeURIComponent(projectName)}/stories/${featureId}/dependencies/${dependencyId}`,
     { method: 'POST' }
   )
 }
@@ -255,7 +255,7 @@ export async function removeDependency(
   dependencyId: number
 ): Promise<{ success: boolean; feature_id: number; dependencies: number[] }> {
   return fetchJSON(
-    `/projects/${encodeURIComponent(projectName)}/features/${featureId}/dependencies/${dependencyId}`,
+    `/projects/${encodeURIComponent(projectName)}/stories/${featureId}/dependencies/${dependencyId}`,
     { method: 'DELETE' }
   )
 }
@@ -266,7 +266,7 @@ export async function setDependencies(
   dependencyIds: number[]
 ): Promise<{ success: boolean; feature_id: number; dependencies: number[] }> {
   return fetchJSON(
-    `/projects/${encodeURIComponent(projectName)}/features/${featureId}/dependencies`,
+    `/projects/${encodeURIComponent(projectName)}/stories/${featureId}/dependencies`,
     {
       method: 'PUT',
       body: JSON.stringify({ dependency_ids: dependencyIds }),
